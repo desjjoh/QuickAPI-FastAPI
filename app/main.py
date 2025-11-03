@@ -148,3 +148,14 @@ async def root() -> dict[str, str]:
             JSON object containing a simple greeting.
     """
     return {"message": "Hello from FastAPI!"}
+
+import signal
+
+import signal
+
+def handle_signal(signum, frame):
+    from signal import Signals
+    log.info(f"Received {Signals(signum).name}, beginning graceful shutdown", service=settings.app_name)
+
+signal.signal(signal.SIGTERM, handle_signal)
+signal.signal(signal.SIGQUIT, handle_signal)
