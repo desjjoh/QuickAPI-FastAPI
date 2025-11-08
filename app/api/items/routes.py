@@ -1,17 +1,3 @@
-"""
-api/items/routes.py
--------------
-Item management API routes for the QuickAPI FastAPI service.
-
-Implements full CRUD operations for items stored in the SQLite database.
-Routes are fully validated via Pydantic schemas and enforce type safety through `.from_orm()`.
-
-Design principles:
-- Fail-fast validation on all ORM data.
-- Observability through contextual logging.
-- Graceful handling of missing or invalid resources.
-"""
-
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -23,21 +9,12 @@ from app.api.items.models.schemas import ItemIn, ItemOut
 from app.core.logging import log
 from app.services.db import get_session
 
+
 router = APIRouter(prefix="/items", tags=["Items"])
 
 
 @router.post("/", response_model=ItemOut, status_code=status.HTTP_201_CREATED)
 async def create_item(payload: ItemIn, db: AsyncSession = Depends(get_session)) -> ItemOut:
-    """
-    Create a new item and persist it to the database.
-
-    Args:
-        payload (ItemIn): Validated input schema containing item data.
-        db (AsyncSession): SQLAlchemy async session dependency.
-
-    Returns:
-        ItemOut: The newly created item record.
-    """
     try:
         item = ItemORM(name=payload.name, price=payload.price)
         db.add(item)
@@ -55,15 +32,6 @@ async def create_item(payload: ItemIn, db: AsyncSession = Depends(get_session)) 
 
 @router.get("/", response_model=List[ItemOut])
 async def list_items(db: AsyncSession = Depends(get_session)) -> List[ItemOut]:
-    """
-    Retrieve all items from the database.
-
-    Args:
-        db (AsyncSession): SQLAlchemy async session dependency.
-
-    Returns:
-        List[ItemOut]: All item records currently stored.
-    """
     try:
         res = await db.execute(select(ItemORM).order_by(ItemORM.id))
         items = res.scalars().all()
@@ -76,19 +44,6 @@ async def list_items(db: AsyncSession = Depends(get_session)) -> List[ItemOut]:
 
 @router.get("/{item_id}", response_model=ItemOut)
 async def get_item(item_id: int, db: AsyncSession = Depends(get_session)) -> ItemOut:
-    """
-    Retrieve a single item by ID.
-
-    Args:
-        item_id (int): The unique identifier of the item.
-        db (AsyncSession): SQLAlchemy async session dependency.
-
-    Raises:
-        HTTPException: 404 if the item does not exist.
-
-    Returns:
-        ItemOut: The requested item.
-    """
     res = await db.execute(select(ItemORM).where(ItemORM.id == item_id))
     obj = res.scalar_one_or_none()
 
@@ -103,20 +58,6 @@ async def get_item(item_id: int, db: AsyncSession = Depends(get_session)) -> Ite
 
 @router.put("/{item_id}", response_model=ItemOut)
 async def update_item(item_id: int, payload: ItemIn, db: AsyncSession = Depends(get_session)) -> ItemOut:
-    """
-    Update an existing item by ID.
-
-    Args:
-        item_id (int): The ID of the item to update.
-        payload (ItemIn): New item data.
-        db (AsyncSession): SQLAlchemy async session dependency.
-
-    Raises:
-        HTTPException: 404 if the item does not exist.
-
-    Returns:
-        ItemOut: The updated item.
-    """
     res = await db.execute(select(ItemORM).where(ItemORM.id == item_id))
     obj = res.scalar_one_or_none()
 
@@ -136,16 +77,6 @@ async def update_item(item_id: int, payload: ItemIn, db: AsyncSession = Depends(
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_item(item_id: int, db: AsyncSession = Depends(get_session)) -> None:
-    """
-    Delete an item by ID.
-
-    Args:
-        item_id (int): The ID of the item to delete.
-        db (AsyncSession): SQLAlchemy async session dependency.
-
-    Raises:
-        HTTPException: 404 if the item does not exist.
-    """
     res = await db.execute(select(ItemORM).where(ItemORM.id == item_id))
     obj = res.scalar_one_or_none()
 
