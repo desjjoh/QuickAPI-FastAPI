@@ -1,42 +1,3 @@
-# import uuid
-# from collections.abc import Awaitable, Callable
-
-# import structlog
-# from fastapi import Request, Response
-# from starlette.middleware.base import BaseHTTPMiddleware
-
-# from app.store.request_context import RequestContext, RequestContextData
-
-# RequestResponseEndpoint = Callable[[Request], Awaitable[Response]]
-
-
-# class RequestContextMiddleware(BaseHTTPMiddleware):
-
-#     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
-#         request_id = uuid.uuid4().hex[:8]
-
-#         ctx = RequestContextData(
-#             request_id=request_id,
-#             method=request.method,
-#             path=request.url.path,
-#             ip=request.client.host if request.client else "unknown",
-#         )
-
-#         structlog.contextvars.bind_contextvars(
-#             request_id=request_id,
-#             method=request.method,
-#             path=request.url.path,
-#             ip=request.client.host if request.client else "unknown",
-#         )
-
-#         RequestContext.set(ctx)
-
-#         try:
-#             response = await call_next(request)
-#             return response
-#         finally:
-#             RequestContext.clear()
-
 import uuid
 
 import structlog
@@ -45,7 +6,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.store.request_context import RequestContext, RequestContextData
 
 
-class RequestContextMiddleware:
+class RequestContextASGIMiddleware:
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app

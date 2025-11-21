@@ -8,16 +8,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config.database import DatabaseService
 from app.config.environment import settings
 from app.config.logging import log
-from app.controllers.system import router as system_router
-from app.handlers.exceptions import (
+from app.controllers.system_controller import router as system_router
+from app.handlers.exception_handler import (
     http_exception_handler,
     unhandled_exception_handler,
     validation_exception_handler,
 )
-from app.handlers.lifecycle import lifecycle
-from app.middleware.request_context import RequestContextMiddleware
+from app.handlers.lifecycle_handler import lifecycle
+from app.middleware.request_context import RequestContextASGIMiddleware
 from app.middleware.request_logger import RequestLoggingASGIMiddleware
-from app.routes.api import router as api_router
+from app.routes.api_routes import router as api_router
 
 
 @asynccontextmanager
@@ -57,15 +57,15 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    app.include_router(system_router)
-    app.include_router(api_router)
-
     app.exception_handler(RequestValidationError)(validation_exception_handler)
     app.exception_handler(StarletteHTTPException)(http_exception_handler)
     app.exception_handler(Exception)(unhandled_exception_handler)
 
-    app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(RequestContextASGIMiddleware)
     app.add_middleware(RequestLoggingASGIMiddleware)
+
+    app.include_router(system_router)
+    app.include_router(api_router)
 
     return app
 

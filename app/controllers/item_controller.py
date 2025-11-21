@@ -3,8 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_session
-from app.database.db_models import ItemORM
-from app.models.items import ItemIn, ItemOut
+from app.database.entities.item_orm import ItemORM
+from app.models.item_model import ItemIn, ItemOut
 
 router = APIRouter()
 
@@ -49,7 +49,7 @@ async def get_item(item_id: int, db: AsyncSession = Depends(get_session)) -> Ite
     return found
 
 
-@router.put("/{item_id}", response_model=ItemOut)
+@router.patch("/{item_id}", response_model=ItemOut)
 async def update_item(
     item_id: int, payload: ItemIn, db: AsyncSession = Depends(get_session)
 ) -> ItemOut:

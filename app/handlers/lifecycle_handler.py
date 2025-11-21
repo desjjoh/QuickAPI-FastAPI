@@ -1,3 +1,4 @@
+import asyncio
 import signal
 import time
 from collections.abc import Awaitable, Callable
@@ -43,6 +44,23 @@ class LifecycleHandler:
             if not healthy:
                 return False
         return True
+
+    async def get_event_loop_lag(
+        self,
+        samples: int = 5,
+        interval: float = 0.02,
+    ) -> float:
+        loop = asyncio.get_running_loop()
+        delays: list[float] = []
+
+        for _ in range(samples):
+            start = loop.time()
+            await asyncio.sleep(interval)
+            end = loop.time()
+            delay = max(0.0, (end - start) - interval)
+            delays.append(delay)
+
+        return max(delays) * 1000.0 if delays else 0.0
 
     # ----- Registration -----
 

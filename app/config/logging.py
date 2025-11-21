@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Protocol
+from typing import Any, Protocol, cast, runtime_checkable
 
 import structlog
 from colorama import Fore, Style
@@ -17,6 +17,7 @@ dark_green = '\x1b[2m\x1b[32m'
 reset = Style.RESET_ALL
 
 
+@runtime_checkable
 class LoggerProtocol(Protocol):
     def debug(self, event: str, **kwargs: Any) -> None: ...
     def info(self, event: str, **kwargs: Any) -> None: ...
@@ -70,10 +71,25 @@ structlog.configure(
 )
 
 
-class _LogProxy:
+class _LogProxy(LoggerProtocol):
     def __getattribute__(self, name: str):
         logger = structlog.get_logger()
         return getattr(logger, name)
 
+    def debug(self, event: str, **kwargs: Any) -> None:
+        raise NotImplementedError
 
-log = _LogProxy()
+    def info(self, event: str, **kwargs: Any) -> None:
+        raise NotImplementedError
+
+    def warning(self, event: str, **kwargs: Any) -> None:
+        raise NotImplementedError
+
+    def error(self, event: str, **kwargs: Any) -> None:
+        raise NotImplementedError
+
+    def critical(self, event: str, **kwargs: Any) -> None:
+        raise NotImplementedError
+
+
+log: LoggerProtocol = cast(LoggerProtocol, _LogProxy())
