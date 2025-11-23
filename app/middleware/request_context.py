@@ -48,7 +48,4 @@ class RequestContextASGIMiddleware:
 
         RequestContext.set(ctx)
 
-        try:
-            await self.app(scope, receive, send)
-        finally:
-            structlog.contextvars.clear_contextvars()
+        await self.app(scope, receive, send)

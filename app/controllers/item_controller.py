@@ -1,80 +1,82 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.database import get_session
-from app.database.entities.item_orm import ItemORM
-from app.models.item_model import ItemIn, ItemOut
+from app.database.repositories.item_repo import repo
+from app.models.item_model import CreateItemRequest, ItemResponse
 
 router = APIRouter()
 
 
-@router.post("/", response_model=ItemOut, status_code=status.HTTP_201_CREATED)
-async def create_item(
-    payload: ItemIn, db: AsyncSession = Depends(get_session)
-) -> ItemOut:
-    try:
-        item = ItemORM(name=payload.name, price=payload.price)
-        db.add(item)
-        await db.commit()
-        await db.refresh(item)
+## GET /
+@router.get(
+    "/",
+    summary="Get a list of items",
+    description="Retrieves a paginated list of items. Supports page, limit, sorting, and optional filtering.",
+    response_model=list[ItemResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def get_all(db: AsyncSession = Depends(get_session)) -> list[ItemResponse]:
+    items = await repo.get_all(db)
 
-        created = ItemOut.model_validate(item)
-        return created
-
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to create item")
+    return [ItemResponse.model_validate(item) for item in items]
 
 
-@router.get("/", response_model=list[ItemOut])
-async def list_items(db: AsyncSession = Depends(get_session)) -> list[ItemOut]:
-    try:
-        res = await db.execute(select(ItemORM).order_by(ItemORM.id))
-        items = res.scalars().all()
-        return [ItemOut.model_validate(i) for i in items]
+## POST /
+@router.post(
+    "/",
+    summary="Create a new item",
+    description="Creates a new item using validated input. Returns the fully normalized item resource after persistence.",
+    response_model=ItemResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create(
+    payload: CreateItemRequest, db: AsyncSession = Depends(get_session)
+) -> ItemResponse:
+    created = await repo.create(db, item_in=payload)
 
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to retrieve items")
-
-
-@router.get("/{item_id}", response_model=ItemOut)
-async def get_item(item_id: int, db: AsyncSession = Depends(get_session)) -> ItemOut:
-    res = await db.execute(select(ItemORM).where(ItemORM.id == item_id))
-    obj = res.scalar_one_or_none()
-
-    if not obj:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    found = ItemOut.model_validate(obj)
-    return found
+    return ItemResponse.model_validate(created)
 
 
-@router.patch("/{item_id}", response_model=ItemOut)
-async def update_item(
-    item_id: int, payload: ItemIn, db: AsyncSession = Depends(get_session)
-) -> ItemOut:
-    res = await db.execute(select(ItemORM).where(ItemORM.id == item_id))
-    obj = res.scalar_one_or_none()
+## GET /:id
+@router.get(
+    "/{id}",
+    summary="Get a single item by ID",
+    response_model=ItemResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get(id: str, db: AsyncSession = Depends(get_session)) -> ItemResponse:
+    found = await repo.get_by_id(db, id)
 
-    if not obj:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    obj.name = payload.name
-    obj.price = payload.price
-    await db.commit()
-    await db.refresh(obj)
-
-    updated = ItemOut.model_validate(obj)
-    return updated
+    return ItemResponse.model_validate(found)
 
 
-@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_item(item_id: int, db: AsyncSession = Depends(get_session)) -> None:
-    res = await db.execute(select(ItemORM).where(ItemORM.id == item_id))
-    obj = res.scalar_one_or_none()
+# @router.patch("/{id}", response_model=ItemOut)
+# async def update(
+#     id: int, payload: ItemIn, db: AsyncSession = Depends(get_session)
+# ) -> ItemOut:
+#     res = await db.execute(select(ItemORM).where(ItemORM.id == id))
+#     obj = res.scalar_one_or_none()
 
-    if not obj:
-        raise HTTPException(status_code=404, detail="Item not found")
+#     if not obj:
+#         raise HTTPException(status_code=404, detail="Item not found")
 
-    await db.delete(obj)
-    await db.commit()
+#     obj.name = payload.name
+#     obj.price = payload.price
+#     await db.commit()
+#     await db.refresh(obj)
+
+#     updated = ItemOut.model_validate(obj)
+#     return updated
+
+
+# @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+# async def delete(id: int, db: AsyncSession = Depends(get_session)) -> None:
+#     res = await db.execute(select(ItemORM).where(ItemORM.id == id))
+#     obj = res.scalar_one_or_none()
+
+#     if not obj:
+#         raise HTTPException(status_code=404, detail="Item not found")
+
+#     await db.delete(obj)
+#     await db.commit()

@@ -1,4 +1,3 @@
-import asyncio
 import sys
 
 import uvicorn
@@ -9,28 +8,21 @@ red = "\033[91m"
 bold = "\033[1m"
 
 
-async def bootstrap() -> None:
-    try:
-        uvicorn.run(
-            "app.config.application:app",
-            host=settings.HOST,
-            port=settings.PORT,
-            reload=(settings.ENV == "development"),
-            log_config=None,
-        )
-
-    except Exception:
-        print(
-            f"{red}❌ {bold}Fatal error during server initialization — forcing exit\n"
-        )
-        sys.exit(1)
+def main() -> None:
+    uvicorn.run(
+        "app.config.application:app",
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=(settings.ENV == "development"),
+        log_config=None,
+    )
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(bootstrap())
+        main()
     except Exception:
         print(
-            f"{red}❌ {bold}Fatal error during application bootstrap — forcing exit\n"
+            f"{red}❌ {bold}Fatal error during server initialization — forcing exit\n"
         )
         sys.exit(1)

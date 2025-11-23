@@ -30,8 +30,6 @@ class LifecycleHandler:
         self._startup_completed = False
         self._shutdown_started = False
 
-    # ----- Liveness / Readiness -----
-
     def is_alive(self) -> bool:
         return not self._shutdown_started
 
@@ -62,8 +60,6 @@ class LifecycleHandler:
 
         return max(delays) * 1000.0 if delays else 0.0
 
-    # ----- Registration -----
-
     def register(self, services: list[LifecycleService]) -> None:
         start = time.perf_counter()
         log.debug(f"Registering lifecycle services ({len(services)} total)")
@@ -72,8 +68,6 @@ class LifecycleHandler:
 
         duration = (time.perf_counter() - start) * 1000
         log.debug(f"Lifecycle registration completed in {duration:.2f}ms")
-
-    # ----- Startup -----
 
     async def startup(self) -> None:
         if self._startup_started:
@@ -95,8 +89,6 @@ class LifecycleHandler:
 
         duration = (time.perf_counter() - start) * 1000
         log.debug(f"All services started in {duration:.2f}ms")
-
-    # ----- Shutdown -----
 
     async def shutdown(self, sig: signal.Signals | None = None) -> None:
         if self._shutdown_started:

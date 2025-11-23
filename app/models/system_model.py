@@ -19,11 +19,13 @@ class HealthResponse(BaseModel):
         description="Whether the server is currently alive.",
         examples=[True],
     )
+
     uptime: float = Field(
         ...,
         description="Server uptime in seconds.",
         examples=[123.45],
     )
+
     timestamp: str = Field(
         ...,
         description="Current server timestamp in ISO-8601 format.",
@@ -45,21 +47,25 @@ class InfoResponse(BaseModel):
         description="Application name.",
         examples=["quickapi"],
     )
+
     version: Annotated[str, StringConstraints(pattern=SEMVER_REGEX)] = Field(
         ...,
         description="Application semantic version.",
         examples=["1.0.0"],
     )
+
     environment: Literal["development", "production", "test"] = Field(
         ...,
         description="Current environment mode.",
         examples=["development"],
     )
+
     hostname: str = Field(
         ...,
         description="Server hostname.",
         examples=["server-001"],
     )
+
     pid: int = Field(
         ...,
         description="Process ID.",
@@ -73,16 +79,19 @@ class SystemResponse(BaseModel):
         description="Application uptime in seconds.",
         examples=[123.45],
     )
+
     timestamp: int = Field(
         ...,
         description="Current timestamp in milliseconds since Unix epoch.",
         examples=[1_732_133_579_791],
     )
+
     event_loop_lag_ms: float = Field(
         ...,
         description="Approximate event loop lag in milliseconds.",
         examples=[3.21],
     )
+
     db: Literal["connected", "disconnected"] = Field(
         ...,
         description="Database connectivity status.",

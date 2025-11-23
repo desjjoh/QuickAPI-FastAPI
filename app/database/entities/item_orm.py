@@ -1,18 +1,11 @@
-from sqlalchemy import Float, Integer, String
+from sqlalchemy import Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.config.database import Base
+from app.database.entities.base_orm import BaseEntity
 
 
-class ItemORM(Base):
+class ItemORM(BaseEntity):
     __tablename__ = "items"
-
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        autoincrement=True,
-        doc="Primary key identifier for the item.",
-    )
 
     name: Mapped[str] = mapped_column(
         String(120),
@@ -22,5 +15,13 @@ class ItemORM(Base):
     )
 
     price: Mapped[float] = mapped_column(
-        Float, nullable=False, doc="Price of the item stored as a floating-point value."
+        Numeric(10, 2),
+        nullable=False,
+        doc="Price of the item represented as a decimal with 2 fractional digits.",
+    )
+
+    description: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        doc="Optional free-text description of the item; null when not provided.",
     )

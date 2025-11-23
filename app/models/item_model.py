@@ -1,29 +1,31 @@
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from app.models.base_model import BaseResponse
 
 
-class Item(BaseModel):
-    id: int = Field(..., description="Unique identifier for the item.")
-    name: str = Field(..., description="Item name.")
-    price: float = Field(..., ge=0, description="Item price in currency units.")
-
-    class Config:
-        from_attributes = True
-
-
-class ItemIn(BaseModel):
+class ItemResponse(BaseResponse):
     name: str = Field(
-        ..., min_length=1, max_length=120, description="Name of the item."
+        ...,
+        min_length=1,
+        max_length=120,
+        description="Descriptive name of the item (max length 120).",
+        examples=["Iron Sword"],
     )
-    price: float = Field(..., ge=0, description="Item price in currency units.")
 
-    class Config:
-        from_attributes = True
+    price: float = Field(
+        ...,
+        ge=0,
+        description="Price of the item represented as a decimal with 2 fractional digits.",
+        examples=[49.99],
+    )
+
+    description: str | None = Field(
+        None,
+        max_length=500,
+        description="Optional free-text description of the item; null when not provided.",
+        examples=["A finely crafted steel blade."],
+    )
 
 
-class ItemOut(BaseModel):
-    id: int = Field(..., description="Unique identifier for the item.")
-    name: str = Field(..., description="Name of the item.")
-    price: float = Field(..., ge=0, description="Item price in currency units.")
-
-    class Config:
-        from_attributes = True
+class CreateItemRequest(ItemResponse):
+    pass

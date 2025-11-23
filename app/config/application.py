@@ -15,6 +15,8 @@ from app.handlers.exception_handler import (
     validation_exception_handler,
 )
 from app.handlers.lifecycle_handler import lifecycle
+from app.middleware.error_logger import ErrorLoggingASGIMiddleware
+from app.middleware.request_cleanup import RequestCleanupASGIMiddleware
 from app.middleware.request_context import RequestContextASGIMiddleware
 from app.middleware.request_logger import RequestLoggingASGIMiddleware
 from app.routes.api_routes import router as api_router
@@ -57,12 +59,14 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(RequestContextASGIMiddleware)
+    app.add_middleware(ErrorLoggingASGIMiddleware)
+    app.add_middleware(RequestLoggingASGIMiddleware)
+    app.add_middleware(RequestCleanupASGIMiddleware)
+
     app.exception_handler(RequestValidationError)(validation_exception_handler)
     app.exception_handler(StarletteHTTPException)(http_exception_handler)
     app.exception_handler(Exception)(unhandled_exception_handler)
-
-    app.add_middleware(RequestContextASGIMiddleware)
-    app.add_middleware(RequestLoggingASGIMiddleware)
 
     app.include_router(system_router)
     app.include_router(api_router)

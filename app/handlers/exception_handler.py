@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from fastapi import Request
+from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -24,32 +24,34 @@ async def http_exception_handler(
     )
 
 
-async def unhandled_exception_handler(
+async def validation_exception_handler(
     request: Request,
-    exc: Exception,
+    exc: RequestValidationError,
 ) -> JSONResponse:
-    status = 500
-    detail = "Internal server error"
+    message = ", ".join(err["msg"] for err in exc.errors())
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+
     return JSONResponse(
-        status_code=status,
+        status_code=status_code,
         content={
-            "status": status,
-            "message": detail,
+            "status": status_code,
+            "message": message,
             "timestamp": _now(),
         },
     )
 
 
-async def validation_exception_handler(
+async def unhandled_exception_handler(
     request: Request,
-    exc: RequestValidationError,
+    exc: Exception,
 ) -> JSONResponse:
-    status = 422
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
     return JSONResponse(
-        status_code=status,
+        status_code=status_code,
         content={
-            "status": status,
-            "message": exc.errors(),
+            "status": status_code,
+            "message": "Internal server error",
             "timestamp": _now(),
         },
     )
