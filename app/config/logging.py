@@ -41,10 +41,10 @@ for noisy in (
 
 
 def concise_renderer(_: WrappedLogger, __: str, event_dict: EventDict) -> str:
-    timestamp: str = event_dict.pop("timestamp", "")[:-3]
-    level: str = event_dict.pop("level", "")
-    message: str = event_dict.pop("event", "")
-    request_id: str | None = event_dict.pop("request_id", None)
+    timestamp = event_dict.pop("timestamp", "")[:-3]
+    level = event_dict.pop("level", "")
+    message = event_dict.pop("event", "")
+    request_id = event_dict.pop("request_id", None)
 
     color: str = colors.get(level.upper(), Fore.WHITE)
 
