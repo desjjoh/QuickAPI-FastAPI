@@ -18,10 +18,13 @@ from app.handlers.exception_handler import (
 )
 from app.handlers.lifecycle_handler import lifecycle
 from app.middleware.error_logger import ErrorLoggingASGIMiddleware
-from app.middleware.rate_limiter import RateLimitASGIMiddleware
+from app.middleware.rate_limit import RateLimitASGIMiddleware
+from app.middleware.request_body_limit import (
+    BodyLimit,
+    RequestBodyLimitASGIMiddleware,
+)
 from app.middleware.request_cleanup import RequestCleanupASGIMiddleware
 from app.middleware.request_context import RequestContextASGIMiddleware
-from app.middleware.request_limiter import RequestSizeLimitASGIMiddleware
 from app.middleware.request_logger import RequestLoggingASGIMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.routes.api_routes import router as api_router
@@ -69,22 +72,27 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    limiter: RateLimiter = RateLimiter(
-        max_burst=10,
-        burst_window=5,
-        max_sustained=100,
-        sustained_period=60,
+    app.add_middleware(RequestContextASGIMiddleware)
+    app.add_middleware(ErrorLoggingASGIMiddleware)
+
+    app.add_middleware(
+        RateLimitASGIMiddleware,
+        limiter=RateLimiter(
+            max_burst=10,
+            burst_window=5,
+            max_sustained=100,
+            sustained_period=60,
+        ),
     )
 
-    app.add_middleware(RateLimitASGIMiddleware, limiter=limiter)
-    app.add_middleware(RequestSizeLimitASGIMiddleware, max_body_bytes=1_048_576)
-    app.add_middleware(RequestContextASGIMiddleware)
-
-    app.add_middleware(ErrorLoggingASGIMiddleware)
+    app.add_middleware(
+        RequestBodyLimitASGIMiddleware,
+        default_limit=BodyLimit(max_body_bytes=1_048_576),
+        route_overrides=[],
+    )
 
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestLoggingASGIMiddleware)
-
     app.add_middleware(RequestCleanupASGIMiddleware)
 
     app.exception_handler(RequestValidationError)(validation_exception_handler)
