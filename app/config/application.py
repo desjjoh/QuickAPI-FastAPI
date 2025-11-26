@@ -41,10 +41,11 @@ async def lifespan(_: FastAPI):
         lifecycle.register([DatabaseService()])
         await lifecycle.startup()
 
-        port = settings.PORT
+        port: int = settings.PORT
         log.info(f"HTTP server running on port {port} — http://localhost:{port}/docs")
 
         yield
+
     except Exception as exc:
         error_type: str = exc.__class__.__name__
         error_msg: str = getattr(exc, "msg", None) or str(exc).split("\n")[0]
@@ -54,6 +55,7 @@ async def lifespan(_: FastAPI):
         log.critical('Unhandled fatal error during server runtime — forcing exit')
 
         raise
+
     finally:
         log.warning("Shutdown signal received — initiating shutdown")
 

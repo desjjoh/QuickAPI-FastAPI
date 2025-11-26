@@ -16,6 +16,12 @@ async def empty_receive() -> Message:
     return {"type": "http.request", "body": b"", "more_body": False}
 
 
+def format_bytes_as_mb(value: int) -> str:
+    mb: float = value / (1024 * 1024)
+
+    return f"{mb:.2f} MB"
+
+
 @dataclass(frozen=True)
 class BodyLimit:
     max_body_bytes: int = 1_048_576
@@ -123,13 +129,15 @@ class RequestBodyLimitASGIMiddleware:
         used: int | None = None,
     ):
         used = used or 0
+
         remaining: int = max(max_bytes - used, 0)
+        limit: str = format_bytes_as_mb(max_bytes)
 
         response = JSONResponse(
             status_code=413,
             content={
                 "status": 413,
-                "message": "Request body exceeds maximum allowed size (limit = 1MB).",
+                "message": f"Request body exceeds maximum allowed size (limit = {limit}).",
                 "timestamp": _now(),
             },
             headers={
@@ -139,3 +147,11 @@ class RequestBodyLimitASGIMiddleware:
         )
 
         await response(scope, empty_receive, send)
+
+
+# TODO:
+
+# → X-Body-Limit-MB header
+# → X-Body-Remaining-MB header
+# → Auto-switch to KB if < 1MB
+# → Auto-switch to GB for huge limits (unlikely for your API)
