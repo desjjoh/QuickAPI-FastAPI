@@ -54,11 +54,9 @@ class RequestSizeLimitASGIMiddleware:
         response: JSONResponse = JSONResponse(
             status_code=413,
             content={
-                "error": {
-                    "status": 413,
-                    "message": "Request body exceeds maximum allowed size (1MB).",
-                    "timestamp": _now(),
-                }
+                "status": 413,
+                "message": "Request body exceeds maximum allowed size (1MB).",
+                "timestamp": _now(),
             },
         )
         await response(scope, receive, send)

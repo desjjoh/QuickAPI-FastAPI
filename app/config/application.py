@@ -84,6 +84,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestLoggingASGIMiddleware)
+
     app.add_middleware(RequestCleanupASGIMiddleware)
 
     app.exception_handler(RequestValidationError)(validation_exception_handler)
