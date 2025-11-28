@@ -68,9 +68,31 @@ class HeaderSanitizationASGIMiddleware:
 
             return
 
+        path = scope.get("path", "")
+        if path.startswith(
+            (
+                "/docs",
+                "/redoc",
+                "/openapi.json",
+                "/favicon.ico",
+            )
+        ):
+            await self.app(scope, receive, send)
+            return
+
         raw_headers = scope.get("headers", [])
         cleaned_headers: list[tuple[bytes, bytes]] = []
         seen: set[str] = set()
+
+        referer: str | None = None
+        for k, v in raw_headers:
+            if k.decode().lower() == "referer":
+                referer = v.decode().lower()
+                break
+
+        if referer and "/docs" in referer:
+            await self.app(scope, receive, send)
+            return
 
         for raw_name, raw_value in raw_headers:
             name = raw_name.decode().lower()

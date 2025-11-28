@@ -39,6 +39,10 @@ class SecurityHeadersMiddleware:
 
             return
 
+        path = scope.get("path", "")
+        if path.startswith(("/docs", "/redoc", "/openapi.json")):
+            return await self.app(scope, receive, send)
+
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
                 raw_headers = message.setdefault("headers", [])

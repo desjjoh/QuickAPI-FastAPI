@@ -1,16 +1,19 @@
 from datetime import UTC, datetime
 
+from fastapi import status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 
 class ErrorResponse(BaseModel):
-    status: int = Field(..., description="HTTP status code", examples=[503])
+    status: int = Field(
+        ..., description="HTTP status code", examples=[status.HTTP_418_IM_A_TEAPOT]
+    )
 
     message: str = Field(
         ...,
         description="Human-readable error message",
-        examples=["Application not ready."],
+        examples=["I'm a teapot."],
     )
 
     timestamp: int = Field(
