@@ -4,7 +4,8 @@ import time
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.config.environment import settings
 from app.handlers.lifecycle_handler import lifecycle
@@ -118,9 +119,27 @@ async def system() -> SystemResponse:
     )
 
 
-# @router.get("/metrics", response_model=MetricsOut)
-# async def system_metrics() -> MetricsOut:
-#     uptime = time.perf_counter() - _start_time
-#     return MetricsOut(
-#         uptime_seconds=uptime, app=settings.APP_NAME, version="1.0.0", debug=True
-#     )
+## GET /metrics
+@router.get(
+    "/metrics",
+    summary="Return Prometheus metrics",
+    description="Returns application metrics in Prometheus' text exposition format.",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "Prometheus metrics in plaintext format.",
+            "content": {
+                "text/plain": {
+                    "example": (
+                        "# HELP http_requests_total Total HTTP requests\n"
+                        "# TYPE http_requests_total counter\n"
+                        "http_requests_total{method=\"GET\",path=\"/ready\",status=\"200\"} 42"
+                    )
+                }
+            },
+        }
+    },
+)
+async def metrics() -> Response:
+    data = generate_latest()
+    return Response(data, media_type=CONTENT_TYPE_LATEST)

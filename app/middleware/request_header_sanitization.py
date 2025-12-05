@@ -13,7 +13,6 @@ from app.models.error_model import error_response
 class HeaderSanitizationASGIMiddleware:
 
     BLOCKLIST: ClassVar[set[str]] = {
-        "connection",
         "keep-alive",
         "proxy-authenticate",
         "proxy-authorization",
@@ -33,6 +32,7 @@ class HeaderSanitizationASGIMiddleware:
 
     ALLOWLIST: ClassVar[set[str]] = {
         "host",
+        "connection",
         "content-type",
         "content-length",
         "accept",
@@ -55,7 +55,6 @@ class HeaderSanitizationASGIMiddleware:
     }
 
     VALID_NAME_RE: re.Pattern[str] = re.compile(r"^[A-Za-z0-9-]+$")
-
     INVALID_VALUE_CHARS: ClassVar[set[str]] = {"\r", "\n"}
 
     def __init__(self, app: ASGIApp, extra_allowed: set[str] | None = None):
@@ -66,18 +65,6 @@ class HeaderSanitizationASGIMiddleware:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
 
-            return
-
-        path = scope.get("path", "")
-        if path.startswith(
-            (
-                "/docs",
-                "/redoc",
-                "/openapi.json",
-                "/favicon.ico",
-            )
-        ):
-            await self.app(scope, receive, send)
             return
 
         raw_headers = scope.get("headers", [])

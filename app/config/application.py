@@ -21,6 +21,7 @@ from app.middleware.apply_cors import CORSConfig, apply_cors
 from app.middleware.content_type_enforcement import ContentTypeEnforcementASGIMiddleware
 from app.middleware.error_logger import ErrorLoggingASGIMiddleware
 from app.middleware.method_whitelist import MethodWhitelistASGIMiddleware
+from app.middleware.prometheus_metrics import PrometheusASGIMiddleware
 from app.middleware.rate_limit import RateLimitASGIMiddleware
 from app.middleware.request_body_limit import (
     BodyLimit,
@@ -83,6 +84,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestTimeoutASGIMiddleware)
     app.add_middleware(
         RateLimitASGIMiddleware,
@@ -126,13 +128,7 @@ def create_app() -> FastAPI:
     app.add_middleware(ErrorLoggingASGIMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
 
-    apply_cors(
-        app,
-        CORSConfig(
-            allow_all=True,
-            origins=[],
-        ),
-    )
+    apply_cors(app, CORSConfig(origins=['*']))
 
     app.add_middleware(RequestLoggingASGIMiddleware)
     app.add_middleware(RequestCleanupASGIMiddleware)
