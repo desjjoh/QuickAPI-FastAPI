@@ -23,10 +23,10 @@ A modular, production-grade FastAPI template designed for scalable backend servi
 
 ```bash
 app/
-├── config/                # Environment configuration (Pydantic settings)
-├── controllers/           # High-level request orchestration (optional)
+├── config/                # Environment configuration
+├── controllers/           # High-level request orchestration
 ├── database/
-│   ├── entities/          # ORM models (future)
+│   ├── entities/          # ORM models
 │   └── repositories/      # Database abstraction layer
 ├── docs/                  # OpenAPI utilities & schema customization
 ├── handlers/              # Process-level handlers (signals, shutdown helpers)
