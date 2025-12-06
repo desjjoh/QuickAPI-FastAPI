@@ -36,7 +36,7 @@ class RateLimitASGIMiddleware:
         if not allowed:
             response: JSONResponse = error_response(
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
-                message="Too many requests.",
+                message="Too many requests — please slow down.",
             )
 
             await response(scope, receive, send)
