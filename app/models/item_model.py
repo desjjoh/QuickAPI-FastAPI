@@ -83,18 +83,8 @@ class UpdateItemRequest(BaseModel):
 
 
 class ItemPaginationQuery(PaginationQuery):
-    sort_by: Literal["name", "price", "created_at"] = Field(
+    sort: Literal["name", "price", "created_at"] = Field(
         "price", description="Field to sort items by", examples=["price"]
-    )
-
-    direction: Literal["asc", "desc"] = Field(
-        "asc", description="Sort direction", examples=["asc"]
-    )
-
-    search: str | None = Field(
-        None,
-        description="Optional search term applied to item names",
-        examples=["sword"],
     )
 
     min_price: float | None = Field(

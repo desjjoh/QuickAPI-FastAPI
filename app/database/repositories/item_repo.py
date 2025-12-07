@@ -35,10 +35,8 @@ class ItemRepository:
         if payload.max_price is not None:
             filters.append(ItemORM.price <= payload.max_price)
 
-        sort_column = getattr(ItemORM, payload.sort_by)
-        sort_expr = (
-            sort_column.desc() if payload.direction == "desc" else sort_column.asc()
-        )
+        sort_column = getattr(ItemORM, payload.sort)
+        sort_expr = sort_column.desc() if payload.order == "desc" else sort_column.asc()
 
         base_query: Select[tuple[ItemORM]] = (
             select(ItemORM).where(*filters).order_by(sort_expr)
