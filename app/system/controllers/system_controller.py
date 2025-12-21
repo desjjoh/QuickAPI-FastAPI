@@ -7,16 +7,14 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Response, status
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from app.common.handlers.lifecycle_handler import lifecycle
+from app.common.models.error_model import ErrorResponse
 from app.config.environment import settings
-from app.handlers.lifecycle_handler import lifecycle
-from app.models.error_model import ErrorResponse
-from app.models.system_model import (
-    HealthResponse,
-    InfoResponse,
-    ReadyResponse,
-    RootResponse,
-    SystemResponse,
-)
+from app.system.models.info_model import InfoResponse
+from app.system.models.live_model import HealthResponse
+from app.system.models.ready_model import ReadyResponse
+from app.system.models.root_model import RootResponse
+from app.system.models.system_model import SystemResponse
 
 router: APIRouter = APIRouter(tags=["System"])
 _start_time: float = time.perf_counter()

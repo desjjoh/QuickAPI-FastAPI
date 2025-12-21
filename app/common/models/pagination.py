@@ -21,12 +21,12 @@ class PaginationQuery(BaseModel):
         examples=["sword"],
     )
 
-    @property
-    def offset(self) -> int:
-        return (self.page - 1) * self.limit
+    # @computed_field(return_type=int)
+    # @property
+    # def offset(self) -> int:
+    #     return (self.page - 1) * self.limit
 
-    class Config:
-        frozen = True
+    model_config = {"frozen": True}
 
 
 class PaginatedResult[T](BaseModel):

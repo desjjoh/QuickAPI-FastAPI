@@ -3,7 +3,7 @@ import uuid
 import structlog
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.store.request_context import RequestContext, RequestContextData
+from app.common.store.request_context import RequestContext, RequestContextData
 
 
 class RequestContextASGIMiddleware:

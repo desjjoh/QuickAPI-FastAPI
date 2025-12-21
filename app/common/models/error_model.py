@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import status
 from fastapi.responses import JSONResponse
@@ -41,3 +42,18 @@ def error_response(
         content=model.model_dump(),
         headers=headers or {},
     )
+
+
+class ModelConversionError(RuntimeError):
+    def __init__(
+        self, *, target: str, errors: list[dict[str, Any]], source: str | None = None
+    ):
+        self.target = target
+        self.errors = errors
+        self.source = source
+        msg = f"Failed to convert model to {target}"
+
+        if source:
+            msg = f"{msg} (source={source})"
+
+        super().__init__(msg)

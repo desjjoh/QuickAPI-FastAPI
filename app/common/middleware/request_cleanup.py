@@ -1,7 +1,7 @@
 import structlog
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.store.request_context import RequestContext
+from app.common.store.request_context import RequestContext
 
 
 class RequestCleanupASGIMiddleware:

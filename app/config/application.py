@@ -5,38 +5,42 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.config.database import DatabaseService
-from app.config.environment import settings
-from app.config.logging import log
-from app.config.rate_limiter import RateLimiter
-from app.controllers.system_controller import router as system_router
-from app.docs.openapi import configure_custom_validation_openapi
-from app.handlers.exception_handler import (
+from app.api.api_routes import router as api_router
+from app.common.docs.openapi import configure_custom_validation_openapi
+from app.common.handlers.exception_handler import (
     http_exception_handler,
     unhandled_exception_handler,
     validation_exception_handler,
 )
-from app.handlers.lifecycle_handler import lifecycle
-from app.middleware.content_type_enforcement import ContentTypeEnforcementASGIMiddleware
-from app.middleware.cors import CustomCORSASGIMiddleware
-from app.middleware.method_whitelist import MethodWhitelistASGIMiddleware
-from app.middleware.prometheus_metrics import PrometheusASGIMiddleware
-from app.middleware.rate_limit import RateLimitASGIMiddleware
-from app.middleware.request_body_limit import (
+from app.common.handlers.lifecycle_handler import lifecycle
+from app.common.middleware.content_type_enforcement import (
+    ContentTypeEnforcementASGIMiddleware,
+)
+from app.common.middleware.cors import CustomCORSASGIMiddleware
+from app.common.middleware.method_whitelist import MethodWhitelistASGIMiddleware
+from app.common.middleware.prometheus_metrics import PrometheusASGIMiddleware
+from app.common.middleware.rate_limit import RateLimitASGIMiddleware
+from app.common.middleware.request_body_limit import (
     BodyLimit,
     RequestBodyLimitASGIMiddleware,
 )
-from app.middleware.request_cleanup import RequestCleanupASGIMiddleware
-from app.middleware.request_context import RequestContextASGIMiddleware
-from app.middleware.request_header_limit import (
+from app.common.middleware.request_cleanup import RequestCleanupASGIMiddleware
+from app.common.middleware.request_context import RequestContextASGIMiddleware
+from app.common.middleware.request_header_limit import (
     HeaderLimits,
     RequestHeaderLimitASGIMiddleware,
 )
-from app.middleware.request_header_sanitization import HeaderSanitizationASGIMiddleware
-from app.middleware.request_logger import RequestLoggingASGIMiddleware
-from app.middleware.request_timeout import RequestTimeoutASGIMiddleware
-from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routes.api_routes import router as api_router
+from app.common.middleware.request_header_sanitization import (
+    HeaderSanitizationASGIMiddleware,
+)
+from app.common.middleware.request_logger import RequestLoggingASGIMiddleware
+from app.common.middleware.request_timeout import RequestTimeoutASGIMiddleware
+from app.common.middleware.security_headers import SecurityHeadersMiddleware
+from app.config.database import DatabaseService
+from app.config.environment import settings
+from app.config.logging import log
+from app.config.rate_limiter import RateLimiter
+from app.system.controllers.system_controller import router as system_router
 
 
 @asynccontextmanager
@@ -127,7 +131,7 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CustomCORSASGIMiddleware,
-        origin=["http://localhost:3000"],
+        origin=["*"],
         methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
         allowed_headers=["content-type", "authorization", "x-requested-with"],
         exposed_headers=['authorization', 'set-cookie'],

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from time import monotonic
 
-from app.store.rate_limit import RateLimitState
+from app.common.store.rate_limit import RateLimitState
 
 
 class RateLimiter:

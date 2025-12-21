@@ -1,22 +1,68 @@
 from collections.abc import Sequence
-from typing import Any
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import NotRequired, TypedDict
 
 from sqlalchemy import ColumnElement, Result, Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.models.parameters_model import HexId
 from app.database.entities.item_orm import ItemORM
-from app.models.item_model import ItemBase, ItemPaginationQuery
-from app.models.parameters_model import HexId
+
+
+class ItemCreateData(TypedDict):
+    name: str
+    description: NotRequired[str | None]
+    price: float
+
+
+class ItemUpdateData(TypedDict, total=False):
+    name: str
+    description: str | None
+    price: float
+
+
+class ItemSort(StrEnum):
+    CREATED_AT = "createdAt"
+    ITEM_NAME = "name"
+    PRICE = "price"
+
+
+class SortOrder(StrEnum):
+    asc = "asc"
+    desc = "desc"
+
+
+@dataclass(frozen=True, slots=True)
+class ItemListQuery:
+    limit: int
+    offset: int
+    search: str | None = None
+    sort: ItemSort = ItemSort.CREATED_AT
+    order: SortOrder = SortOrder.desc
+    min_price: float | None = None
+    max_price: float | None = None
 
 
 class ItemRepository:
+    async def create(
+        self, session: AsyncSession, *, item_in: ItemCreateData
+    ) -> ItemORM:
+        item: ItemORM = ItemORM(**item_in)
+        session.add(item)
+
+        await session.commit()
+        await session.refresh(item)
+
+        return item
+
     async def get_all(self, session: AsyncSession) -> Sequence[ItemORM]:
         result: Result[tuple[ItemORM]] = await session.execute(select(ItemORM))
 
         return result.scalars().all()
 
     async def find_and_count(
-        self, session: AsyncSession, payload: ItemPaginationQuery
+        self, session: AsyncSession, payload: ItemListQuery
     ) -> tuple[Sequence[ItemORM], int]:
         filters: list[ColumnElement[bool]] = []
 
@@ -62,20 +108,11 @@ class ItemRepository:
 
         return result.scalar_one_or_none()
 
-    async def create(self, session: AsyncSession, *, item_in: ItemBase) -> ItemORM:
-        item: ItemORM = ItemORM(**item_in.model_dump())
-        session.add(item)
-
-        await session.commit()
-        await session.refresh(item)
-
-        return item
-
     async def update(
         self,
         session: AsyncSession,
         obj: ItemORM,
-        new_data: dict[str, Any],
+        new_data: ItemUpdateData,
     ) -> ItemORM:
         for field, value in new_data.items():
             setattr(obj, field, value)

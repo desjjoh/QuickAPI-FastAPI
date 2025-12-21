@@ -8,7 +8,7 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.handlers.exception_handler import http_exception_handler
+from app.common.handlers.exception_handler import http_exception_handler
 
 
 class CustomCORSASGIMiddleware:

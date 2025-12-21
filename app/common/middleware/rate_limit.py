@@ -6,21 +6,27 @@ from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.handlers.exception_handler import http_exception_handler
+from app.common.handlers.exception_handler import http_exception_handler
+from app.config.rate_limiter import RateLimiter
 
 
-class MethodWhitelistASGIMiddleware:
+def get_client_ip(request: Request) -> str:
+    client = request.client
+    return client.host if client else "unknown"
 
-    def __init__(self, app: ASGIApp, allowed_methods: set[str]) -> None:
+
+class RateLimitASGIMiddleware:
+
+    def __init__(self, app: ASGIApp, limiter: RateLimiter) -> None:
         self.app = app
-        self.allowed_methods = {m.upper() for m in allowed_methods}
+        self.limiter = limiter
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
         try:
-            await self._run_method_check(scope, receive, send)
+            await self._run_rate_limit(scope, receive, send)
 
         except HTTPException as exc:
             request: Request = Request(scope, receive=receive)
@@ -31,15 +37,16 @@ class MethodWhitelistASGIMiddleware:
 
             return await response(scope, empty_receive, send)
 
-    async def _run_method_check(
-        self, scope: Scope, receive: Receive, send: Send
-    ) -> None:
-        method = scope.get("method", "").upper()
+    async def _run_rate_limit(self, scope: Scope, receive: Receive, send: Send) -> None:
+        request: Request = Request(scope)
+        ip: str = get_client_ip(request)
 
-        if method not in self.allowed_methods:
+        allowed: bool = self.limiter.allow(ip)
+
+        if not allowed:
             raise HTTPException(
-                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                detail=f"HTTP method '{method}' is not allowed on this server.",
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many requests — please slow down.",
             )
 
         await self.app(scope, receive, send)

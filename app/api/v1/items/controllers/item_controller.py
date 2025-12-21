@@ -1,20 +1,21 @@
-from typing import Any
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.items.models.item_model import ItemBase, ItemResponse
+from app.api.v1.items.models.item_update_model import UpdateItemRequest
+from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
+from app.common.models.converter import model_to
+from app.common.models.error_model import ErrorResponse
+from app.common.models.pagination import PaginatedResult
+from app.common.models.parameters_model import HexId
 from app.config.database import get_session
 from app.database.entities.item_orm import ItemORM
-from app.database.repositories.item_repo import repo
-from app.models.error_model import ErrorResponse
-from app.models.item_model import (
-    ItemBase,
-    ItemPaginationQuery,
-    ItemResponse,
-    UpdateItemRequest,
+from app.database.repositories.item_repo import (
+    ItemCreateData,
+    ItemListQuery,
+    ItemUpdateData,
+    repo,
 )
-from app.models.pagination import PaginatedResult
-from app.models.parameters_model import HexId
 
 router: APIRouter = APIRouter()
 
@@ -30,7 +31,7 @@ router: APIRouter = APIRouter()
 async def create(
     payload: ItemBase, db: AsyncSession = Depends(get_session)
 ) -> ItemResponse:
-    created: ItemORM = await repo.create(db, item_in=payload)
+    created: ItemORM = await repo.create(db, item_in=model_to(ItemCreateData, payload))
 
     return ItemResponse.model_validate(created)
 
@@ -46,7 +47,7 @@ async def create(
 async def get_all(
     query: ItemPaginationQuery = Depends(), db: AsyncSession = Depends(get_session)
 ) -> PaginatedResult[ItemResponse]:
-    items, count = await repo.find_and_count(db, query)
+    items, count = await repo.find_and_count(db, model_to(ItemListQuery, query))
 
     return PaginatedResult[ItemResponse](
         data=[ItemResponse.model_validate(item) for item in items],
@@ -99,8 +100,6 @@ async def get(id: HexId, db: AsyncSession = Depends(get_session)) -> ItemRespons
 async def update(
     id: HexId, payload: UpdateItemRequest, db: AsyncSession = Depends(get_session)
 ) -> ItemResponse:
-    update_data: dict[str, Any] = payload.model_dump(exclude_unset=True)
-
     obj: ItemORM | None = await repo.get_by_id(db, id)
 
     if not obj:
@@ -109,7 +108,9 @@ async def update(
             detail=f"Resource with ID '{id}' not found.",
         )
 
-    updated: ItemORM = await repo.update(db, obj, update_data)
+    updated: ItemORM = await repo.update(
+        db, obj, model_to(ItemUpdateData, payload, exclude_unset=False)
+    )
 
     return ItemResponse.model_validate(updated)
 
@@ -131,8 +132,6 @@ async def update(
 async def replace(
     id: HexId, payload: ItemBase, db: AsyncSession = Depends(get_session)
 ) -> ItemResponse:
-    update_data: dict[str, Any] = payload.model_dump(exclude_unset=False)
-
     obj: ItemORM | None = await repo.get_by_id(db, id)
 
     if not obj:
@@ -141,7 +140,9 @@ async def replace(
             detail=f"Resource with ID '{id}' not found.",
         )
 
-    updated: ItemORM = await repo.update(db, obj, update_data)
+    updated: ItemORM = await repo.update(
+        db, obj, model_to(ItemUpdateData, payload, exclude_unset=False)
+    )
 
     return ItemResponse.model_validate(updated)
 
