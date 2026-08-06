@@ -98,4 +98,11 @@ class RequestTimeoutASGIMiddleware:
 
             return message
 
-        await self.app(scope, timed_receive, send)
+        try:
+            async with asyncio.timeout(self.total_timeout):
+                await self.app(scope, timed_receive, send)
+        except TimeoutError:
+            raise HTTPException(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail="Total request timeout exceeded.",
+            )

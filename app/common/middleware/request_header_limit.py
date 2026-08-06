@@ -84,8 +84,14 @@ class RequestHeaderLimitASGIMiddleware:
                 ),
             )
 
-        headers_map = {k.decode().lower(): v.decode() for k, v in raw_headers}
-        transfer = headers_map.get("transfer-encoding")
+        transfer = next(
+            (
+                value.decode("ascii", errors="ignore")
+                for key, value in raw_headers
+                if key.lower() == b"transfer-encoding"
+            ),
+            None,
+        )
 
         if not self.limits.allow_chunked and transfer:
             if "chunked" in transfer.lower():

@@ -103,6 +103,11 @@ class RequestBodyLimitASGIMiddleware:
                     status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                     detail="Invalid Content-Length header.",
                 )
+            if declared < 0:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    detail="Invalid Content-Length header.",
+                )
             if declared > max_bytes:
                 raise HTTPException(
                     status_code=status.HTTP_413_CONTENT_TOO_LARGE,
@@ -129,7 +134,7 @@ class RequestBodyLimitASGIMiddleware:
 
                     if total > max_bytes:
                         raise HTTPException(
-                            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                             detail=(
                                 f"Request body exceeds maximum allowed size "
                                 f"(limit = {format_bytes(max_bytes)})."

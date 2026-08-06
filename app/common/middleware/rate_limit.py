@@ -49,4 +49,10 @@ class RateLimitASGIMiddleware:
                 detail="Too many requests — please slow down.",
             )
 
-        await self.app(scope, receive, send)
+        async def send_wrapper(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = message.setdefault("headers", [])
+                headers.append((b"x-ratelimit-result", b"accepted"))
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)

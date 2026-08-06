@@ -58,7 +58,22 @@ class CustomCORSASGIMiddleware:
                 detail=f"CORS origin '{origin}' not allowed.",
             )
 
-        if method == "OPTIONS":
+        if method == "OPTIONS" and "access-control-request-method" in headers:
+            requested_method = headers["access-control-request-method"].upper()
+            requested_headers = {
+                item.strip().lower()
+                for item in headers.get("access-control-request-headers", "").split(",")
+                if item.strip()
+            }
+
+            allowed_headers = {item.lower() for item in self.opts_allowed_headers}
+
+            if requested_method not in self.opts_methods:
+                raise HTTPException(status_code=403, detail="CORS method not allowed.")
+
+            if not requested_headers.issubset(allowed_headers):
+                raise HTTPException(status_code=403, detail="CORS headers not allowed.")
+
             return await self._respond_preflight(origin, scope, send)
 
         async def send_wrapper(message: Message) -> None:
@@ -93,6 +108,9 @@ class CustomCORSASGIMiddleware:
                     self._append_header(
                         headers_list, "access-control-allow-credentials", "true"
                     )
+
+                if origin:
+                    self._append_header(headers_list, "vary", "Origin")
 
             await send(message)
 
@@ -139,6 +157,9 @@ class CustomCORSASGIMiddleware:
 
         if self.credentials:
             headers["Access-Control-Allow-Credentials"] = "true"
+
+        if origin:
+            headers["Vary"] = "Origin"
 
         response: Response = Response(status_code=204, headers=headers)
 

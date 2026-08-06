@@ -96,8 +96,14 @@ class HeaderSanitizationASGIMiddleware:
         seen: set[str] = set()
 
         for raw_name, raw_value in raw_headers:
-            name = raw_name.decode().lower()
-            value = raw_value.decode()
+            try:
+                name = raw_name.decode("ascii").lower()
+                value = raw_value.decode("ascii")
+            except UnicodeDecodeError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Header contains non-ASCII bytes.",
+                )
 
             if name in self.BLOCKLIST:
                 raise HTTPException(
