@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.items.models.item_model import ItemBase, ItemResponse
@@ -45,7 +47,8 @@ async def create(
     status_code=status.HTTP_200_OK,
 )
 async def get_all(
-    query: ItemPaginationQuery = Depends(), db: AsyncSession = Depends(get_session)
+    query: Annotated[ItemPaginationQuery, Query()],
+    db: AsyncSession = Depends(get_session),
 ) -> PaginatedResult[ItemResponse]:
     items, count = await repo.find_and_count(db, model_to(ItemListQuery, query))
 
