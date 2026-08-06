@@ -1,30 +1,32 @@
 from collections.abc import Sequence
 from typing import Literal, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 T = TypeVar("T")
 
 
 class PaginationQuery(BaseModel):
-    page: int = Field(1, ge=1, description="Page number", examples=[1])
+    page: int = Field(default=1, ge=1, description="Page number", examples=[1])
 
-    limit: int = Field(20, ge=1, le=100, description="Items per page", examples=[20])
+    limit: int = Field(
+        default=20, ge=1, le=100, description="Items per page", examples=[20]
+    )
 
     order: Literal["asc", "desc"] = Field(
-        "asc", description="Sort direction", examples=["asc"]
+        default="asc", description="Sort direction", examples=["asc"]
     )
 
     search: str | None = Field(
-        None,
+        default=None,
         description="Optional search term applied to item names",
         examples=["sword"],
     )
 
-    # @computed_field(return_type=int)
-    # @property
-    # def offset(self) -> int:
-    #     return (self.page - 1) * self.limit
+    @computed_field(return_type=int)
+    @property
+    def offset(self) -> int:
+        return (self.page - 1) * self.limit
 
     model_config = {"frozen": True}
 

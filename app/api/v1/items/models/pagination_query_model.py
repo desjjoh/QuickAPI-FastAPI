@@ -7,14 +7,15 @@ from app.common.models.pagination import PaginationQuery
 
 class ItemPaginationQuery(PaginationQuery):
     sort: Literal["name", "price", "created_at"] = Field(
-        "price", description="Field to sort items by", examples=["price"]
+        default="price", description="Field to sort items by", examples=["price"]
     )
 
     min_price: float | None = Field(
-        None, ge=0, description="Minimum price filter", examples=[50.00]
+        default=None, ge=0, description="Minimum price filter", examples=[50.00]
     )
+
     max_price: float | None = Field(
-        None, ge=0, description="Maximum price filter", examples=[100.00]
+        default=None, ge=0, description="Maximum price filter", examples=[100.00]
     )
 
     @model_validator(mode="after")

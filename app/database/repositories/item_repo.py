@@ -23,7 +23,7 @@ class ItemUpdateData(TypedDict, total=False):
 
 
 class ItemSort(StrEnum):
-    CREATED_AT = "createdAt"
+    CREATED_AT = "created_at"
     ITEM_NAME = "name"
     PRICE = "price"
 
