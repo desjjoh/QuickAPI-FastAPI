@@ -6,8 +6,8 @@ from typing import NotRequired, TypedDict
 from sqlalchemy import ColumnElement, Result, Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.models.parameters_model import HexId
 from app.database.entities.item_orm import ItemORM
-from app.models.parameters_model import HexId
 
 
 class ItemCreateData(TypedDict):

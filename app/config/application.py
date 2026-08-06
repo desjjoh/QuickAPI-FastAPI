@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.api_routes import router as api_router
 from app.common.docs.openapi import configure_custom_validation_openapi
 from app.common.handlers.exception_handler import (
     http_exception_handler,
@@ -39,8 +40,6 @@ from app.config.database import DatabaseService
 from app.config.environment import settings
 from app.config.logging import log
 from app.config.rate_limiter import RateLimiter
-from app.server.api.api_routes import router as api_router
-from app.server.system.controllers.system_controller import router as system_router
 
 
 @asynccontextmanager
@@ -147,7 +146,6 @@ def create_app() -> FastAPI:
     app.exception_handler(StarletteHTTPException)(http_exception_handler)
     app.exception_handler(Exception)(unhandled_exception_handler)
 
-    app.include_router(system_router)
     app.include_router(api_router)
 
     configure_custom_validation_openapi(app)

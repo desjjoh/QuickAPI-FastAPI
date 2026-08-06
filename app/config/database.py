@@ -9,23 +9,18 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
-DATABASE_URL = "sqlite+aiosqlite:///./app.db"
+from app.config.environment import settings
 
 
 class Base(DeclarativeBase):
     pass
 
 
-engine: AsyncEngine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    echo_pool=False,
-    pool_size=5,
-    max_overflow=10,
-    pool_timeout=30,
-    pool_recycle=1_800,
-    future=True,
-)
+def create_engine() -> AsyncEngine:
+    return create_async_engine(settings.DATABASE_URL, echo=False)
+
+
+engine: AsyncEngine = create_engine()
 
 
 SessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
@@ -70,11 +65,11 @@ async def db_test_query() -> bool:
 class DatabaseService:
     name: str = "database (sqlalchemy)"
 
-    async def start(self):
+    async def start(self) -> None:
         await init_db()
 
-    async def stop(self):
+    async def stop(self) -> None:
         await close_db()
 
-    async def check(self):
+    async def check(self) -> bool:
         return await db_test_query()

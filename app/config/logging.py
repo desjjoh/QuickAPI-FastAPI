@@ -55,7 +55,7 @@ for noisy in (
     "uvicorn.error",
     "uvicorn.access",
     "fastapi",
-    "aiosqlite",
+    "asyncmy",
 ):
     logging.getLogger(noisy).handlers = []
     logging.getLogger(noisy).propagate = False

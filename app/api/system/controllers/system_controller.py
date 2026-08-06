@@ -2,22 +2,31 @@ import os
 import socket
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response, status
+from fastapi.responses import FileResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
+from app.api.system.models.info_model import InfoResponse
+from app.api.system.models.live_model import HealthResponse
+from app.api.system.models.ready_model import ReadyResponse
+from app.api.system.models.root_model import RootResponse
+from app.api.system.models.system_model import SystemResponse
 from app.common.handlers.lifecycle_handler import lifecycle
+from app.common.models.error_model import ErrorResponse
 from app.config.environment import settings
-from app.models.error_model import ErrorResponse
-from app.server.system.models.info_model import InfoResponse
-from app.server.system.models.live_model import HealthResponse
-from app.server.system.models.ready_model import ReadyResponse
-from app.server.system.models.root_model import RootResponse
-from app.server.system.models.system_model import SystemResponse
 
 router: APIRouter = APIRouter(tags=["System"])
 _start_time: float = time.perf_counter()
+_favicon_path: Path = Path(__file__).resolve().parents[3] / "public" / "favicon.ico"
+
+
+## GET /favicon.ico
+@router.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> FileResponse:
+    return FileResponse(_favicon_path, media_type="image/x-icon")
 
 
 ## GET /
@@ -66,10 +75,16 @@ async def ready_probe() -> ReadyResponse:
     app_ready: bool = lifecycle.is_ready()
     services_healthy: bool = await lifecycle.are_all_services_healthy()
 
-    if not app_ready and services_healthy:
+    if not app_ready:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Application not ready.",
+        )
+
+    if not services_healthy:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="One or more lifecycle services are unhealthy.",
         )
 
     return ReadyResponse(ready=True)

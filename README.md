@@ -51,12 +51,14 @@ LOG_LEVEL=DEBUG
 HOST=0.0.0.0
 PORT=5000
 
-DATABASE_URL=sqlite:///./dev.db
+DATABASE_URL=mysql+asyncmy://quickapi:change-me@localhost:3306/quickapi
 METRICS_API_KEY=dev-metrics
 ```
 
 All values are validated on startup.
 If validation fails, the application prints a clear diagnostic report and exits safely.
+The database URL uses SQLAlchemy's async MySQL dialect and should be populated with
+the MySQL username, password, host, port, and database for the target environment.
 
 ---
 

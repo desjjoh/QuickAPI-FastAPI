@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from app.models.base_model import BaseResponse
+from app.common.models.base_model import BaseResponse
 
 
 class ItemBase(BaseModel):

@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from app.models.pagination import PaginationQuery
+from app.common.models.pagination import PaginationQuery
 
 
 class ItemPaginationQuery(PaginationQuery):

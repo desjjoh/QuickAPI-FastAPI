@@ -1,6 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.items.models.item_model import ItemBase, ItemResponse
+from app.api.v1.items.models.item_update_model import UpdateItemRequest
+from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
+from app.common.models.converter import model_to
+from app.common.models.error_model import ErrorResponse
+from app.common.models.pagination import PaginatedResult
+from app.common.models.parameters_model import HexId
 from app.config.database import get_session
 from app.database.entities.item_orm import ItemORM
 from app.database.repositories.item_repo import (
@@ -9,13 +16,6 @@ from app.database.repositories.item_repo import (
     ItemUpdateData,
     repo,
 )
-from app.models.converter import model_to
-from app.models.error_model import ErrorResponse
-from app.models.pagination import PaginatedResult
-from app.models.parameters_model import HexId
-from app.server.api.v1.items.models.item_model import ItemBase, ItemResponse
-from app.server.api.v1.items.models.item_update_model import UpdateItemRequest
-from app.server.api.v1.items.models.pagination_query_model import ItemPaginationQuery
 
 router: APIRouter = APIRouter()
 

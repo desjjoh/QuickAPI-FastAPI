@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config.logging import log
-from app.models.error_model import error_response
+from app.common.models.error_model import error_response
 
 
 async def http_exception_handler(
