@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 from fastapi import HTTPException, status
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -20,6 +21,8 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///test.db")
 
 from app.api.system.controllers import system_controller  # noqa: E402
 from app.common.handlers.lifecycle_handler import LifecycleHandler  # noqa: E402
+
+pytestmark = pytest.mark.unit
 
 
 class ReadyProbeTests(unittest.TestCase):

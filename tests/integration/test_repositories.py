@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.entities.item_orm import ItemORM
 from app.database.repositories.item_repo import ItemRepository
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.asyncio
 async def test_repository_commits_crud(session: AsyncSession) -> None:

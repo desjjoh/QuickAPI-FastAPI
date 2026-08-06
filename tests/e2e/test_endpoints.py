@@ -1,6 +1,8 @@
 import httpx
 import pytest
 
+pytestmark = pytest.mark.e2e
+
 
 @pytest.mark.asyncio
 async def test_system_endpoints(client: httpx.AsyncClient) -> None:

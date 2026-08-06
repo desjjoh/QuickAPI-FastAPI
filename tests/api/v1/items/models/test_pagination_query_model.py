@@ -1,6 +1,8 @@
 import os
 import unittest
 
+import pytest
+
 os.environ.setdefault("APP_NAME", "QuickAPI")
 os.environ.setdefault("APP_VERSION", "1.0.0")
 os.environ.setdefault("ENV", "test")
@@ -16,6 +18,8 @@ from app.database.repositories.item_repo import (
     ItemSort,
     SortOrder,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class ItemPaginationQueryTests(unittest.TestCase):

@@ -5,6 +5,8 @@ from fastapi import FastAPI
 
 from app.config.application import create_app, lifespan
 
+pytestmark = pytest.mark.e2e
+
 
 @pytest.mark.asyncio
 async def test_app_factory_isolated_and_lifespan_starts_and_stops() -> None:

@@ -32,6 +32,8 @@ from app.common.middleware.security_headers import SecurityHeadersMiddleware
 from app.common.store.request_context import RequestContext
 from app.config.rate_limiter import RateLimiter
 
+pytestmark = pytest.mark.unit
+
 
 def base_app() -> FastAPI:
     app = FastAPI()

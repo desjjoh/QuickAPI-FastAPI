@@ -28,6 +28,11 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["."]
 filterwarnings = ["error"]
+markers = [
+    "unit: isolated tests for models, handlers, middleware, configuration, and utilities",
+    "integration: tests that use real database sessions and repositories",
+    "e2e: tests that exercise the complete application over HTTP or its lifespan",
+]
 
 [tool.coverage.run]
 branch = true

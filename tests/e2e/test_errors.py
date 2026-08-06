@@ -4,6 +4,8 @@ from fastapi import APIRouter, FastAPI, HTTPException
 
 from app.config.application import create_app
 
+pytestmark = pytest.mark.e2e
+
 
 @pytest.mark.asyncio
 async def test_http_and_unexpected_error_envelopes(
