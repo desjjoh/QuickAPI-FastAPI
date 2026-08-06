@@ -109,7 +109,7 @@ async def update(
         )
 
     updated: ItemORM = await repo.update(
-        db, obj, model_to(ItemUpdateData, payload, exclude_unset=False)
+        db, obj, model_to(ItemUpdateData, payload, exclude_unset=True)
     )
 
     return ItemResponse.model_validate(updated)

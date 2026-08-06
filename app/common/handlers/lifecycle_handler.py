@@ -24,7 +24,8 @@ class LifecycleHandler:
     def __init__(self) -> None:
         self._services: list[LifecycleService] = []
 
-        self._service_health: dict[str, bool] = {}
+        self._service_names: set[str] = set()
+        self._started_services: list[LifecycleService] = []
 
         self._startup_started = False
         self._startup_completed = False
@@ -64,7 +65,13 @@ class LifecycleHandler:
         start = time.perf_counter()
         log.debug(f"Registering lifecycle services ({len(services)} total)")
 
-        self._services.extend(services)
+        for service in services:
+            if service.name in self._service_names:
+                log.debug(f"Lifecycle service already registered → {service.name}")
+                continue
+
+            self._services.append(service)
+            self._service_names.add(service.name)
 
         duration = (time.perf_counter() - start) * 1000
         log.debug(f"Lifecycle registration completed in {duration:.2f}ms")
@@ -73,13 +80,23 @@ class LifecycleHandler:
         if self._startup_started:
             return
         self._startup_started = True
+        self._shutdown_started = False
+        self._startup_completed = False
+        self._started_services.clear()
 
         start = time.perf_counter()
         log.debug('Starting services…')
 
-        for svc in self._services:
-            await svc.start()
-            log.debug(f"Service started → {svc.name}")
+        try:
+            for svc in self._services:
+                await svc.start()
+                self._started_services.append(svc)
+                log.debug(f"Service started → {svc.name}")
+        except Exception:
+            log.warning("Service startup failed — rolling back started services")
+            await self._stop_started_services()
+            self._startup_started = False
+            raise
 
         self._startup_completed = True
 
@@ -95,7 +112,17 @@ class LifecycleHandler:
 
         log.debug("Stopping services…")
 
-        for svc in reversed(self._services):
+        await self._stop_started_services()
+
+        self._startup_started = False
+        self._startup_completed = False
+
+        duration = (time.perf_counter() - start) * 1000
+        log.debug(f"Shutdown completed in {duration:.2f}ms")
+
+    async def _stop_started_services(self) -> None:
+        while self._started_services:
+            svc = self._started_services.pop()
             try:
                 await svc.stop()
                 log.debug(f"Service stopped ← {svc.name}")
@@ -105,9 +132,3 @@ class LifecycleHandler:
                 log.error(f"{error_type} — {error_msg}")
 
                 log.warning(f"Failed to stop service ← {svc.name}")
-
-        duration = (time.perf_counter() - start) * 1000
-        log.debug(f"Shutdown completed in {duration:.2f}ms")
-
-
-lifecycle = LifecycleHandler()

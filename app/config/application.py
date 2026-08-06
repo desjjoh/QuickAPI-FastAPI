@@ -12,7 +12,7 @@ from app.common.handlers.exception_handler import (
     unhandled_exception_handler,
     validation_exception_handler,
 )
-from app.common.handlers.lifecycle_handler import lifecycle
+from app.common.handlers.lifecycle_handler import LifecycleHandler
 from app.common.middleware.content_type_enforcement import (
     ContentTypeEnforcementASGIMiddleware,
 )
@@ -43,15 +43,14 @@ from app.config.rate_limiter import RateLimiter
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     name, version, mode = settings.APP_NAME, settings.APP_VERSION, settings.ENV
     pyv: str = sys.version.split()[0]
 
     try:
         log.info(f"Booting {name} v{version} ({mode}) — Python v{pyv}")
 
-        lifecycle.register([DatabaseService()])
-        await lifecycle.startup()
+        await app.state.lifecycle.startup()
 
         port: int = settings.PORT
         log.info(f"HTTP server running on port {port} — http://localhost:{port}")
@@ -71,7 +70,7 @@ async def lifespan(_: FastAPI):
     finally:
         log.warning("Shutdown signal received — initiating shutdown")
 
-        await lifecycle.shutdown()
+        await app.state.lifecycle.shutdown()
 
         log.info("Application exited cleanly")
 
@@ -85,6 +84,9 @@ def create_app() -> FastAPI:
         version=version,
         lifespan=lifespan,
     )
+
+    app.state.lifecycle = LifecycleHandler()
+    app.state.lifecycle.register([DatabaseService()])
 
     app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestTimeoutASGIMiddleware)

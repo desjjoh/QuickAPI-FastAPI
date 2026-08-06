@@ -3,6 +3,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException, status
@@ -18,23 +19,30 @@ os.environ.setdefault("PORT", "8000")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///test.db")
 
 from app.api.system.controllers import system_controller  # noqa: E402
+from app.common.handlers.lifecycle_handler import LifecycleHandler  # noqa: E402
 
 
 class ReadyProbeTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.lifecycle = LifecycleHandler()
+        self.request = SimpleNamespace(
+            app=SimpleNamespace(state=SimpleNamespace(lifecycle=self.lifecycle))
+        )
+
     def test_ready_probe_raises_503_when_startup_is_incomplete(self) -> None:
         async def services_healthy() -> bool:
             return True
 
         with (
-            patch.object(system_controller.lifecycle, "is_ready", return_value=False),
+            patch.object(self.lifecycle, "is_ready", return_value=False),
             patch.object(
-                system_controller.lifecycle,
+                self.lifecycle,
                 "are_all_services_healthy",
                 services_healthy,
             ),
         ):
             with self.assertRaises(HTTPException) as exc_info:
-                asyncio.run(system_controller.ready_probe())
+                asyncio.run(system_controller.ready_probe(self.request))  # type: ignore[arg-type]
 
         self.assertEqual(
             exc_info.exception.status_code,
@@ -47,15 +55,15 @@ class ReadyProbeTests(unittest.TestCase):
             return False
 
         with (
-            patch.object(system_controller.lifecycle, "is_ready", return_value=True),
+            patch.object(self.lifecycle, "is_ready", return_value=True),
             patch.object(
-                system_controller.lifecycle,
+                self.lifecycle,
                 "are_all_services_healthy",
                 services_unhealthy,
             ),
         ):
             with self.assertRaises(HTTPException) as exc_info:
-                asyncio.run(system_controller.ready_probe())
+                asyncio.run(system_controller.ready_probe(self.request))  # type: ignore[arg-type]
 
         self.assertEqual(
             exc_info.exception.status_code,
@@ -73,13 +81,13 @@ class ReadyProbeTests(unittest.TestCase):
             return True
 
         with (
-            patch.object(system_controller.lifecycle, "is_ready", return_value=True),
+            patch.object(self.lifecycle, "is_ready", return_value=True),
             patch.object(
-                system_controller.lifecycle,
+                self.lifecycle,
                 "are_all_services_healthy",
                 services_healthy,
             ),
         ):
-            response = asyncio.run(system_controller.ready_probe())
+            response = asyncio.run(system_controller.ready_probe(self.request))  # type: ignore[arg-type]
 
         self.assertTrue(response.ready)

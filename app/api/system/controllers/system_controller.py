@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
@@ -14,7 +14,7 @@ from app.api.system.models.live_model import HealthResponse
 from app.api.system.models.ready_model import ReadyResponse
 from app.api.system.models.root_model import RootResponse
 from app.api.system.models.system_model import SystemResponse
-from app.common.handlers.lifecycle_handler import lifecycle
+from app.common.handlers.lifecycle_handler import LifecycleHandler
 from app.common.models.error_model import ErrorResponse
 from app.config.environment import settings
 
@@ -49,7 +49,8 @@ async def root() -> RootResponse:
     response_model=HealthResponse,
     status_code=status.HTTP_200_OK,
 )
-async def live_probe() -> HealthResponse:
+async def live_probe(request: Request) -> HealthResponse:
+    lifecycle: LifecycleHandler = request.app.state.lifecycle
     alive: bool = lifecycle.is_alive()
     timestamp: str = datetime.now(UTC).isoformat()
     uptime: float = round(time.perf_counter() - _start_time, 3)
@@ -71,7 +72,8 @@ async def live_probe() -> HealthResponse:
         }
     },
 )
-async def ready_probe() -> ReadyResponse:
+async def ready_probe(request: Request) -> ReadyResponse:
+    lifecycle: LifecycleHandler = request.app.state.lifecycle
     app_ready: bool = lifecycle.is_ready()
     services_healthy: bool = await lifecycle.are_all_services_healthy()
 
@@ -116,7 +118,8 @@ async def info() -> InfoResponse:
     response_model=SystemResponse,
     status_code=status.HTTP_200_OK,
 )
-async def system() -> SystemResponse:
+async def system(request: Request) -> SystemResponse:
+    lifecycle: LifecycleHandler = request.app.state.lifecycle
     event_loop_lag: float = await lifecycle.get_event_loop_lag(samples=1)
     services_healthy: bool = await lifecycle.are_all_services_healthy()
 
