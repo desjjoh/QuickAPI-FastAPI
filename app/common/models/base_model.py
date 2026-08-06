@@ -1,10 +1,12 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BaseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str = Field(
         ...,
         min_length=16,
@@ -25,6 +27,3 @@ class BaseResponse(BaseModel):
         description="Timestamp of the most recent update to the entity (UTC).",
         examples=[datetime(2025, 1, 1, 12, 5, 0, tzinfo=UTC).isoformat()],
     )
-
-    class Config:
-        from_attributes = True

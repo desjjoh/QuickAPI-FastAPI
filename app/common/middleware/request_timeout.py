@@ -52,6 +52,11 @@ class RequestTimeoutASGIMiddleware:
         receive: Receive,
         send: Send,
     ) -> None:
+        if self.header_timeout <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_408_REQUEST_TIMEOUT,
+                detail="Request header timeout exceeded.",
+            )
 
         start_time: float = asyncio.get_event_loop().time()
         received_headers: bool = False
@@ -62,7 +67,7 @@ class RequestTimeoutASGIMiddleware:
             now: float = asyncio.get_event_loop().time()
 
             if not received_headers:
-                if now - start_time > self.header_timeout:
+                if now - start_time >= self.header_timeout:
                     raise HTTPException(
                         status_code=status.HTTP_408_REQUEST_TIMEOUT,
                         detail="Request header timeout exceeded.",

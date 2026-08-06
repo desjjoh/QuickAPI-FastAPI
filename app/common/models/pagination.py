@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Literal, TypeVar
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 T = TypeVar("T")
 
@@ -32,6 +32,8 @@ class PaginationQuery(BaseModel):
 
 
 class PaginatedResult[T](BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     data: Sequence[T] = Field(
         ..., description="The list of items returned for this page."
     )
@@ -59,6 +61,3 @@ class PaginatedResult[T](BaseModel):
         if self.limit == 0:
             return 1
         return max((self.total + self.limit - 1) // self.limit, 1)
-
-    class Config:
-        frozen = True
