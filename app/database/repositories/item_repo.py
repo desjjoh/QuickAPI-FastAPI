@@ -45,14 +45,27 @@ class ItemListQuery:
 
 
 class ItemRepository:
+    """Persist items using repository-owned transaction boundaries.
+
+    Every mutating operation commits its own transaction.  Flushing and refreshing
+    before the commit keeps the complete write sequence atomic: if any database
+    operation fails, the repository rolls the transaction back and leaves the
+    supplied session ready for reuse.
+    """
+
     async def create(
         self, session: AsyncSession, *, item_in: ItemCreateData
     ) -> ItemORM:
         item: ItemORM = ItemORM(**item_in)
         session.add(item)
 
-        await session.commit()
-        await session.refresh(item)
+        try:
+            await session.flush()
+            await session.refresh(item)
+            await session.commit()
+        except BaseException:
+            await session.rollback()
+            raise
 
         return item
 
@@ -117,8 +130,13 @@ class ItemRepository:
         for field, value in new_data.items():
             setattr(obj, field, value)
 
-        await session.commit()
-        await session.refresh(obj)
+        try:
+            await session.flush()
+            await session.refresh(obj)
+            await session.commit()
+        except BaseException:
+            await session.rollback()
+            raise
 
         return obj
 
@@ -127,8 +145,13 @@ class ItemRepository:
         session: AsyncSession,
         obj: ItemORM,
     ) -> ItemORM:
-        await session.delete(obj)
-        await session.commit()
+        try:
+            await session.delete(obj)
+            await session.flush()
+            await session.commit()
+        except BaseException:
+            await session.rollback()
+            raise
 
         return obj
 
