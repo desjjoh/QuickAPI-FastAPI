@@ -9,6 +9,8 @@ from app.config.metrics import REQUEST_COUNT, REQUEST_LATENCY
 
 class PrometheusASGIMiddleware:
 
+    _excluded_paths: frozenset[str] = frozenset({"/metrics"})
+
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
@@ -18,6 +20,10 @@ class PrometheusASGIMiddleware:
 
         method: str = scope["method"]
         path: str = scope.get("path", "")
+
+        # Scraping the exporter must not change the measurements being scraped.
+        if path in self._excluded_paths:
+            return await self.app(scope, receive, send)
 
         start: float = time.perf_counter()
         status_code_holder: dict[str, str] = {"status": "0"}

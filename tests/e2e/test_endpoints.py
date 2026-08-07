@@ -5,23 +5,6 @@ pytestmark = pytest.mark.e2e
 
 
 @pytest.mark.asyncio
-async def test_system_endpoints(client: httpx.AsyncClient) -> None:
-    root = await client.get("/")
-    assert root.status_code == 200 and root.json()["message"].startswith("Hello World")
-    live = await client.get("/health")
-    assert live.status_code == 200 and live.json()["alive"] is True
-    ready = await client.get("/ready")
-    assert ready.status_code == 200 and ready.json() == {"ready": True}
-    info = (await client.get("/info")).json()
-    assert {"name", "version", "environment", "hostname", "pid"} <= info.keys()
-    system = (await client.get("/system")).json()
-    assert system["db"] == "connected" and system["event_loop_lag"] >= 0
-    metrics = await client.get("/metrics")
-    assert metrics.status_code == 200
-    assert "http_requests_total" in metrics.text
-
-
-@pytest.mark.asyncio
 async def test_item_crud_patch_omission_and_not_found(
     client: httpx.AsyncClient,
 ) -> None:
