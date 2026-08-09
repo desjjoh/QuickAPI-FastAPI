@@ -4,7 +4,7 @@ import pytest
 
 from app.config.application import create_app
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "options", "head"}
 ERROR_STATUSES = {"404", "422", "500", "503"}

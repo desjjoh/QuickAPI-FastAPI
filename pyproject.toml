@@ -22,9 +22,10 @@ no_implicit_optional = true
 plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
-addopts = "--strict-config --strict-markers --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=80"
+addopts = "--strict-config --strict-markers --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=90"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["."]
 filterwarnings = ["error"]
@@ -37,7 +38,6 @@ markers = [
 [tool.coverage.run]
 branch = true
 source = ["app"]
-omit = ["app/main.py"]
 
 [tool.coverage.report]
 show_missing = true

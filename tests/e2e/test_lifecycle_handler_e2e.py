@@ -1,8 +1,12 @@
 import asyncio
 import unittest
 
+import pytest
+
 from app.common.handlers.lifecycle_handler import LifecycleHandler
 from app.config.application import create_app, lifespan
+
+pytestmark = pytest.mark.e2e
 
 
 class StubService:

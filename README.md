@@ -71,6 +71,37 @@ pip install -r requirements.txt
 uvicorn app.main:create_app --factory --reload --port 5000
 ```
 
+### Test suites and coverage
+
+Tests are assigned to an explicit layer. Run each layer independently with:
+
+```bash
+pytest -q --no-cov -m unit
+pytest -q --no-cov -m integration
+pytest -q --no-cov -m e2e
+```
+
+Before relying on a layer-specific job, verify that its marker still collects tests
+(pytest returns a non-zero status when selection is empty):
+
+```bash
+pytest --collect-only -q --no-cov -m unit
+pytest --collect-only -q --no-cov -m integration
+pytest --collect-only -q --no-cov -m e2e
+```
+
+Run the full suite once to produce combined statement and branch coverage. The
+project threshold is 90%, with stricter checks for critical packages:
+
+```bash
+pytest -q
+shopt -s globstar
+coverage report --fail-under=90 app/common/middleware/*.py
+coverage report --fail-under=95 app/common/handlers/lifecycle_handler.py
+coverage report --fail-under=95 app/database/**/*.py
+coverage report --fail-under=95 app/api/**/*.py
+```
+
 ### Swagger & ReDoc
 
 ```bash

@@ -1,0 +1,46 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test-layers:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: [unit, integration, e2e]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      # pytest exits with status 5 if marker selection collects no tests.
+      - name: Verify ${{ matrix.layer }} collection is non-empty
+        run: pytest --collect-only -q --no-cov -m "${{ matrix.layer }}"
+      - name: Run ${{ matrix.layer }} tests
+        run: pytest -q --no-cov -m "${{ matrix.layer }}"
+
+  combined-coverage:
+    needs: test-layers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Run combined branch coverage
+        run: pytest -q
+      - name: Enforce critical package coverage
+        run: |
+          shopt -s globstar
+          coverage report --fail-under=90 app/common/middleware/*.py
+          coverage report --fail-under=95 app/common/handlers/lifecycle_handler.py
+          coverage report --fail-under=95 app/database/**/*.py
+          coverage report --fail-under=95 app/api/**/*.py
