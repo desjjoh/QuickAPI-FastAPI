@@ -1,7 +1,7 @@
 import uuid
 
 import structlog
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.common.store.request_context import RequestContext, RequestContextData
 
@@ -50,4 +50,11 @@ class RequestContextASGIMiddleware:
 
         RequestContext.set(ctx)
 
-        await self.app(scope, receive, send)
+        async def send_wrapper(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = message.setdefault("headers", [])
+                headers.append((b"x-request-id", request_id.encode()))
+
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)

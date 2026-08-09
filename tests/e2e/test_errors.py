@@ -38,12 +38,11 @@ def test_openapi_schema_and_documented_responses() -> None:
     assert schema["info"]["title"] == "QuickAPI"
     item = schema["paths"]["/api/v1/items/{id}"]
     assert "404" in item["get"]["responses"]
-    assert "422" not in item["get"]["responses"]
-    assert (
-        schema["components"]["schemas"]["HTTPValidationError"]["properties"]["status"][
-            "type"
-        ]
-        == "integer"
-    )
+    assert item["get"]["responses"]["422"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ErrorResponse"
+    }
+    assert schema["components"]["schemas"]["HTTPValidationError"] == {
+        "$ref": "#/components/schemas/ErrorResponse"
+    }
     metrics = schema["paths"]["/metrics"]["get"]["responses"]["200"]
     assert "text/plain" in metrics["content"]

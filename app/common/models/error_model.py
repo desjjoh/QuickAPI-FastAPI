@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -27,7 +28,7 @@ class ErrorResponse(BaseModel):
 def error_response(
     status: int,
     message: str,
-    headers: dict[str, str] | None = None,
+    headers: Mapping[str, str] | None = None,
 ) -> JSONResponse:
     ts_ms: int = int(datetime.now(UTC).timestamp() * 1_000)
 

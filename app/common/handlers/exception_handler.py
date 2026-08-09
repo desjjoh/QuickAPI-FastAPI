@@ -1,3 +1,6 @@
+import json
+from typing import Any
+
 from fastapi import Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -13,7 +16,19 @@ async def http_exception_handler(
 ) -> JSONResponse:
 
     log.error(exc.detail)
-    return error_response(status=exc.status_code, message=exc.detail)
+    return error_response(
+        status=exc.status_code,
+        message=_detail_message(exc.detail),
+        headers=exc.headers,
+    )
+
+
+def _detail_message(detail: Any) -> str:
+    """Render every shape accepted by HTTPException without changing the envelope."""
+    if isinstance(detail, str):
+        return detail
+
+    return json.dumps(detail, separators=(",", ":"), sort_keys=True, default=str)
 
 
 async def validation_exception_handler(

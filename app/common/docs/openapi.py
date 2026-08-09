@@ -12,27 +12,15 @@ def configure_custom_validation_openapi(app: FastAPI) -> None:
         schema = get_openapi(
             title=app.title,
             version=app.version,
+            description=app.description,
+            tags=app.openapi_tags,
             routes=app.routes,
         )
 
-        error_schema: dict[str, Any] = {
-            "type": "object",
-            "properties": {
-                "status": {"type": "integer", "example": 422},
-                "message": {
-                    "type": "string",
-                    "example": (
-                        "Validation failed: name → Field required; "
-                        "path.id → String should have at least 16 characters"
-                    ),
-                },
-                "timestamp": {"type": "string", "format": "date-time"},
-            },
-            "required": ["status", "message", "timestamp"],
-        }
+        error_ref: dict[str, str] = {"$ref": "#/components/schemas/ErrorResponse"}
 
-        schema["components"]["schemas"]["ValidationError"] = error_schema
-        schema["components"]["schemas"]["HTTPValidationError"] = error_schema
+        schema["components"]["schemas"]["ValidationError"] = error_ref
+        schema["components"]["schemas"]["HTTPValidationError"] = error_ref
 
         paths: dict[str, Any] = schema.get("paths", {})
 
@@ -53,7 +41,17 @@ def configure_custom_validation_openapi(app: FastAPI) -> None:
                     responses = cast(dict[str, Any], responses_raw)
 
                     if "422" in responses:
-                        del responses["422"]
+                        responses["422"]["content"]["application/json"][
+                            "schema"
+                        ] = error_ref
+
+                    responses.setdefault(
+                        "500",
+                        {
+                            "description": "Unexpected server error.",
+                            "content": {"application/json": {"schema": error_ref}},
+                        },
+                    )
 
         app.openapi_schema = schema
         return app.openapi_schema

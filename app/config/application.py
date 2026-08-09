@@ -82,6 +82,11 @@ def create_app() -> FastAPI:
     app: FastAPI = FastAPI(
         title=name,
         version=version,
+        description="A production-oriented example API built with FastAPI.",
+        openapi_tags=[
+            {"name": "System", "description": "Runtime and service diagnostics."},
+            {"name": "Items", "description": "CRUD operations for items."},
+        ],
         lifespan=lifespan,
     )
 

@@ -30,6 +30,7 @@ class RateLimitASGIMiddleware:
 
         except HTTPException as exc:
             request: Request = Request(scope, receive=receive)
+            exc.headers = {**(exc.headers or {}), "X-RateLimit-Result": "rejected"}
             response: JSONResponse = await http_exception_handler(request, exc)
 
             async def empty_receive() -> Message:
