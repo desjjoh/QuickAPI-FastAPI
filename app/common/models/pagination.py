@@ -23,7 +23,7 @@ class PaginationQuery(BaseModel):
         examples=["sword"],
     )
 
-    @computed_field(return_type=int)
+    @computed_field(return_type=int)  # type: ignore[prop-decorator]
     @property
     def offset(self) -> int:
         return (self.page - 1) * self.limit
