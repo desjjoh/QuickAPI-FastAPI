@@ -5,7 +5,7 @@ from fastapi.openapi.utils import get_openapi
 
 
 def configure_custom_validation_openapi(app: FastAPI) -> None:
-    def custom_openapi():
+    def custom_openapi() -> dict[str, Any]:
         if app.openapi_schema:
             return app.openapi_schema
 
@@ -56,4 +56,4 @@ def configure_custom_validation_openapi(app: FastAPI) -> None:
         app.openapi_schema = schema
         return app.openapi_schema
 
-    app.openapi = custom_openapi
+    setattr(app, "openapi", custom_openapi)

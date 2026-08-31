@@ -103,7 +103,7 @@ structlog.configure(
 
 
 class _LogProxy(LoggerProtocol):
-    def __getattribute__(self, name: str):
+    def __getattribute__(self, name: str) -> Any:
         logger = structlog.get_logger()
         return getattr(logger, name)
 

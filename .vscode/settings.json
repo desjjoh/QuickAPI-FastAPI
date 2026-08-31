@@ -1,0 +1,25 @@
+{
+  // --- Linting & Type Checking ---
+  "python.analysis.typeCheckingMode": "strict",
+  "ruff.enable": true,
+
+  // --- Formatting ---
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "ms-python.black-formatter",
+
+  // --- Code Actions (auto-fix lint issues if possible) ---
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  },
+
+  // --- Misc quality-of-life options ---
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.diagnosticMode": "workspace",
+
+  "files.associations": {
+    "pyproject.toml": "toml"
+  }
+}

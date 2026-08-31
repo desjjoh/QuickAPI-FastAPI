@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
@@ -30,7 +30,7 @@ class UpdateItemRequest(BaseModel):
 
     @field_validator("name", "price", mode="before")
     @classmethod
-    def reject_explicit_nulls(cls, value: Any):
+    def reject_explicit_nulls(cls, value: Any) -> Any:
         if value is None:
             raise PydanticCustomError(
                 "null_forbidden",
@@ -40,7 +40,7 @@ class UpdateItemRequest(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def reject_empty_payload(self):
+    def reject_empty_payload(self) -> Self:
         provided = {k: v for k, v in self.model_dump(exclude_unset=True).items()}
 
         if not provided:

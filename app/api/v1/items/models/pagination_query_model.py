@@ -1,4 +1,5 @@
-from typing import Literal
+from typing import Literal, Self
+
 
 from pydantic import Field, model_validator
 
@@ -19,7 +20,7 @@ class ItemPaginationQuery(PaginationQuery):
     )
 
     @model_validator(mode="after")
-    def validate_price_range(self):
+    def validate_price_range(self) -> Self:
         if self.min_price is not None and self.max_price is not None:
             if self.min_price > self.max_price:
                 raise ValueError("min_price cannot exceed max_price.")

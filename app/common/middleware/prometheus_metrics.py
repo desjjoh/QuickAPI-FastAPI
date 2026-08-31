@@ -28,7 +28,7 @@ class PrometheusASGIMiddleware:
         start: float = time.perf_counter()
         status_code_holder: dict[str, str] = {"status": "0"}
 
-        async def send_wrapper(message: Message):
+        async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
                 status_code_holder["status"] = str(message["status"])
 

@@ -47,7 +47,9 @@ class ContentTypeEnforcementASGIMiddleware:
 
             return await response(scope, empty_receive, send)
 
-    async def _run_content_type_logic(self, scope: Scope, receive: Receive, send: Send):
+    async def _run_content_type_logic(
+        self, scope: Scope, receive: Receive, send: Send
+    ) -> None:
         method: str = scope.get("method", "").upper()
         path: str = scope.get("path", "")
         raw_headers = scope.get("headers", [])

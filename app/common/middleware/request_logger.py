@@ -29,7 +29,7 @@ class RequestLoggingASGIMiddleware:
 
         status: int | None = None
 
-        async def send_wrapper(message: Message):
+        async def send_wrapper(message: Message) -> None:
             nonlocal status
 
             if message["type"] == "http.response.start":

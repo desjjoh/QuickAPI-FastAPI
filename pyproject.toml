@@ -6,6 +6,8 @@ skip-string-normalization = true
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+
+[tool.ruff.lint]
 extend-select = ["I", "N", "UP", "RUF"]
 ignore = ["E501"]
 
@@ -20,6 +22,11 @@ disallow_incomplete_defs = true
 check_untyped_defs = true
 no_implicit_optional = true
 plugins = ["pydantic.mypy"]
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = "colorama"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=90"

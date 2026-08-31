@@ -1,97 +1,201 @@
 # QuickAPI-FastAPI
 
-A modular, production-grade FastAPI template designed for scalable backend services, strong security defaults, and consistent architectural patterns shared across the **QuickAPI** ecosystem (Express, NestJS, FastAPI).
+A production-oriented FastAPI reference service. Its deliberately small domain—one
+CRUD `items` resource—keeps the focus on architecture, contracts, persistence,
+runtime safety, testing, and deployment rather than feature count.
 
----
+## What the repository proves
 
-## Features
+- Validated, environment-driven configuration with startup failure on invalid input.
+- Pydantic request and response contracts plus one stable JSON error envelope.
+- Async SQLAlchemy persistence with request-owned sessions and explicit transaction
+  handling.
+- A pure-ASGI middleware stack for request context, logging, CORS, security headers,
+  size and header limits, timeouts, method/content-type enforcement, rate limiting,
+  and Prometheus metrics.
+- Managed application startup, health/readiness probes, and reverse-order shutdown.
+- Unit, integration, and end-to-end suites with branch coverage and package-specific
+  thresholds.
+- CI gates for formatting, linting, typing, tests, coverage, container construction,
+  and a smoke test of the built image.
 
-- **Strict Pydantic validation** for configuration, requests, and responses
-- **ASGI middleware suite**: header sanitization, security headers, body size limiting, rate limiting, request context, structured logging
-- **Prometheus metrics** with protected `/metrics` endpoint
-- **Unified error model** replacing default FastAPI 422 responses
-- **Structured logging** using `structlog` with colored, contextual logs
-- **OpenAPI documentation** with corrected schemas and custom error responses
-- **Graceful shutdown** via FastAPI lifespan context
-- **Modular folder structure** optimized for large-scale APIs
-- **CORS + CSP** with strict production defaults
-- **Developer‑friendly architecture** inspired by Express & NestJS templates
+Authentication and authorization are intentionally outside this template's scope.
+Do not expose domain routes to untrusted clients without adding the trust boundary
+appropriate to your application.
 
----
+## Architecture
 
-## Folder Structure
-
-```bash
+```text
 app/
-├── config/                # Environment configuration
-├── controllers/           # High-level request orchestration
+├── api/
+│   ├── api_routes.py                 # top-level route composition
+│   ├── system/                       # probes, diagnostics, metrics, metadata
+│   └── v1/items/                     # item HTTP controllers and Pydantic models
+├── common/
+│   ├── docs/                         # OpenAPI contract customization
+│   ├── handlers/                     # exception and lifecycle behavior
+│   ├── middleware/                   # transport/security/observability policies
+│   ├── models/                       # shared errors, parameters, pagination
+│   └── store/                        # request context and rate-limit state
+├── config/                           # app assembly, settings, DB, logging, metrics
 ├── database/
-│   ├── entities/          # ORM models
-│   └── repositories/      # Database abstraction layer
-├── docs/                  # OpenAPI utilities & schema customization
-├── handlers/              # Process-level handlers (signals, shutdown helpers)
-├── middleware/            # All ASGI middleware (security, logging, rate limiting)
-├── models/                # Pydantic schemas (ErrorModel, domain models, etc.)
-├── routes/                # Router modules, metrics, system endpoints
-├── store/                 # Request-scoped state (contextvars-backed)
-└── main.py                # Application factory + middleware wiring
+│   ├── entities/                     # SQLAlchemy mappings
+│   └── repositories/                 # queries and transaction boundaries
+├── public/                           # static assets
+└── main.py                           # executable entry point
+tests/
+├── unit/                             # isolated behavior
+├── integration/                      # real session/repository and app composition
+└── e2e/                              # complete HTTP and lifespan behavior
 ```
 
----
+Dependencies point inward: controllers depend on validated API models and the
+repository abstraction; repositories own persistence operations; application
+assembly is centralized in `app/config/application.py`. The domain is intentionally
+not split into speculative service layers while it remains simple.
 
-## Environment Variables (`.env`)
+## Request lifecycle and middleware order
+
+Starlette wraps middleware in reverse registration order. Consequently, the last
+middleware added in `create_app()` is the first to see a request. The effective
+inbound order is:
+
+```text
+cleanup → request context → request logging → CORS → security headers
+→ body limit → content type → header sanitization → header limits
+→ method allowlist → rate limit → timeout → metrics → routing/controller
+```
+
+Responses unwind through the same layers in reverse. This is intentional:
+
+1. Cleanup is outermost so context variables are cleared even after failures.
+2. Request identity is established before logging and returned as `X-Request-ID`.
+3. Transport and security checks reject unsafe requests before domain code runs.
+4. Timeout and metrics surround routed work so operational behavior is observable.
+5. Controllers validate inputs, borrow a database session, call the repository, and
+   serialize a declared response model.
+
+Middleware rejections use the same error renderer as routed HTTP exceptions, so
+clients do not need separate parsing behavior for transport and application errors.
+The in-memory rate limiter is process-local by design; replace it with shared storage
+before relying on a global limit across multiple workers or replicas.
+
+## Application lifespan
+
+FastAPI's lifespan starts registered services before the app becomes ready. The
+database service creates/checks its schema, readiness requires startup completion
+and healthy registered services, and shutdown stops only successfully started
+services in reverse order. Partial startup failure rolls back already-started
+services. The probes have distinct meanings:
+
+| Endpoint       | Meaning                                                           |
+| -------------- | ----------------------------------------------------------------- |
+| `GET /health`  | Process liveness; it does not query dependencies.                 |
+| `GET /ready`   | Startup completed and all registered services pass health checks. |
+| `GET /system`  | Runtime diagnostics, event-loop lag, and database state.          |
+| `GET /metrics` | Prometheus exposition output.                                     |
+
+## Configuration
+
+Copy the example, then change values for the target environment:
 
 ```bash
-APP_NAME=QuickAPI
-APP_VERSION=1.0.0
-
-ENV=development
-LOG_LEVEL=DEBUG
-
-HOST=0.0.0.0
-PORT=5000
-
-DATABASE_URL=mysql+asyncmy://quickapi:change-me@localhost:3306/quickapi
-METRICS_API_KEY=dev-metrics
+cp .env.example .env
 ```
 
-All values are validated on startup.
-If validation fails, the application prints a clear diagnostic report and exits safely.
-The database URL uses SQLAlchemy's async MySQL dialect and should be populated with
-the MySQL username, password, host, port, and database for the target environment.
+| Variable       | Requirement                                             |
+| -------------- | ------------------------------------------------------- |
+| `APP_NAME`     | Non-empty, at most 120 characters.                      |
+| `APP_VERSION`  | Three-part semantic version such as `1.0.0`.            |
+| `ENV`          | `development`, `test`, or `production`.                 |
+| `LOG_LEVEL`    | `DEBUG`, `INFO`, `WARN`, or `ERROR`.                    |
+| `HOST`         | Bind address; defaults to `0.0.0.0`.                    |
+| `PORT`         | Integer from 1 through 65535.                           |
+| `DATABASE_URL` | SQLAlchemy async URL; MySQL uses `mysql+asyncmy://...`. |
 
----
+Pydantic validates configuration while importing the application. Missing or invalid
+required values produce a field-by-field diagnostic and a non-zero exit rather than
+starting a partially configured server. `.env` is for local development; deployment
+systems should inject secrets and configuration instead of baking them into images.
 
-## Running the Application
+## Persistence and migrations
 
-### Local Development
+`get_session()` creates one async session per dependency invocation and closes it
+after the response dependency scope completes. Read queries do not commit. Each
+repository mutation owns its transaction: it flushes and refreshes, commits on
+success, and rolls back on any failure so the session is safe to close or reuse.
+
+At startup, this reference currently calls SQLAlchemy `metadata.create_all()`. That
+is deterministic for a fresh database but **is not a schema migration system** and
+does not alter existing columns. Before evolving a deployed schema:
+
+1. Add Alembic (or the migration system selected by the consuming service).
+2. Generate a revision from the ORM metadata, inspect it, and test both upgrade and
+   downgrade against the production database engine.
+3. Run `alembic upgrade head` as a one-shot release task before rolling out the app.
+4. Remove startup `create_all()` once migrations become authoritative.
+
+This limitation is explicit so the template does not promise migration safety it
+does not yet prove.
+
+## Error contract
+
+HTTP errors, validation failures, middleware rejections, and unhandled exceptions
+share this response shape:
+
+```json
+{
+  "status": 422,
+  "message": "Validation failed: body.name → Field required.",
+  "timestamp": 1764310185000
+}
+```
+
+`status` is the HTTP status, `message` is safe client-facing text, and `timestamp`
+is Unix time in milliseconds. Validation details are flattened into a deterministic
+message; unhandled exceptions return only `Internal server error.` OpenAPI replaces
+FastAPI's default validation schema with this contract.
+
+## Run locally
+
+Python 3.12 is the supported runtime.
 
 ```bash
-pip install -r requirements.txt
-uvicorn app.main:create_app --factory --reload --port 5000
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+python -m app.main
 ```
 
-### Test suites and coverage
+The example configuration binds port 5000. OpenAPI UI is available at `/docs`,
+ReDoc at `/redoc`, and the item collection at `/api/v1/items/`.
 
-Tests are assigned to an explicit layer. Run each layer independently with:
+## Quality gates and tests
+
+Run the same static checks used by CI:
 
 ```bash
-pytest -q --no-cov -m unit
-pytest -q --no-cov -m integration
-pytest -q --no-cov -m e2e
+black --check app tests
+ruff check app tests
+mypy app
 ```
 
-Before relying on a layer-specific job, verify that its marker still collects tests
-(pytest returns a non-zero status when selection is empty):
+Every test has an explicit layer marker. CI first verifies that each layer collects
+at least one test, preventing an accidentally empty suite from passing:
 
 ```bash
 pytest --collect-only -q --no-cov -m unit
 pytest --collect-only -q --no-cov -m integration
 pytest --collect-only -q --no-cov -m e2e
+pytest -q --no-cov -m unit
+pytest -q --no-cov -m integration
+pytest -q --no-cov -m e2e
 ```
 
-Run the full suite once to produce combined statement and branch coverage. The
-project threshold is 90%, with stricter checks for critical packages:
+The combined run enforces 90% statement and branch coverage. CI additionally
+requires 90% middleware coverage and 95% coverage for lifecycle, database, and API
+packages:
 
 ```bash
 pytest -q
@@ -102,103 +206,28 @@ coverage report --fail-under=95 app/database/**/*.py
 coverage report --fail-under=95 app/api/**/*.py
 ```
 
-### Swagger & ReDoc
+## Production container validation
+
+Build and run the same immutable artifact CI smoke-tests:
 
 ```bash
-http://localhost:5000/docs
-http://localhost:5000/redoc
+docker build -t quickapi-fastapi:local .
+docker run --rm -p 8000:8000 \
+  -e APP_NAME=QuickAPI -e APP_VERSION=1.0.0 \
+  -e ENV=production -e LOG_LEVEL=INFO \
+  -e HOST=0.0.0.0 -e PORT=8000 \
+  -e DATABASE_URL=sqlite+aiosqlite:////tmp/quickapi.db \
+  quickapi-fastapi:local
+curl --fail http://localhost:8000/ready
+curl --fail http://localhost:8000/api/v1/items/
 ```
 
-### Prometheus Metrics
-
-```bash
-http://localhost:5000/metrics
-```
-
----
-
-## Observability
-
-### Logging
-
-- colorized structured logs
-- contextual `request_id`
-- mute noisy framework logs
-- environment-controlled log level
-
-### Metrics
-
-Prometheus middleware emits:
-
-- request counts
-- request latency histogram
-- status code distribution
-
-Example metric:
-
-```bash
-http_requests_total{method="GET",path="/api/v1/items",status="200"} 42
-```
-
----
-
-## Security Hardening
-
-### Header Sanitization
-
-Prevents:
-
-- header injection
-- smuggling vectors
-- duplicate headers
-- invalid characters
-
-Trims non-whitelisted headers while allowing standard browser headers (connection, keep-alive, etc.).
-
-### Body Size Limiting
-
-Rejects large requests (`413 Payload Too Large`) with custom error model.
-
-### Rate Limiting
-
-Burst + sustained limits with lightweight in‑memory store.
-
-### CORS & CSP
-
-Secure-by-default configurations mirroring Express/Nest templates.
-
----
-
-## Unified Error Model
-
-All errors follow the same JSON envelope:
-
-```json
-{
-  "status": 400,
-  "message": "Missing required field: email",
-  "timestamp": 1764310185
-}
-```
-
-FastAPI’s 422 validation responses are fully overridden and documented in OpenAPI.
-
----
-
-## Design Principles
-
-- **Fail-fast validation** at every layer
-- **Strict input sanitation**
-- **Deterministic behavior** across environments
-- **Predictable, platform-level architecture**
-- **Production-first mindset** (observability, errors, shutdown, metrics)
-
----
+SQLite makes the smoke test self-contained; deploy with the async database URL and
+durable database required by your service. `docker compose up --build` instead uses
+the externally supplied `DATABASE_URL`. CI validates both startup readiness and a
+real API request against the built runtime image—not merely that the Dockerfile
+parses.
 
 ## License
 
-MIT License — Free for personal and commercial use.
-
----
-
-QuickAPI-FastAPI — part of the **QuickAPI** ecosystem by **John Desjardins**.
+MIT License — free for personal and commercial use.

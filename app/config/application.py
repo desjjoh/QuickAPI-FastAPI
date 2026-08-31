@@ -1,4 +1,5 @@
 import sys
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -43,7 +44,7 @@ from app.config.rate_limiter import RateLimiter
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     name, version, mode = settings.APP_NAME, settings.APP_VERSION, settings.ENV
     pyv: str = sys.version.split()[0]
 
