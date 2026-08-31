@@ -1,6 +1,5 @@
 from typing import Literal, Self
 
-
 from pydantic import Field, model_validator
 
 from app.common.models.pagination import PaginationQuery
