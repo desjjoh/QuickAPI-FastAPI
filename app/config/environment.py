@@ -1,7 +1,8 @@
 import sys
 from typing import Literal, NoReturn
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, field_validator
 from pydantic_core import ErrorDetails
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,6 +20,17 @@ class Settings(BaseSettings):
     PORT: int = Field(..., ge=1, le=65_535)
 
     DATABASE_URL: str = Field(..., min_length=5)
+    TIMEZONE: str = "Etc/UTC"
+
+    @field_validator("TIMEZONE")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        """Accept only identifiers supplied by the system IANA timezone database."""
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("must be a valid IANA timezone identifier") from exc
+        return value
 
     model_config = SettingsConfigDict(
         env_file=".env",

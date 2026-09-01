@@ -16,6 +16,7 @@ ENV_KEYS = (
     "HOST",
     "PORT",
     "DATABASE_URL",
+    "TIMEZONE",
 )
 
 
@@ -41,6 +42,13 @@ def test_valid_settings_and_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.APP_NAME == "QuickAPI"
     assert result.LOG_LEVEL == "INFO"
     assert result.HOST == "0.0.0.0"
+    assert result.TIMEZONE == "Etc/UTC"
+
+
+def test_configured_iana_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert settings(monkeypatch, TIMEZONE="America/New_York").TIMEZONE == (
+        "America/New_York"
+    )
 
 
 @pytest.mark.parametrize(
@@ -54,6 +62,7 @@ def test_valid_settings_and_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
         ("PORT", "not-a-number"),
         ("DATABASE_URL", "x"),
         ("APP_NAME", ""),
+        ("TIMEZONE", "Not/A_Timezone"),
     ],
 )
 def test_malformed_values(

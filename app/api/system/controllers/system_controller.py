@@ -1,5 +1,3 @@
-import os
-import socket
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,8 +12,8 @@ from app.api.system.models.live_model import HealthResponse
 from app.api.system.models.ready_model import ReadyCheck, ReadyResponse
 from app.api.system.models.root_model import RootResponse
 from app.api.system.models.system_model import SystemResponse
+from app.api.system.services.system_service import SystemInfoService
 from app.common.handlers.lifecycle_handler import LifecycleHandler
-from app.config.environment import settings
 
 router: APIRouter = APIRouter(tags=["System"])
 _start_time: float = time.perf_counter()
@@ -110,14 +108,9 @@ async def ready_probe(request: Request) -> JSONResponse:
     response_model=InfoResponse,
     status_code=status.HTTP_200_OK,
 )
-async def info() -> InfoResponse:
-    return InfoResponse(
-        name=settings.APP_NAME,
-        version=settings.APP_VERSION,
-        environment=settings.ENV,
-        hostname=socket.gethostname(),
-        pid=os.getpid(),
-    )
+async def info(request: Request) -> InfoResponse:
+    service: SystemInfoService = request.app.state.system_info
+    return service.info()
 
 
 ## GET /system
