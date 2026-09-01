@@ -1,7 +1,9 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RootResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
     message: str = Field(
         ...,
         description="A friendly greeting from the API",

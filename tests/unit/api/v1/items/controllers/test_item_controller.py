@@ -89,13 +89,14 @@ class ItemControllerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_create_converts_payload_and_returns_created_item(self) -> None:
         payload = ItemBase(name="Iron Sword", price=49.99, description=None)
+        db = AsyncMock(spec=AsyncSession)
         with patch.object(
             item_controller.repo, "create", new=AsyncMock(return_value=self.item)
         ) as create:
-            response = await item_controller.create(payload, AsyncMock())
+            response = await item_controller.create(payload, db)
 
         self.assertEqual(response.id, self.item.id)
-        self.assertEqual(create.await_args.kwargs["item_in"], payload.model_dump())
+        create.assert_awaited_once_with(db, item_in=payload.model_dump())
 
     async def test_list_converts_query_and_returns_page(self) -> None:
         query = ItemPaginationQuery()
@@ -134,13 +135,16 @@ class ItemControllerTests(unittest.IsolatedAsyncioTestCase):
             self.assertRaises(item_controller.HTTPException) as error,
         ):
             await item_controller.update(
-                "ffffffffffffffff", UpdateItemRequest(price=1), AsyncMock()
+                "ffffffffffffffff",
+                UpdateItemRequest.model_validate({"price": 1}),
+                AsyncMock(),
             )
 
         self.assertEqual(error.exception.status_code, 404)
 
     async def test_replace_updates_all_fields_and_reports_missing_item(self) -> None:
         payload = ItemBase(name="Replacement", price=10, description=None)
+        db = AsyncMock(spec=AsyncSession)
         update = AsyncMock(return_value=self.item)
         with (
             patch.object(
@@ -150,9 +154,9 @@ class ItemControllerTests(unittest.IsolatedAsyncioTestCase):
             ),
             patch.object(item_controller.repo, "update", new=update),
         ):
-            response = await item_controller.replace(self.item.id, payload, AsyncMock())
+            response = await item_controller.replace(self.item.id, payload, db)
             self.assertEqual(response.id, self.item.id)
-            self.assertEqual(update.await_args.args[2], payload.model_dump())
+            update.assert_awaited_once_with(db, self.item, payload.model_dump())
 
             with self.assertRaises(item_controller.HTTPException) as error:
                 await item_controller.replace("ffffffffffffffff", payload, AsyncMock())

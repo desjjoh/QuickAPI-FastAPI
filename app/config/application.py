@@ -1,6 +1,8 @@
 import sys
+import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
@@ -93,6 +95,8 @@ def create_app() -> FastAPI:
 
     app.state.lifecycle = LifecycleHandler()
     app.state.lifecycle.register([DatabaseService()])
+    app.state.initialization_timestamp = datetime.now(UTC)
+    app.state.monotonic_start = time.perf_counter()
 
     app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestTimeoutASGIMiddleware)

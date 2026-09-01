@@ -1,7 +1,7 @@
 import os
 import socket
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -52,10 +52,19 @@ async def root() -> RootResponse:
 async def live_probe(request: Request) -> HealthResponse:
     lifecycle: LifecycleHandler = request.app.state.lifecycle
     alive: bool = lifecycle.is_alive()
-    timestamp: str = datetime.now(UTC).isoformat()
-    uptime: float = round(time.perf_counter() - _start_time, 3)
+    uptime: float = round(
+        time.perf_counter() - request.app.state.monotonic_start,
+        3,
+    )
+    timestamp: datetime = request.app.state.initialization_timestamp + timedelta(
+        seconds=uptime
+    )
 
-    return HealthResponse(alive=alive, uptime=uptime, timestamp=timestamp)
+    return HealthResponse.from_alive(
+        alive=alive,
+        uptime=uptime,
+        timestamp=timestamp,
+    )
 
 
 ## GET /ready
