@@ -51,6 +51,30 @@ def test_proc_memory_compatibility_helper(tmp_path: object) -> None:
     assert system_service._memory_from_proc(path) == (102400, 25600)
 
 
+def test_proc_memory_invalid_or_incomplete_data_returns_none(tmp_path: object) -> None:
+    from pathlib import Path
+
+    missing = Path(str(tmp_path)) / "missing"
+    incomplete = Path(str(tmp_path)) / "meminfo"
+    incomplete.write_text("MemTotal: 100 kB\n", encoding="ascii")
+
+    assert system_service._memory_from_proc(missing) is None
+    assert system_service._memory_from_proc(incomplete) is None
+
+
+@pytest.mark.parametrize("failure", [OSError(), -1])
+def test_sysconf_failure_returns_none(
+    failure: Exception | int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(_name: str) -> int:
+        if isinstance(failure, Exception):
+            raise failure
+        return failure
+
+    monkeypatch.setattr(system_service.os, "sysconf", fail, raising=False)
+    assert system_service._memory_from_sysconf() is None
+
+
 def test_rss_unit_conversion() -> None:
     assert system_service._rss_bytes(7, "Darwin") == 7
     assert system_service._rss_bytes(7, "Linux") == 7 * 1024
@@ -62,6 +86,23 @@ def test_resource_module_absent_returns_zero(monkeypatch: pytest.MonkeyPatch) ->
         raise ImportError
 
     monkeypatch.setattr(system_service.importlib, "import_module", missing)
+    assert system_service._process_rss_bytes() == 0
+
+
+def test_resource_read_failure_returns_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FailingResourceModule:
+        RUSAGE_SELF = 0
+
+        @staticmethod
+        def getrusage(_who: int) -> object:
+            raise OSError
+
+    def load_failing_resource(_name: str) -> object:
+        return FailingResourceModule()
+
+    monkeypatch.setattr(
+        system_service.importlib, "import_module", load_failing_resource
+    )
     assert system_service._process_rss_bytes() == 0
 
 
@@ -101,6 +142,21 @@ async def test_event_loop_lag_is_non_negative() -> None:
     service = SystemDiagnosticsService(lifecycle, time.perf_counter())  # type: ignore[arg-type]
     assert await service._event_loop_lag() == 3.5
     lifecycle.get_event_loop_lag.assert_awaited_once_with(samples=1, interval=0.01)
+
+
+async def test_diagnostic_check_failures_return_safe_values() -> None:
+    lifecycle = Lifecycle()
+    lifecycle.get_event_loop_lag = AsyncMock(side_effect=RuntimeError)
+    lifecycle.check_service = AsyncMock(side_effect=RuntimeError)
+    service = SystemDiagnosticsService(lifecycle, time.perf_counter())  # type: ignore[arg-type]
+
+    assert await service._event_loop_lag() == 0.0
+    assert await service._database_status() == "disconnected"
+
+
+def test_diagnostics_timeout_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="greater than zero"):
+        SystemDiagnosticsService(Lifecycle(), time.perf_counter(), timeout_seconds=0)  # type: ignore[arg-type]
 
 
 async def test_collector_timeout_returns_required_fallbacks(

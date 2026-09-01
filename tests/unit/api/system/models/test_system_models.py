@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.api.system.models.live_model import HealthResponse
+from app.api.system.models.ready_model import ReadyCheck, ReadyResponse
 from app.api.system.models.root_model import RootResponse
 
 pytestmark = pytest.mark.unit
@@ -89,3 +90,33 @@ def test_health_response_factory_derives_status(alive: bool, status: str) -> Non
     )
 
     assert response.status == status
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {
+            "ready": True,
+            "status": "ready",
+            "timestamp": datetime.now(),
+            "checks": [],
+        },
+        {
+            "ready": True,
+            "status": "not_ready",
+            "timestamp": datetime.now(UTC),
+            "checks": [],
+        },
+        {
+            "ready": True,
+            "status": "ready",
+            "timestamp": datetime.now(UTC),
+            "checks": [
+                ReadyCheck(name="database", status="down", response_time_ms=0.0)
+            ],
+        },
+    ],
+)
+def test_ready_response_rejects_invalid_contracts(data: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        ReadyResponse.model_validate(data)
