@@ -1,6 +1,7 @@
 import httpx
 import pytest
 from fastapi import APIRouter, FastAPI, HTTPException
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from app.config.application import create_app
 
@@ -45,4 +46,5 @@ def test_openapi_schema_and_documented_responses() -> None:
         "$ref": "#/components/schemas/ErrorResponse"
     }
     metrics = schema["paths"]["/metrics"]["get"]["responses"]["200"]
-    assert "text/plain" in metrics["content"]
+    assert set(metrics["content"]) == {CONTENT_TYPE_LATEST}
+    assert "schema" not in metrics["content"][CONTENT_TYPE_LATEST]

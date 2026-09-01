@@ -9,7 +9,10 @@ from app.config.metrics import REQUEST_COUNT, REQUEST_LATENCY
 
 class PrometheusASGIMiddleware:
 
-    _excluded_paths: frozenset[str] = frozenset({"/metrics"})
+    # Operational polling is intentionally omitted from application traffic metrics.
+    _excluded_paths: frozenset[str] = frozenset(
+        {"/health", "/ready", "/info", "/system", "/metrics"}
+    )
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -21,7 +24,7 @@ class PrometheusASGIMiddleware:
         method: str = scope["method"]
         path: str = scope.get("path", "")
 
-        # Scraping the exporter must not change the measurements being scraped.
+        # Exporter scrapes and probe polling must not distort application traffic.
         if path in self._excluded_paths:
             return await self.app(scope, receive, send)
 

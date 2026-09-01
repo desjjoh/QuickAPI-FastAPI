@@ -44,7 +44,7 @@ async def root() -> RootResponse:
 @router.get(
     "/health",
     summary="Report basic process liveness.",
-    description="Liveness check — verifies the process is alive.",
+    description="Reports whether the API process is alive, without checking dependencies.",
     response_model=HealthResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -70,7 +70,7 @@ async def live_probe(request: Request) -> HealthResponse:
 @router.get(
     "/ready",
     summary="Report application readiness state.",
-    description="Readiness check — verifies that the app has completed startup and all required services are healthy.",
+    description="Reports whether startup is complete and required services are healthy.",
     response_model=ReadyResponse,
     status_code=status.HTTP_200_OK,
     responses={
@@ -106,7 +106,7 @@ async def ready_probe(request: Request) -> JSONResponse:
 @router.get(
     "/info",
     summary="Return application and runtime metadata.",
-    description="Returns application metadata including name, version, environment, hostname, and PID.",
+    description="Returns public application identity and Python runtime metadata.",
     response_model=InfoResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -119,7 +119,7 @@ async def info(request: Request) -> InfoResponse:
 @router.get(
     "/system",
     summary="Return system-level diagnostics.",
-    description="System diagnostics including memory usage, load averages, event loop lag, and database status.",
+    description="Returns bounded host, process, event-loop, and database diagnostics.",
     response_model=SystemResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -131,14 +131,17 @@ async def system(request: Request) -> SystemResponse:
 ## GET /metrics
 @router.get(
     "/metrics",
-    summary="Return Prometheus metrics",
-    description="Returns application metrics in Prometheus' text exposition format.",
+    summary="Return Prometheus metrics.",
+    description=(
+        "Returns Prometheus plaintext exposition data with media type "
+        f"`{CONTENT_TYPE_LATEST}`; this response has no JSON schema."
+    ),
     response_class=Response,
     responses={
         200: {
             "description": "Prometheus metrics in plaintext format.",
             "content": {
-                "text/plain": {
+                CONTENT_TYPE_LATEST: {
                     "example": (
                         "# HELP http_requests_total Total HTTP requests\n"
                         "# TYPE http_requests_total counter\n"

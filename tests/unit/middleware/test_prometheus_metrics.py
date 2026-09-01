@@ -26,8 +26,9 @@ async def test_collectors_are_labeled_without_global_state(
     latency.labels.assert_called_once_with("POST", "/items")
 
 
-async def test_metrics_endpoint_is_not_instrumented(
-    app: ASGIApp, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("path", ["/health", "/ready", "/info", "/system", "/metrics"])
+async def test_operational_endpoints_are_not_instrumented(
+    path: str, app: ASGIApp, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     count = Mock()
     latency = Mock()
@@ -36,7 +37,7 @@ async def test_metrics_endpoint_is_not_instrumented(
         "app.common.middleware.prometheus_metrics.REQUEST_LATENCY", latency
     )
 
-    await invoke(PrometheusASGIMiddleware(app), http_scope(path="/metrics"))
+    await invoke(PrometheusASGIMiddleware(app), http_scope(path=path))
 
     count.labels.assert_not_called()
     latency.labels.assert_not_called()

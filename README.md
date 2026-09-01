@@ -80,20 +80,148 @@ clients do not need separate parsing behavior for transport and application erro
 The in-memory rate limiter is process-local by design; replace it with shared storage
 before relying on a global limit across multiple workers or replicas.
 
-## Application lifespan
+## Application lifespan and operational endpoints
 
 FastAPI's lifespan starts registered services before the app becomes ready. The
 database service creates/checks its schema, readiness requires startup completion
 and healthy registered services, and shutdown stops only successfully started
 services in reverse order. Partial startup failure rolls back already-started
-services. The probes have distinct meanings:
+services. The unversioned operational surface is:
 
-| Endpoint       | Meaning                                                           |
-| -------------- | ----------------------------------------------------------------- |
-| `GET /health`  | Process liveness; it does not query dependencies.                 |
-| `GET /ready`   | Startup completed and all registered services pass health checks. |
-| `GET /system`  | Runtime diagnostics, event-loop lag, and database state.          |
-| `GET /metrics` | Prometheus exposition output.                                     |
+| Route          | Purpose                                                                 |
+| -------------- | ----------------------------------------------------------------------- |
+| `GET /`        | Friendly API greeting.                                                  |
+| `GET /health`  | Process liveness only; it deliberately does not query dependencies.     |
+| `GET /ready`   | Startup completion and health of every required registered service.     |
+| `GET /info`    | Public application identity, process, Python, and platform metadata.    |
+| `GET /system`  | Bounded host, process, event-loop, and database diagnostics.            |
+| `GET /metrics` | Prometheus plaintext exposition using its full negotiated content type. |
+
+Liveness and readiness are intentionally different. A failed liveness probe means
+the process should be restarted. A failed readiness probe returns HTTP 503 and
+means the running process should temporarily receive no application traffic. The
+`database` entry in `ready.checks` is the registered database service's bounded
+health check; it reports `up` only after startup and a successful database probe.
+It is also summarized as `db` by `/system`.
+
+Representative, contract-complete JSON responses are shown below (timestamps,
+host values, timings, and resource measurements naturally vary):
+
+**`GET /`:**
+
+```json
+{ "message": "Hello World! Welcome to FastAPI!" }
+```
+
+**`GET /health`:**
+
+```json
+{
+  "alive": true,
+  "status": "alive",
+  "uptime": 123.45,
+  "timestamp": "2026-09-01T12:00:00Z"
+}
+```
+
+**`GET /ready`** (the same shape is returned with status 503 when not ready):
+
+```json
+{
+  "ready": true,
+  "status": "ready",
+  "timestamp": "2026-09-01T12:00:00Z",
+  "checks": [{ "name": "database", "status": "up", "response_time_ms": 1.2 }]
+}
+```
+
+**`GET /info`:**
+
+```json
+{
+  "name": "QuickAPI",
+  "version": "1.0.0",
+  "environment": "production",
+  "hostname": "api-1",
+  "pid": 42,
+  "python_version": "3.12.1",
+  "platform": "Linux",
+  "architecture": "x86_64",
+  "started_at": "2026-09-01T11:57:56Z",
+  "timezone": "Etc/UTC"
+}
+```
+
+**`GET /system`:**
+
+```json
+{
+  "uptime": 123.45,
+  "timestamp": 1788264000000,
+  "event_loop_lag": 0.12,
+  "db": "connected",
+  "cpu": { "cores": 4, "model": "x86_64", "load_average": [0.1, 0.2, 0.3] },
+  "memory": {
+    "total_bytes": 8589934592,
+    "available_bytes": 4294967296,
+    "used_bytes": 4294967296,
+    "percentage": 50.0
+  },
+  "process": {
+    "rss_bytes": 67108864,
+    "heap_total_bytes": 8388608,
+    "heap_used_bytes": 4194304,
+    "external_bytes": 0,
+    "active_handles": 6
+  },
+  "os": { "platform": "Linux", "release": "6.8.0" }
+}
+```
+
+`/metrics` is not JSON and declares no JSON schema. It returns Prometheus
+plaintext with `CONTENT_TYPE_LATEST` (currently the complete media type
+`text/plain; version=1.0.0; charset=utf-8`). For example:
+
+```text
+# HELP http_requests_total Total HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="GET",path="/api/v1/items/",status="200"} 42
+```
+
+The Python diagnostics map platform facilities into stable API fields:
+
+- `cpu.load_average` uses `os.getloadavg()` and falls back to three zeroes;
+  `cpu.cores` uses `os.cpu_count()` with a floor of one, and absent identifiers
+  become `unknown`.
+- memory prefers Linux `/proc/meminfo`, then POSIX `os.sysconf()` page counters,
+  and otherwise deterministically returns zero-valued byte counts and percentage.
+- `process.rss_bytes` maps `resource.getrusage().ru_maxrss` to bytes (already bytes
+  on macOS, KiB elsewhere); Python `tracemalloc` supplies the heap fields when
+  enabled, `external_bytes` is always zero because Python has no portable mapping,
+  and `active_handles` counts unfinished asyncio tasks.
+- unavailable resource APIs, collection errors, or collection timeouts yield the
+  documented non-negative zero/`unknown` fallbacks rather than an endpoint error.
+
+Under the existing no-authentication policy these operational routes remain public.
+Their payloads contain operational metadata but no credentials, connection strings,
+environment-variable values, or other secrets. Apply a network trust boundary or
+authentication before exposing them where host/process metadata is considered
+sensitive.
+
+Probe polling is not application traffic: Prometheus request middleware excludes
+`/health`, `/ready`, `/info`, `/system`, and the existing `/metrics` scrape endpoint.
+The greeting and versioned API routes remain instrumented. Metrics retain only the
+established bounded `method`, normalized route `path`, and `status` labels; this
+policy introduces no new or high-cardinality labels.
+
+Run the targeted operational contract checks and then the complete suite with the
+established commands:
+
+```bash
+pytest -q --no-cov tests/integration/errors/test_open_api.py
+pytest -q --no-cov tests/unit/middleware/test_prometheus_metrics.py
+pytest -q
+```
 
 ## Configuration
 

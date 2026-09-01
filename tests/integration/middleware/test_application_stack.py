@@ -59,7 +59,7 @@ async def test_stack_context_logging_cleanup_cors_security_metrics(
     count: Mock = Mock()
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
     monkeypatch.setattr("app.common.middleware.prometheus_metrics.REQUEST_COUNT", count)
-    response = await request(app, headers={"origin": "https://client.test"})
+    response = await request(app, path="/", headers={"origin": "https://client.test"})
     assert (
         response.status_code == 200
         and response.headers["access-control-allow-origin"] == "https://client.test"

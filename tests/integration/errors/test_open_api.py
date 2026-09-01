@@ -1,6 +1,9 @@
 from typing import Any
 
 import pytest
+from fastapi import FastAPI
+from prometheus_client import CONTENT_TYPE_LATEST
+from starlette.routing import Route
 
 from app.config.application import create_app
 
@@ -12,8 +15,13 @@ ERROR_REF = {"$ref": "#/components/schemas/ErrorResponse"}
 
 
 @pytest.fixture(scope="module")
-def schema() -> dict[str, Any]:
-    return create_app().openapi()
+def application() -> FastAPI:
+    return create_app()
+
+
+@pytest.fixture(scope="module")
+def schema(application: FastAPI) -> dict[str, Any]:
+    return application.openapi()
 
 
 def operations(schema: dict[str, Any]):
@@ -40,6 +48,23 @@ def test_application_metadata_and_tags(schema: dict[str, Any]) -> None:
         {"name": "System", "description": "Runtime and service diagnostics."},
         {"name": "Items", "description": "CRUD operations for items."},
     ]
+
+
+def test_documentation_and_all_unversioned_routes_are_registered(
+    application: FastAPI, schema: dict[str, Any]
+) -> None:
+    registered: set[str] = {
+        route.path for route in application.routes if isinstance(route, Route)
+    }
+    assert {"/docs", "/redoc", "/openapi.json"} <= registered
+    assert {path for path in schema["paths"] if not path.startswith("/api/")} == {
+        "/",
+        "/health",
+        "/ready",
+        "/info",
+        "/system",
+        "/metrics",
+    }
 
 
 def test_every_operation_has_identity_and_declared_error_contracts(
@@ -155,6 +180,113 @@ def test_success_and_pagination_schemas(schema: dict[str, Any]) -> None:
     )
 
 
+def test_operational_json_contracts_are_strict_and_complete(
+    schema: dict[str, Any],
+) -> None:
+    schemas = schema["components"]["schemas"]
+    required = {
+        "RootResponse": {"message"},
+        "HealthResponse": {"alive", "status", "uptime", "timestamp"},
+        "ReadyResponse": {"ready", "status", "timestamp", "checks"},
+        "ReadyCheck": {"name", "status", "response_time_ms"},
+        "InfoResponse": {
+            "name",
+            "version",
+            "environment",
+            "hostname",
+            "pid",
+            "python_version",
+            "platform",
+            "architecture",
+            "started_at",
+            "timezone",
+        },
+        "SystemResponse": {
+            "uptime",
+            "timestamp",
+            "event_loop_lag",
+            "db",
+            "cpu",
+            "memory",
+            "process",
+            "os",
+        },
+        "CpuDiagnostics": {"cores", "model", "load_average"},
+        "MemoryDiagnostics": {
+            "total_bytes",
+            "available_bytes",
+            "used_bytes",
+            "percentage",
+        },
+        "ProcessDiagnostics": {
+            "rss_bytes",
+            "heap_total_bytes",
+            "heap_used_bytes",
+            "external_bytes",
+            "active_handles",
+        },
+        "OsDiagnostics": {"platform", "release"},
+    }
+    for model, properties in required.items():
+        assert schemas[model]["type"] == "object"
+        assert schemas[model]["additionalProperties"] is False
+        assert set(schemas[model]["required"]) == properties
+        assert set(schemas[model]["properties"]) == properties
+
+    health = schemas["HealthResponse"]["properties"]
+    assert health["status"]["enum"] == ["alive", "dead"]
+    assert health["uptime"]["minimum"] == 0
+    assert health["timestamp"]["format"] == "date-time"
+
+    ready = schemas["ReadyResponse"]["properties"]
+    assert ready["status"]["enum"] == ["ready", "not_ready"]
+    assert ready["timestamp"]["format"] == "date-time"
+    assert ready["checks"]["items"] == {"$ref": "#/components/schemas/ReadyCheck"}
+    check = schemas["ReadyCheck"]["properties"]
+    assert check["name"]["minLength"] == 1
+    assert check["status"]["enum"] == ["up", "down"]
+    assert check["response_time_ms"]["minimum"] == 0
+
+    info = schemas["InfoResponse"]["properties"]
+    assert info["version"]["pattern"] == r"^\d+\.\d+\.\d+$"
+    assert info["environment"]["enum"] == ["development", "production", "test"]
+    assert info["pid"]["exclusiveMinimum"] == 0
+    assert info["started_at"]["format"] == "date-time"
+    for field in ("python_version", "platform", "architecture", "timezone"):
+        assert info[field]["minLength"] == 1
+
+    system = schemas["SystemResponse"]["properties"]
+    assert system["db"]["enum"] == ["connected", "disconnected"]
+    for field, model in {
+        "cpu": "CpuDiagnostics",
+        "memory": "MemoryDiagnostics",
+        "process": "ProcessDiagnostics",
+        "os": "OsDiagnostics",
+    }.items():
+        assert system[field] == {"$ref": f"#/components/schemas/{model}"}
+    for field in ("uptime", "timestamp", "event_loop_lag"):
+        assert system[field]["minimum"] == 0
+
+    cpu = schemas["CpuDiagnostics"]["properties"]
+    assert cpu["cores"]["minimum"] == 1
+    assert cpu["model"]["minLength"] == 1
+    assert cpu["load_average"]["minItems"] == 3
+    assert cpu["load_average"]["maxItems"] == 3
+    assert all(item["minimum"] == 0 for item in cpu["load_average"]["prefixItems"])
+
+    memory = schemas["MemoryDiagnostics"]["properties"]
+    for field in ("total_bytes", "available_bytes", "used_bytes", "percentage"):
+        assert memory[field]["minimum"] == 0
+    assert memory["percentage"]["maximum"] == 100
+
+    process = schemas["ProcessDiagnostics"]["properties"]
+    assert all(property_schema["minimum"] == 0 for property_schema in process.values())
+    os_schema = schemas["OsDiagnostics"]["properties"]
+    assert all(
+        property_schema["minLength"] == 1 for property_schema in os_schema.values()
+    )
+
+
 def test_patch_nullable_and_required_representation(schema: dict[str, Any]) -> None:
     patch = schema["paths"]["/api/v1/items/{id}"]["patch"]
     assert patch["requestBody"]["required"] is True
@@ -172,4 +304,5 @@ def test_patch_nullable_and_required_representation(schema: dict[str, Any]) -> N
 
 def test_metrics_content_type(schema: dict[str, Any]) -> None:
     response = schema["paths"]["/metrics"]["get"]["responses"]["200"]
-    assert set(response["content"]) == {"text/plain"}
+    assert set(response["content"]) == {CONTENT_TYPE_LATEST}
+    assert "schema" not in response["content"][CONTENT_TYPE_LATEST]
