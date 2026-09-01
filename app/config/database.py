@@ -63,7 +63,7 @@ async def db_test_query() -> bool:
 
 
 class DatabaseService:
-    name: str = "database (sqlalchemy)"
+    name: str = "database"
 
     async def start(self) -> None:
         await init_db()

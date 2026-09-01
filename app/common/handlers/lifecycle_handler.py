@@ -2,13 +2,27 @@ import asyncio
 import signal
 import time
 from collections.abc import Awaitable, Callable
-from typing import Protocol
+from dataclasses import dataclass
+from typing import Literal, Protocol
 
 from app.config.logging import log
 
 ShutdownFn = Callable[[], Awaitable[None]]
 StartFn = Callable[[], Awaitable[None]]
 CheckFn = Callable[[], Awaitable[bool]]
+
+
+@dataclass(frozen=True, slots=True)
+class ReadinessCheckResult:
+    """The public, serialization-independent result of one service check."""
+
+    name: str
+    status: Literal["up", "down"]
+    response_time_ms: float
+
+    @property
+    def is_up(self) -> bool:
+        return self.status == "up"
 
 
 class LifecycleService(Protocol):
@@ -21,7 +35,10 @@ class LifecycleService(Protocol):
 
 class LifecycleHandler:
 
-    def __init__(self) -> None:
+    def __init__(self, check_timeout_seconds: float = 1.0) -> None:
+        if check_timeout_seconds <= 0:
+            raise ValueError("check_timeout_seconds must be greater than zero")
+        self._check_timeout_seconds = check_timeout_seconds
         self._services: list[LifecycleService] = []
 
         self._service_names: set[str] = set()
@@ -38,11 +55,42 @@ class LifecycleHandler:
         return self._startup_completed and not self._shutdown_started
 
     async def are_all_services_healthy(self) -> bool:
-        for svc in self._services:
-            healthy = await svc.check()
-            if not healthy:
-                return False
-        return True
+        return all(result.is_up for result in await self.check_services())
+
+    async def check_services(self) -> list[ReadinessCheckResult]:
+        """Run every dependency check concurrently and retain registration order."""
+
+        async def run(service: LifecycleService) -> ReadinessCheckResult:
+            started = time.perf_counter()
+            category: Literal["false_return", "exception", "timeout"] | None = None
+            try:
+                healthy = await asyncio.wait_for(
+                    service.check(), timeout=self._check_timeout_seconds
+                )
+                if not healthy:
+                    category = "false_return"
+            except TimeoutError:
+                category = "timeout"
+            except Exception:
+                category = "exception"
+
+            elapsed = max(0.0, (time.perf_counter() - started) * 1000)
+            if category is not None:
+                # Deliberately exclude exception values: readiness logs must not leak
+                # credentials, hosts, query text, or other dependency details.
+                log.warning(
+                    "Readiness check failed",
+                    service=service.name,
+                    category=category,
+                )
+            return ReadinessCheckResult(
+                name=service.name,
+                status="up" if category is None else "down",
+                response_time_ms=elapsed,
+            )
+
+        # gather preserves the input order, irrespective of completion order.
+        return list(await asyncio.gather(*(run(service) for service in self._services)))
 
     async def get_event_loop_lag(
         self,

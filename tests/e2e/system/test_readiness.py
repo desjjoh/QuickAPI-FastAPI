@@ -7,13 +7,13 @@ from fastapi import FastAPI
 pytestmark = pytest.mark.e2e
 
 
-def assert_unavailable(response: httpx.Response, message: str) -> None:
+def assert_unavailable(response: httpx.Response) -> None:
     assert response.status_code == 503
     payload = response.json()
-    assert payload["status"] == 503
-    assert payload["message"] == message
-    assert isinstance(payload["timestamp"], int)
-    assert payload["timestamp"] > 0
+    assert payload["ready"] is False
+    assert payload["status"] == "not_ready"
+    assert isinstance(payload["checks"], list)
+    assert payload["timestamp"].endswith("Z")
 
 
 async def test_readiness_succeeds_when_started_and_healthy(
@@ -21,7 +21,9 @@ async def test_readiness_succeeds_when_started_and_healthy(
 ) -> None:
     response = await client.get("/ready")
     assert response.status_code == 200
-    assert response.json() == {"ready": True}
+    assert response.json()["ready"] is True
+    assert response.json()["status"] == "ready"
+    assert response.json()["checks"][0]["name"] == "database"
 
 
 async def test_readiness_rejects_an_application_that_has_not_started(
@@ -31,16 +33,16 @@ async def test_readiness_rejects_an_application_that_has_not_started(
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/ready")
 
-    assert_unavailable(response, "Application not ready.")
+    assert_unavailable(response)
 
 
 async def test_readiness_rejects_an_unhealthy_service(
     client: httpx.AsyncClient, app: FastAPI, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        app.state.lifecycle, "are_all_services_healthy", AsyncMock(return_value=False)
+        app.state.lifecycle._services[0], "check", AsyncMock(return_value=False)
     )
 
     response = await client.get("/ready")
 
-    assert_unavailable(response, "One or more lifecycle services are unhealthy.")
+    assert_unavailable(response)

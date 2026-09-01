@@ -56,7 +56,12 @@ def test_every_operation_has_identity_and_declared_error_contracts(
         assert "500" in operation["responses"], (method, path)
         for status, response in operation["responses"].items():
             if status in ERROR_STATUSES:
-                assert response_schema(response) == ERROR_REF, (method, path, status)
+                expected = (
+                    {"$ref": "#/components/schemas/ReadyResponse"}
+                    if (path, status) == ("/ready", "503")
+                    else ERROR_REF
+                )
+                assert response_schema(response) == expected, (method, path, status)
 
 
 def test_validation_error_names_alias_the_shared_envelope(
@@ -115,10 +120,9 @@ def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) ->
             parameter["schema"]["minLength"] == parameter["schema"]["maxLength"] == 16
         )
     assert response_schema(member["get"]["responses"]["404"]) == ERROR_REF
-    assert (
-        response_schema(schema["paths"]["/ready"]["get"]["responses"]["503"])
-        == ERROR_REF
-    )
+    assert response_schema(schema["paths"]["/ready"]["get"]["responses"]["503"]) == {
+        "$ref": "#/components/schemas/ReadyResponse"
+    }
 
 
 def test_success_and_pagination_schemas(schema: dict[str, Any]) -> None:

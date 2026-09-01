@@ -5,17 +5,16 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request, Response, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Request, Response, status
+from fastapi.responses import FileResponse, JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.system.models.info_model import InfoResponse
 from app.api.system.models.live_model import HealthResponse
-from app.api.system.models.ready_model import ReadyResponse
+from app.api.system.models.ready_model import ReadyCheck, ReadyResponse
 from app.api.system.models.root_model import RootResponse
 from app.api.system.models.system_model import SystemResponse
 from app.common.handlers.lifecycle_handler import LifecycleHandler
-from app.common.models.error_model import ErrorResponse
 from app.config.environment import settings
 
 router: APIRouter = APIRouter(tags=["System"])
@@ -77,28 +76,30 @@ async def live_probe(request: Request) -> HealthResponse:
     responses={
         status.HTTP_503_SERVICE_UNAVAILABLE: {
             "description": "Application or one of its required services is not ready.",
-            "model": ErrorResponse,
+            "model": ReadyResponse,
         }
     },
 )
-async def ready_probe(request: Request) -> ReadyResponse:
+async def ready_probe(request: Request) -> JSONResponse:
     lifecycle: LifecycleHandler = request.app.state.lifecycle
     app_ready: bool = lifecycle.is_ready()
-    services_healthy: bool = await lifecycle.are_all_services_healthy()
-
-    if not app_ready:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Application not ready.",
+    results = await lifecycle.check_services()
+    checks = [
+        ReadyCheck(
+            name=result.name,
+            status=result.status,
+            response_time_ms=result.response_time_ms,
         )
-
-    if not services_healthy:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="One or more lifecycle services are unhealthy.",
-        )
-
-    return ReadyResponse(ready=True)
+        for result in results
+    ]
+    ready = app_ready and all(result.is_up for result in results)
+    payload = ReadyResponse.from_state(ready=ready, checks=checks)
+    return JSONResponse(
+        status_code=(
+            status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE
+        ),
+        content=payload.model_dump(mode="json"),
+    )
 
 
 ## GET /info

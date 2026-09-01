@@ -1,96 +1,67 @@
-import asyncio
-import os
-import sys
-import unittest
-from pathlib import Path
+import json
+from dataclasses import dataclass
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
-from fastapi import HTTPException, status
+from fastapi import status
 
-ROOT = Path(__file__).resolve().parents[4]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-os.environ.setdefault("APP_NAME", "QuickAPI")
-os.environ.setdefault("APP_VERSION", "1.0.0")
-os.environ.setdefault("ENV", "test")
-os.environ.setdefault("PORT", "8000")
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///test.db")
-
-from app.api.system.controllers import system_controller  # noqa: E402
-from app.common.handlers.lifecycle_handler import LifecycleHandler  # noqa: E402
+from app.api.system.controllers.system_controller import ready_probe
+from app.common.handlers.lifecycle_handler import LifecycleHandler
 
 pytestmark = pytest.mark.unit
 
 
-class ReadyProbeTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.lifecycle = LifecycleHandler()
-        self.request = SimpleNamespace(
-            app=SimpleNamespace(state=SimpleNamespace(lifecycle=self.lifecycle))
-        )
+@dataclass
+class Service:
+    name: str = "dependency"
+    healthy: bool = True
 
-    def test_ready_probe_raises_503_when_startup_is_incomplete(self) -> None:
-        async def services_healthy() -> bool:
-            return True
+    async def start(self) -> None:
+        return None
 
-        with (
-            patch.object(self.lifecycle, "is_ready", return_value=False),
-            patch.object(
-                self.lifecycle,
-                "are_all_services_healthy",
-                services_healthy,
-            ),
-        ):
-            with self.assertRaises(HTTPException) as exc_info:
-                asyncio.run(system_controller.ready_probe(self.request))  # type: ignore[arg-type]
+    async def stop(self) -> None:
+        return None
 
-        self.assertEqual(
-            exc_info.exception.status_code,
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-        self.assertEqual(exc_info.exception.detail, "Application not ready.")
+    async def check(self) -> bool:
+        return self.healthy
 
-    def test_ready_probe_raises_503_when_services_are_unhealthy(self) -> None:
-        async def services_unhealthy() -> bool:
-            return False
 
-        with (
-            patch.object(self.lifecycle, "is_ready", return_value=True),
-            patch.object(
-                self.lifecycle,
-                "are_all_services_healthy",
-                services_unhealthy,
-            ),
-        ):
-            with self.assertRaises(HTTPException) as exc_info:
-                asyncio.run(system_controller.ready_probe(self.request))  # type: ignore[arg-type]
+def request_for(lifecycle: LifecycleHandler) -> SimpleNamespace:
+    return SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(lifecycle=lifecycle))
+    )
 
-        self.assertEqual(
-            exc_info.exception.status_code,
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-        self.assertEqual(
-            exc_info.exception.detail,
-            "One or more lifecycle services are unhealthy.",
-        )
 
-    def test_ready_probe_returns_ready_response_when_app_and_services_are_ready(
-        self,
-    ) -> None:
-        async def services_healthy() -> bool:
-            return True
+async def test_ready_probe_returns_the_contract_when_ready() -> None:
+    lifecycle = LifecycleHandler()
+    lifecycle.register([Service()])
+    await lifecycle.startup()
 
-        with (
-            patch.object(self.lifecycle, "is_ready", return_value=True),
-            patch.object(
-                self.lifecycle,
-                "are_all_services_healthy",
-                services_healthy,
-            ),
-        ):
-            response = asyncio.run(system_controller.ready_probe(self.request))  # type: ignore[arg-type]
+    response = await ready_probe(request_for(lifecycle))  # type: ignore[arg-type]
+    body = json.loads(bytes(response.body))
 
-        self.assertTrue(response.ready)
+    assert response.status_code == status.HTTP_200_OK
+    assert body["ready"] is True
+    assert body["status"] == "ready"
+    assert body["checks"][0]["name"] == "dependency"
+    assert body["checks"][0]["status"] == "up"
+    assert body["timestamp"].endswith("Z")
+
+
+@pytest.mark.parametrize("shutdown", [False, True])
+async def test_ready_probe_returns_same_contract_during_incomplete_startup_or_shutdown(
+    shutdown: bool,
+) -> None:
+    lifecycle = LifecycleHandler()
+    lifecycle.register([Service()])
+    if shutdown:
+        await lifecycle.startup()
+        await lifecycle.shutdown()
+
+    response = await ready_probe(request_for(lifecycle))  # type: ignore[arg-type]
+    body = json.loads(bytes(response.body))
+
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert body["ready"] is False
+    assert body["status"] == "not_ready"
+    assert body["checks"][0]["status"] == "up"
