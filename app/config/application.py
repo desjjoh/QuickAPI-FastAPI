@@ -9,7 +9,10 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.api_routes import router as api_router
-from app.api.system.services.system_service import SystemInfoService
+from app.api.system.services.system_service import (
+    SystemDiagnosticsService,
+    SystemInfoService,
+)
 from app.common.docs.openapi import configure_custom_validation_openapi
 from app.common.handlers.exception_handler import (
     http_exception_handler,
@@ -100,6 +103,10 @@ def create_app() -> FastAPI:
     app.state.initialization_timestamp = started_at
     app.state.system_info = SystemInfoService(started_at=started_at)
     app.state.monotonic_start = time.perf_counter()
+    app.state.system_diagnostics = SystemDiagnosticsService(
+        lifecycle=app.state.lifecycle,
+        started_at=app.state.monotonic_start,
+    )
 
     app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestTimeoutASGIMiddleware)

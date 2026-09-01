@@ -1,7 +1,6 @@
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Literal
 
 from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import FileResponse, JSONResponse
@@ -12,7 +11,10 @@ from app.api.system.models.live_model import HealthResponse
 from app.api.system.models.ready_model import ReadyCheck, ReadyResponse
 from app.api.system.models.root_model import RootResponse
 from app.api.system.models.system_model import SystemResponse
-from app.api.system.services.system_service import SystemInfoService
+from app.api.system.services.system_service import (
+    SystemDiagnosticsService,
+    SystemInfoService,
+)
 from app.common.handlers.lifecycle_handler import LifecycleHandler
 
 router: APIRouter = APIRouter(tags=["System"])
@@ -122,20 +124,8 @@ async def info(request: Request) -> InfoResponse:
     status_code=status.HTTP_200_OK,
 )
 async def system(request: Request) -> SystemResponse:
-    lifecycle: LifecycleHandler = request.app.state.lifecycle
-    event_loop_lag: float = await lifecycle.get_event_loop_lag(samples=1)
-    services_healthy: bool = await lifecycle.are_all_services_healthy()
-
-    db_status: Literal["connected", "disconnected"] = (
-        "connected" if services_healthy else "disconnected"
-    )
-
-    return SystemResponse(
-        uptime=round(time.perf_counter() - _start_time, 3),
-        timestamp=int(time.time() * 1000),
-        event_loop_lag=round(event_loop_lag, 3),
-        db=db_status,
-    )
+    service: SystemDiagnosticsService = request.app.state.system_diagnostics
+    return await service.collect()
 
 
 ## GET /metrics

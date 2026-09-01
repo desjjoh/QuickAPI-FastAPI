@@ -60,37 +60,52 @@ class LifecycleHandler:
     async def check_services(self) -> list[ReadinessCheckResult]:
         """Run every dependency check concurrently and retain registration order."""
 
-        async def run(service: LifecycleService) -> ReadinessCheckResult:
-            started = time.perf_counter()
-            category: Literal["false_return", "exception", "timeout"] | None = None
-            try:
-                healthy = await asyncio.wait_for(
-                    service.check(), timeout=self._check_timeout_seconds
-                )
-                if not healthy:
-                    category = "false_return"
-            except TimeoutError:
-                category = "timeout"
-            except Exception:
-                category = "exception"
+        return list(
+            await asyncio.gather(
+                *(self._check_service(service) for service in self._services)
+            )
+        )
 
-            elapsed = max(0.0, (time.perf_counter() - started) * 1000)
-            if category is not None:
-                # Deliberately exclude exception values: readiness logs must not leak
-                # credentials, hosts, query text, or other dependency details.
-                log.warning(
-                    "Readiness check failed",
-                    service=service.name,
-                    category=category,
-                )
-            return ReadinessCheckResult(
-                name=service.name,
-                status="up" if category is None else "down",
-                response_time_ms=elapsed,
+    async def check_service(self, name: str) -> ReadinessCheckResult | None:
+        """Run the currently registered check named ``name``.
+
+        Returning ``None`` for an unknown name keeps callers from reaching into the
+        lifecycle handler's private registry and lets them fail closed.
+        """
+        service = next(
+            (service for service in self._services if service.name == name), None
+        )
+        return await self._check_service(service) if service is not None else None
+
+    async def _check_service(self, service: LifecycleService) -> ReadinessCheckResult:
+        started = time.perf_counter()
+        category: Literal["false_return", "exception", "timeout"] | None = None
+        try:
+            healthy = await asyncio.wait_for(
+                service.check(), timeout=self._check_timeout_seconds
+            )
+            if not healthy:
+                category = "false_return"
+        except TimeoutError:
+            category = "timeout"
+        except Exception:
+            category = "exception"
+
+        elapsed = max(0.0, (time.perf_counter() - started) * 1000)
+        if category is not None:
+            # Deliberately exclude exception values: readiness logs must not leak
+            # credentials, hosts, query text, or other dependency details.
+            log.warning(
+                "Readiness check failed",
+                service=service.name,
+                category=category,
             )
 
-        # gather preserves the input order, irrespective of completion order.
-        return list(await asyncio.gather(*(run(service) for service in self._services)))
+        return ReadinessCheckResult(
+            name=service.name,
+            status="up" if category is None else "down",
+            response_time_ms=elapsed,
+        )
 
     async def get_event_loop_lag(
         self,
