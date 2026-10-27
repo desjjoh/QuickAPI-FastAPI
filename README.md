@@ -16,12 +16,14 @@ The small domain keeps the focus on application boundaries, failure handling, an
 
 Use Python 3.12. Docker Engine is needed for container verification.
 
-1. Create and activate a virtual environment, then run `python -m pip install -r requirements.txt`.
+1. Create a Python 3.12 virtual environment (`py -3.12 -m venv .venv` on Windows or `python3.12 -m venv .venv` on Linux/macOS), activate it, then run `python -m pip install -r requirements-dev.txt` and `python -m pip check`.
 2. Copy [.env.example](.env.example) to a gitignored `.env`.
-3. Set `DATABASE_URL` to a reachable MySQL instance using `mysql+asyncmy://...`, or use `sqlite+aiosqlite:///./app.db` for a self-contained local run.
+3. Start local MySQL with `docker compose up -d --wait mysql`. The example `DATABASE_URL` reaches it at `127.0.0.1:3308`; update an existing `.env` if it still points elsewhere. SQLite remains available through `sqlite+aiosqlite:///./app.db`.
 4. Run `python -m app.main`.
 
-The example binds port **5000**. Swagger UI is at `/docs`, ReDoc at `/redoc`, and OpenAPI JSON at `/openapi.json`. See [Development](docs/development.md) for shell-specific commands and configuration.
+For the complete local container stack, run `docker compose up --build -d --wait`; the container API is at `http://127.0.0.1:8000`. Compose overrides the native database URL, bind address, port, and mode for its internal topology. See [local Compose](docs/development.md#local-compose).
+
+The native Python example binds port **5000**. Swagger UI is at `/docs`, ReDoc at `/redoc`, and OpenAPI JSON at `/openapi.json`. See [Development](docs/development.md) for shell-specific commands and configuration.
 
 ## Documentation
 
@@ -30,9 +32,13 @@ The example binds port **5000**. Swagger UI is at `/docs`, ReDoc at `/redoc`, an
 | [Development](docs/development.md) | Setup, configuration, database selection, and local commands |
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
+| [Request deadlines](docs/request-timeouts.md) | Timeout, streaming, disconnect, and cleanup behavior |
 | [Testing](docs/testing.md) | Test layers, isolation, coverage gates, CI, and verification limits |
+| [Branch protections](docs/branch-protection.md) | Verified rulesets, existing hosted checks, and remaining manual configuration |
 | [Deployment and operations](docs/deployment.md) | Container commands, probes, diagnostics, persistence, and recovery |
 | [Technical backlog](docs/backlog.md) | Confirmed gaps and deliberately deferred work |
+
+See the [Express parity roadmap](docs/roadmap.md) and [milestone list](docs/milestones.md) for phased repairs, MySQL/migration work, API alignment, and production/release verification. Phase 1A results are recorded in [Verification](docs/verification.md).
 
 Configuration examples live in [.env.example](.env.example), validation in [app/config/environment.py](app/config/environment.py), dependencies in [requirements.txt](requirements.txt), and CI commands in [.github/workflows/tests.yml](.github/workflows/tests.yml).
 

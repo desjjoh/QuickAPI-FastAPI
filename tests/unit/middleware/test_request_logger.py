@@ -18,7 +18,7 @@ async def test_emitted_level_and_fields(
     logger = Mock()
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
     monkeypatch.setattr(
-        "app.common.middleware.request_logger.time.perf_counter",
+        "app.common.middleware.request_outcome.time.perf_counter",
         Mock(side_effect=[1, 1.01]),
     )
     await invoke(
@@ -28,12 +28,14 @@ async def test_emitted_level_and_fields(
     assert (
         "200" in message
         and "GET" in message
-        and "/hello" in message
+        and "<unmatched>" in message
         and "10.00ms" in message
     )
 
 
-async def test_exception_logs_error(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_exception_before_response_logs_abort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     logger = Mock()
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
 
@@ -42,5 +44,6 @@ async def test_exception_logs_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(RuntimeError):
         await invoke(RequestLoggingASGIMiddleware(broken), http_scope())
-    logger.error.assert_called_once()
+    logger.warning.assert_called_once()
+    assert "ABORTED" in logger.warning.call_args.args[0]
     assert shorten_path("x" * 40).endswith("…")

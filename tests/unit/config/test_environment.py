@@ -15,6 +15,8 @@ ENV_KEYS = (
     "LOG_LEVEL",
     "HOST",
     "PORT",
+    "API_PUBLISHED_PORT",
+    "MYSQL_PUBLISHED_PORT",
     "DATABASE_URL",
     "TIMEZONE",
 )
@@ -43,6 +45,45 @@ def test_valid_settings_and_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.LOG_LEVEL == "INFO"
     assert result.HOST == "0.0.0.0"
     assert result.TIMEZONE == "Etc/UTC"
+    assert result.API_PUBLISHED_PORT == 8000
+    assert result.MYSQL_PUBLISHED_PORT == 3308
+
+
+def test_published_port_overrides_do_not_change_listener(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = settings(
+        monkeypatch, PORT="5000", API_PUBLISHED_PORT="8001", MYSQL_PUBLISHED_PORT="3309"
+    )
+    assert result.PORT == 5000
+    assert result.API_PUBLISHED_PORT == 8001
+    assert result.MYSQL_PUBLISHED_PORT == 3309
+
+
+def test_empty_published_ports_use_compose_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = settings(monkeypatch, API_PUBLISHED_PORT="", MYSQL_PUBLISHED_PORT="")
+    assert result.API_PUBLISHED_PORT == 8000
+    assert result.MYSQL_PUBLISHED_PORT == 3308
+
+
+@pytest.mark.parametrize("key", ["API_PUBLISHED_PORT", "MYSQL_PUBLISHED_PORT"])
+@pytest.mark.parametrize("value", ["1", "65535"])
+def test_published_port_boundaries(
+    monkeypatch: pytest.MonkeyPatch, key: str, value: str
+) -> None:
+    assert getattr(settings(monkeypatch, **{key: value}), key) == int(value)
+
+
+@pytest.mark.parametrize("key", ["API_PUBLISHED_PORT", "MYSQL_PUBLISHED_PORT"])
+@pytest.mark.parametrize("value", ["0", "-1", "65536", "8000.0", "invalid", " "])
+def test_invalid_published_ports_fail_validation(
+    monkeypatch: pytest.MonkeyPatch, key: str, value: str
+) -> None:
+    with pytest.raises(ValidationError) as error:
+        settings(monkeypatch, **{key: value})
+    assert error.value.errors()[0]["loc"] == (key,)
 
 
 def test_configured_iana_timezone(monkeypatch: pytest.MonkeyPatch) -> None:

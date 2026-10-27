@@ -10,6 +10,8 @@ os.environ.update(
         "LOG_LEVEL": "ERROR",
         "HOST": "127.0.0.1",
         "PORT": "8000",
+        "API_PUBLISHED_PORT": "8000",
+        "MYSQL_PUBLISHED_PORT": "3308",
         "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
         "METRICS_API_KEY": "test-metrics-key",
     }
@@ -21,19 +23,21 @@ from fastapi import FastAPI
 
 from app.common.handlers.lifecycle_handler import LifecycleHandler
 from app.common.store.request_context import RequestContext
-from app.config.metrics import REQUEST_COUNT, REQUEST_LATENCY
+from app.config.metrics import REQUEST_ABORTED, REQUEST_COUNT, REQUEST_DURATION
 
 
 @pytest.fixture(autouse=True)
 def reset_process_state() -> Iterator[None]:
     """Isolate process-wide observability and request state for every test."""
     REQUEST_COUNT.clear()
-    REQUEST_LATENCY.clear()
+    REQUEST_DURATION.clear()
+    REQUEST_ABORTED.clear()
     RequestContext.clear()
     structlog.contextvars.clear_contextvars()
     yield
     REQUEST_COUNT.clear()
-    REQUEST_LATENCY.clear()
+    REQUEST_DURATION.clear()
+    REQUEST_ABORTED.clear()
     RequestContext.clear()
     structlog.contextvars.clear_contextvars()
 

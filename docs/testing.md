@@ -4,7 +4,7 @@
 
 ## Setup and test boundaries
 
-Install [requirements.txt](../requirements.txt) in a Python 3.12 virtual environment. Markers and coverage settings live in [pyproject.toml](../pyproject.toml); job dependencies and commands live in [the Quality workflow](../.github/workflows/tests.yml).
+Install [requirements-dev.txt](../requirements-dev.txt) in a fresh Python 3.12 virtual environment and run `python -m pip check`. Markers and coverage settings live in [pyproject.toml](../pyproject.toml); job dependencies and commands live in [the Quality workflow](../.github/workflows/tests.yml).
 
 | Layer | Location | Boundary |
 | --- | --- | --- |
@@ -19,9 +19,9 @@ Install [requirements.txt](../requirements.txt) in a Python 3.12 virtual environ
 Run the same static checks used by CI:
 
 ```bash
-black --check app tests
-ruff check app tests
-mypy app
+python -m black --check app tests
+python -m ruff check app tests
+python -m mypy app
 ```
 
 Every test has an explicit layer marker. CI first verifies that each layer collects
@@ -53,12 +53,40 @@ The `shopt` and recursive glob commands require Bash, matching Ubuntu CI. PowerS
 
 ## CI sequence and verification limits
 
-Pull requests and pushes to `main` run static analysis, then the unit/integration/E2E matrix, then combined coverage, then the production-container job. Layer runs disable coverage; combined coverage reruns all tests and applies overall and critical-package thresholds.
+Pull requests, pushes to `main`/`staging`/`dev`, merge groups, and manual dispatch run static analysis, then the unit/integration/E2E matrix, then combined coverage, then the production-container job. Layer runs disable coverage; combined coverage reruns all tests and applies overall and critical-package thresholds.
 
 Container CI builds the image, starts it with explicit production settings and disposable SQLite, polls `/ready`, and reads `/api/v1/items/`. It does not test Compose, MySQL, container mutations, durable persistence, schema upgrades, restore, or rollback. See [Deployment](deployment.md).
 
 Record the commit/environment and distinguish passed, failed, skipped/not run, and unavailable checks. A workflow definition is not evidence that a particular commit passed. This documentation update makes no new runtime or release-readiness claim.
 
+Current hosted check names and the manual required-check configuration are documented in [Branch protections](branch-protection.md). The latest observed successful hosted run is historical evidence for its own SHA, not confirmation that the updated trigger configuration or this working tree has passed GitHub CI.
+
 ## Regression coverage
 
 Place tests at the boundary that owns the behavior: unit for isolated decisions, repository integration for transaction/query behavior, and HTTP for client-visible contracts. Protect consequential failure paths without mirroring implementation details. Track unresolved gaps in [Backlog](backlog.md).
+
+## Roadmap verification baseline
+
+The reported local execution attempt was unavailable because the machine had Python 3.14 while this project targets Python 3.12. That is an environment mismatch, not a failed test run, and does not establish current runtime availability. [Roadmap phase 1A](roadmap.md#1a-environment-and-dependencies) now provides a supported execution path; see [Verification](verification.md) for fresh Windows/Linux results and remaining limitations.
+
+The [roadmap](roadmap.md) schedules disposable MySQL integration/E2E and migration-upgrade/rollback evidence in 3B/3C, MySQL runtime-image smoke in 6B, aggregate fail-closed CI and required-check verification in 6D/6E, and candidate-bound release evidence in milestone 7. These are planned checks, not capabilities or passing results supplied by the current workflow.
+
+## HTTP deadline and streaming checks
+
+The [timeout test guide](request-timeouts.md#verification) describes focused unit checks and real loopback Uvicorn integration checks on both h11 and httptools. The socket checks run in the existing integration layer; they are not production-only endpoints or MySQL verification.
+
+
+## Request outcome regression coverage
+
+[Outcome unit tests](../tests/unit/middleware/test_request_outcome.py) exercise
+completion/abort races, header state, channel failures, cancellation, post-response
+cleanup, duplicate/late subscribers, method bounds, and full declared mount templates.
+[Application and real-server checks](../tests/integration/middleware/test_request_outcomes.py)
+verify bounded series across varying IDs, unknown paths and methods, completed policy
+rejections/final 500s, concurrent request correlation, and matching log/metric durations.
+Eight outcome cases run real Uvicorn sockets with both h11 and httptools: pre-header
+408, ordinary-handler disconnect, streaming timeout, and streaming disconnect. They
+assert metrics/access logs settle before cancellation-resistant cleanup and remain
+unchanged after it. These supplement the existing twelve socket deadline cases in
+[timeout tests](../tests/integration/middleware/test_timeout_server.py); HTTPX ASGI
+transport alone cannot prove socket disconnect or truncated-body behavior.

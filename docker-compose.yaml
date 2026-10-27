@@ -1,21 +1,56 @@
+# LOCAL DEVELOPMENT ONLY. Credentials and published ports are local defaults.
+# Do not use this topology as a hosted production deployment configuration.
 services:
   api:
     cpus: 0.5
     mem_limit: 256m
-    image: quickapi-fastapi:latest
-    container_name: quickapi-fastapi
+    image: quickapi-fastapi:local
     build: .
-    ports:
-      - "8000:8000"
+    env_file:
+      - .env
     environment:
-      APP_NAME: QuickAPI
-      DEBUG: "false"
-      WORKERS: 1
-      DATABASE_URL: ${DATABASE_URL}
+      # Container transport/mode must not inherit the native development port/reload.
+      HOST: 0.0.0.0
+      PORT: "8000"
+      API_PUBLISHED_PORT: ${API_PUBLISHED_PORT:-8000}
+      MYSQL_PUBLISHED_PORT: ${MYSQL_PUBLISHED_PORT:-3308}
+      ENV: production
+      DATABASE_URL: mysql+asyncmy://quickapi:change-me@mysql:3306/quickapi
+    ports:
+      - "127.0.0.1:${API_PUBLISHED_PORT:-8000}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/ready"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8000/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
       start_period: 10s
     restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4.6
+    cpus: 1.0
+    mem_limit: 1g
+    environment:
+      MYSQL_ROOT_PASSWORD: local-root-password
+      MYSQL_DATABASE: quickapi
+      MYSQL_USER: quickapi
+      MYSQL_PASSWORD: change-me
+    ports:
+      - "127.0.0.1:${MYSQL_PUBLISHED_PORT:-3308}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u"$$MYSQL_USER" "$$MYSQL_DATABASE" --silent --skip-column-names --execute="SELECT 1"'
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

@@ -1,4 +1,5 @@
 {
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
   // --- Linting & Type Checking ---
   "python.analysis.typeCheckingMode": "strict",
   "ruff.enable": true,

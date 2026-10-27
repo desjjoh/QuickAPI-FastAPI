@@ -16,14 +16,14 @@ async def test_collectors_are_labeled_without_global_state(
     latency = Mock()
     monkeypatch.setattr("app.common.middleware.prometheus_metrics.REQUEST_COUNT", count)
     monkeypatch.setattr(
-        "app.common.middleware.prometheus_metrics.REQUEST_LATENCY", latency
+        "app.common.middleware.prometheus_metrics.REQUEST_DURATION", latency
     )
     await invoke(
         PrometheusASGIMiddleware(app), http_scope(method="POST", path="/items")
     )
-    count.labels.assert_called_once_with("POST", "/items", "200")
+    count.labels.assert_called_once_with("POST", "<unmatched>", "200")
     count.labels.return_value.inc.assert_called_once_with()
-    latency.labels.assert_called_once_with("POST", "/items")
+    latency.labels.assert_called_once_with("POST", "<unmatched>", "200")
 
 
 @pytest.mark.parametrize("path", ["/health", "/ready", "/info", "/system", "/metrics"])
@@ -34,7 +34,7 @@ async def test_operational_endpoints_are_not_instrumented(
     latency = Mock()
     monkeypatch.setattr("app.common.middleware.prometheus_metrics.REQUEST_COUNT", count)
     monkeypatch.setattr(
-        "app.common.middleware.prometheus_metrics.REQUEST_LATENCY", latency
+        "app.common.middleware.prometheus_metrics.REQUEST_DURATION", latency
     )
 
     await invoke(PrometheusASGIMiddleware(app), http_scope(path=path))

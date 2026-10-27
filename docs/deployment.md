@@ -4,7 +4,7 @@
 
 ## Runtime configuration and access
 
-Use Python 3.12 and inject required settings from [Development](development.md#configuration). The image copies application code and installed dependencies; `.env` is excluded. Use `ENV=production` to disable reload and align listening/published ports and probes.
+Use Python 3.12 and inject required settings from [Development](development.md#configuration). The image installs runtime-only [requirements.txt](../requirements.txt), checks dependency consistency, and copies application code; `.env` is excluded. Development tools are installed separately from `requirements-dev.txt` for local/CI checks. Use `ENV=production` to disable reload and align listening/published ports and probes.
 
 Domain, diagnostics, metrics, and API documentation endpoints have no application authentication. Apply the consuming service's network/authentication boundary. CORS currently allows all origins with credentials and is not a trust boundary. The rate limiter is process-local; workers/replicas do not share state.
 
@@ -28,9 +28,13 @@ SQLite makes the smoke test self-contained; `/tmp/quickapi.db` is disposable con
 
 Run the container in one terminal and curl checks in a second. The example uses Bash continuation; use a single line or PowerShell continuation syntax in PowerShell.
 
-## Compose limitation
+## Local Compose topology
 
-The [Compose file](../docker-compose.yaml) supplies `APP_NAME` and interpolated `DATABASE_URL`, but omits required `APP_VERSION`, `ENV`, and `PORT`. A project `.env` supplies Compose interpolation; it is not automatically injected into the container. `docker compose up --build` is currently incomplete. `DEBUG`/`WORKERS` are unused. Use the explicit `docker run` example until Compose is corrected and smoke-tested. No database service is included.
+The checked-in [Compose file](../docker-compose.yaml) is a local development stack, not a hosted production deployment definition. It includes MySQL 8.4.6, a project-scoped persistent volume, an authenticated database health check, API startup ordering, and a health check on the API's fixed internal port 8000. Both API/database host ports are loopback-only and configurable. No fixed container names are shared with sibling apps.
+
+Compose reads `.env` and overrides container-specific settings: `HOST=0.0.0.0`, `PORT=8000`, `ENV=production`, and a local MySQL service URL. Native Python keeps its own port/mode/database URL. The unused `DEBUG`/`WORKERS` entries were removed. See [local setup, credentials, persistence, and reset commands](development.md#local-compose).
+
+A fresh disposable Compose project passed MySQL readiness, an API create/read, and record retention across container/network recreation with its volume preserved. This is local startup/persistence evidence, not a MySQL-backed release gate. CI's existing image smoke still uses SQLite; migration validation and production-like MySQL test/release qualification remain scheduled separately. See [Verification](verification.md).
 
 ## Application lifespan and operational endpoints
 
@@ -137,7 +141,7 @@ plaintext with `CONTENT_TYPE_LATEST` (currently the complete media type
 ```text
 # HELP http_requests_total Total HTTP requests
 # TYPE http_requests_total counter
-http_requests_total{method="GET",path="/api/v1/items/",status="200"} 42
+http_requests_total{method="GET",route="/api/v1/items/",status="200"} 42
 ```
 
 The Python diagnostics map platform facilities into stable API fields:
@@ -182,3 +186,41 @@ Startup uses `metadata.create_all()`, which does not upgrade existing schemas. F
 Retain the tested commit and image digest, inject production configuration, and verify readiness plus a disposable API workflow in the target environment. Configure durable storage, backups, retention, and restore for the selected database. No automated promotion, migration, backup/restore, or rollback workflow is supplied.
 
 During incidents inspect structured logs/request IDs, check `/health` separately from `/ready`, and investigate dependency reachability when readiness fails. Restrict diagnostics to the intended audience. Roll back to a retained image only after checking schema compatibility; restore data using the database operator's tested recovery procedure. Neither image rollback nor an available backup establishes recoverability on its own.
+
+
+## Metrics and request outcomes
+
+The schema matches QuickAPI-Express and QuickAPI-NestJS, with Express's separate
+abort counter:
+
+| Metric | Labels | Meaning |
+| --- | --- | --- |
+| `http_requests_total` | `method`, `route`, `status` | Completed responses, including emitted 4xx/5xx and pre-header timeout 408 |
+| `http_request_duration_ms` | `method`, `route`, `status` | Completed-response duration in milliseconds; buckets 5, 15, 50, 100, 250, 500, 1000, and +Inf |
+| `http_requests_aborted_total` | `method`, `route` | Incomplete responses: disconnect, stream timeout, cancellation, or failure without a completed response |
+
+`route` is the full declared template, for example `/api/v1/items/{id}`, including
+declared mount prefixes. Missing routes and rejections before routing use
+`<unmatched>`; unsupported methods use `<other>`. Labels never contain raw item IDs,
+unknown URLs, queries, client addresses, or request IDs. The five root operational
+paths `/health`, `/ready`, `/info`, `/system`, and `/metrics` remain excluded from
+all three traffic metrics. Their access logs are still emitted.
+
+One shared per-request observation feeds access logs and metrics exactly once.
+Completion is the final response body accepted by ASGI send, not return from the
+handler, dependency cleanup, or background work. An observed disconnect/send failure,
+external cancellation, or owned streaming deadline ends an incomplete response.
+A started 200 that is truncated is an abort, never a completed 200 or a fabricated
+499/0 response. The observation retains a status only when headers were accepted;
+aborts have no status metric label. Late cleanup, failures, or attempted output do
+not change the recorded outcome. The observer adds no receive-reader task; it uses
+the timeout middleware's existing disconnect observation and ASGI channel wrappers.
+These are server-side transport observations, not proof the peer consumed every byte.
+
+**Dashboard migration:** replace the old `path` label with `route` on
+`http_requests_total`. Replace `http_request_latency_seconds` with
+`http_request_duration_ms`, including `_bucket`, `_sum`, and `_count` series.
+Histogram queries must now include the desired status grouping/filter and use
+millisecond thresholds; remove any seconds-to-milliseconds multiplication.
+Completed-only histograms exclude aborted requests; monitor the abort counter
+separately. No legacy raw-path/seconds series are exported alongside the new schema.

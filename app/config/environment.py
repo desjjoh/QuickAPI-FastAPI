@@ -2,11 +2,13 @@ import sys
 from typing import Literal, NoReturn
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, ValidationError, field_validator
+from pydantic import Field, ValidationError, ValidationInfo, field_validator
 from pydantic_core import ErrorDetails
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SEMVER_REGEX = r"^\d+\.\d+\.\d+$"
+DEFAULT_API_PUBLISHED_PORT = 8000
+DEFAULT_MYSQL_PUBLISHED_PORT = 3308
 
 
 class Settings(BaseSettings):
@@ -18,9 +20,27 @@ class Settings(BaseSettings):
 
     HOST: str = "0.0.0.0"
     PORT: int = Field(..., ge=1, le=65_535)
+    API_PUBLISHED_PORT: int = Field(DEFAULT_API_PUBLISHED_PORT, ge=1, le=65_535)
+    MYSQL_PUBLISHED_PORT: int = Field(DEFAULT_MYSQL_PUBLISHED_PORT, ge=1, le=65_535)
 
     DATABASE_URL: str = Field(..., min_length=5)
     TIMEZONE: str = "Etc/UTC"
+
+    @field_validator("API_PUBLISHED_PORT", "MYSQL_PUBLISHED_PORT", mode="before")
+    @classmethod
+    def validate_published_port(cls, value: object, info: ValidationInfo) -> object:
+        if value == "":
+            return (
+                DEFAULT_API_PUBLISHED_PORT
+                if info.field_name == "API_PUBLISHED_PORT"
+                else DEFAULT_MYSQL_PUBLISHED_PORT
+            )
+        if isinstance(value, str):
+            if value.isascii() and value.isdecimal():
+                return value
+        elif isinstance(value, int) and not isinstance(value, bool):
+            return value
+        raise ValueError("must be an integer port from 1 through 65535")
 
     @field_validator("TIMEZONE")
     @classmethod
