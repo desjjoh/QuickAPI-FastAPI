@@ -23,6 +23,9 @@ def test_configured_order_is_explicit() -> None:
         "RequestContextASGIMiddleware",
         "RequestLoggingASGIMiddleware",
     ]
+    assert names.index("PrometheusASGIMiddleware") < names.index(
+        "CustomCORSASGIMiddleware"
+    )
     assert (
         names.index("CustomCORSASGIMiddleware")
         < names.index("SecurityHeadersMiddleware")
@@ -32,7 +35,6 @@ def test_configured_order_is_explicit() -> None:
         names.index("RequestHeaderLimitASGIMiddleware")
         < names.index("RateLimitASGIMiddleware")
         < names.index("RequestTimeoutASGIMiddleware")
-        < names.index("PrometheusASGIMiddleware")
     )
 
 

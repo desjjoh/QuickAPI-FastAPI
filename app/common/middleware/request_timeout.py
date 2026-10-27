@@ -5,6 +5,7 @@ import math
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.common.middleware.request_outcome import abort_request
 from app.common.models.error_model import error_response
 from app.config.logging import log
 
@@ -164,6 +165,7 @@ class _RequestDeadline:
                 # A finished response cannot expire during dependency/background cleanup.
                 await work
             elif self.disconnected:
+                abort_request(self.scope)
                 self.closed = True
                 work.cancel()
             elif self.timeout_detail is not None or not done:
@@ -171,6 +173,7 @@ class _RequestDeadline:
                 work.cancel()
                 detail = self.timeout_detail or "Total request timeout exceeded."
                 if self.started:
+                    abort_request(self.scope)
                     # ASGI has no portable socket-abort message. Raising after
                     # response.start lets Uvicorn close the incomplete response.
                     raise _StreamDeadlineExceededError(detail)

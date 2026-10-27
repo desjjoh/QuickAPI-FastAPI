@@ -1,8 +1,10 @@
-import time
 from typing import Literal
 
-from starlette.types import ASGIApp, Message, Receive, Scope, Send
+import structlog
+from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.common.middleware.request_outcome import RequestOutcome, observe_request
+from app.common.store.request_context import RequestContext
 from app.config.logging import log
 
 
@@ -19,43 +21,28 @@ class RequestLoggingASGIMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            return await self.app(scope, receive, send)
+        context = RequestContext.get()
+        request_id = context.request_id if context is not None else None
 
-        start: float = time.perf_counter()
-
-        method = scope.get("method", "-")
-        path = scope.get("path", "-")
-
-        status: int | None = None
-
-        async def send_wrapper(message: Message) -> None:
-            nonlocal status
-
-            if message["type"] == "http.response.start":
-                status = message["status"]
-
-            await send(message)
-
-        try:
-            await self.app(scope, receive, send_wrapper)
-
-        finally:
-            duration: float = (time.perf_counter() - start) * 1000
-            duration_s: str = f"{duration:.2f}ms"
-
-            status_code: int = status if status is not None else 500
-
-            status_padded: str = str(status_code).ljust(3)
-            method_padded: str = method.ljust(7)
-            path_padded: str = shorten_path(path, 30).ljust(32)
-
-            msg: str = f"{status_padded} {method_padded} {path_padded} {duration_s}"
-
-            level: Literal['error', 'warning', 'info'] = (
-                "error"
-                if status_code >= 500
-                else "warning" if status_code >= 400 else "info"
+        def record(result: RequestOutcome) -> None:
+            status = result.status
+            status_label = str(status) if result.outcome == "completed" else "ABORTED"
+            msg = (
+                f"{status_label.ljust(3)} {result.method.ljust(7)} "
+                f"{shorten_path(result.route, 30).ljust(32)} {result.duration_ms:.2f}ms"
             )
+            level: Literal["error", "warning", "info"] = (
+                "error"
+                if status is not None and status >= 500
+                else (
+                    "warning"
+                    if result.outcome == "aborted"
+                    or (status is not None and status >= 400)
+                    else "info"
+                )
+            )
+            # The final server error can be emitted after request context cleanup.
+            with structlog.contextvars.bound_contextvars(request_id=request_id):
+                getattr(log, level)(msg)
 
-            getattr(log, level)(msg)
+        await observe_request(self.app, scope, receive, send, "logging", record)

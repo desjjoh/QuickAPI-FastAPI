@@ -2,18 +2,18 @@
 
 ## Summary
 
-Yes. This is the consolidated list, including the original backlog, production-assurance gaps, migrations, and branch-check enforcement. Phases 1A and 1C are complete locally; see [verification](verification.md). Phase 1B startup and rule comparison are verified; saving/verifying required checks is pending manual GitHub configuration. Other phases remain pending.
+Yes. This is the consolidated list, including the original backlog, production-assurance gaps, migrations, and branch-check enforcement. Phases 1A, 1C, and 1D are complete locally; see [verification](verification.md). Phase 1B startup and rule comparison are verified; saving/verifying required checks is pending manual GitHub configuration. Other phases remain pending.
 
 ### Milestone 1 — Reproducible foundation and existing fixes
 
-Sequence note: 1C was completed ahead of 1B and will be retained. **Finish 1B required-check configuration next**, then 1D. See the [backlog note](backlog.md#sequence-note--timeout-work-completed-ahead-of-order) for scope and verification links.
+Sequence note: 1C was completed ahead of 1B and will be retained. **Finish the remaining 1B required-check configuration**; 1D is also complete locally. See the [backlog note](backlog.md#sequence-note--timeout-work-completed-ahead-of-order) for scope and verification links.
 
 | Phase                                                    | Scope                                                                                                    | Completion check                                                                                                         |
 | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **1A — Environment and dependencies (complete locally)** | Establish Python 3.12 execution; resolve conflicting pins; separate runtime and development requirements | Fresh installations and static/test checks run reproducibly; environment limitations recorded separately                 |
 | **1B — Startup and branch protections (required checks pending)**                  | Fix Compose configuration; verify ruleset targets, protections, and available check names                | Compose reaches readiness and serves an API request; protection settings documented without requiring nonexistent checks |
 | **1C — Request timeout correctness (complete locally)**  | Handle response-start state, streaming expiry, disconnects, cleanup, and late responses                  | No duplicate headers or late responses; focused ASGI and real-server checks pass                                         |
-| **1D — Metrics and request outcomes**                    | Bound route labels; consistently record completion, failure, timeout, and abort                          | Varying IDs/unknown URLs cannot grow metric labels without bound; outcome tests pass                                     |
+| **1D — Metrics and request outcomes (complete locally)**                    | Bound route labels; consistently record completion, failure, timeout, and abort                          | Varying IDs/unknown URLs cannot grow metric labels without bound; outcome tests pass                                     |
 
 ### Milestone 2 — HTTP policies and operational behavior
 

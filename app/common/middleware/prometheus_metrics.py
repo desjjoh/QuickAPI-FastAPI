@@ -1,14 +1,10 @@
-from __future__ import annotations
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-import time
-
-from starlette.types import ASGIApp, Message, Receive, Scope, Send
-
-from app.config.metrics import REQUEST_COUNT, REQUEST_LATENCY
+from app.common.middleware.request_outcome import RequestOutcome, observe_request
+from app.config.metrics import REQUEST_ABORTED, REQUEST_COUNT, REQUEST_DURATION
 
 
 class PrometheusASGIMiddleware:
-
     # Operational polling is intentionally omitted from application traffic metrics.
     _excluded_paths: frozenset[str] = frozenset(
         {"/health", "/ready", "/info", "/system", "/metrics"}
@@ -18,30 +14,18 @@ class PrometheusASGIMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            return await self.app(scope, receive, send)
+        if scope.get("path") in self._excluded_paths:
+            await self.app(scope, receive, send)
+            return
 
-        method: str = scope["method"]
-        path: str = scope.get("path", "")
+        def record(result: RequestOutcome) -> None:
+            if result.outcome == "aborted":
+                REQUEST_ABORTED.labels(result.method, result.route).inc()
+                return
+            status = str(result.status)
+            REQUEST_COUNT.labels(result.method, result.route, status).inc()
+            REQUEST_DURATION.labels(result.method, result.route, status).observe(
+                result.duration_ms
+            )
 
-        # Exporter scrapes and probe polling must not distort application traffic.
-        if path in self._excluded_paths:
-            return await self.app(scope, receive, send)
-
-        start: float = time.perf_counter()
-        status_code_holder: dict[str, str] = {"status": "0"}
-
-        async def send_wrapper(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                status_code_holder["status"] = str(message["status"])
-
-            await send(message)
-
-        try:
-            await self.app(scope, receive, send_wrapper)
-
-        finally:
-            latency: float = time.perf_counter() - start
-
-            REQUEST_LATENCY.labels(method, path).observe(latency)
-            REQUEST_COUNT.labels(method, path, status_code_holder["status"]).inc()
+        await observe_request(self.app, scope, receive, send, "metrics", record)

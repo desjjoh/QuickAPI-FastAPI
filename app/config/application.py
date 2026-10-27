@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.types import ASGIApp
 
 from app.api.api_routes import router as api_router
 from app.api.system.services.system_service import (
@@ -41,6 +42,7 @@ from app.common.middleware.request_header_sanitization import (
     HeaderSanitizationASGIMiddleware,
 )
 from app.common.middleware.request_logger import RequestLoggingASGIMiddleware
+from app.common.middleware.request_outcome import RequestOutcomeASGIMiddleware
 from app.common.middleware.request_timeout import RequestTimeoutASGIMiddleware
 from app.common.middleware.security_headers import SecurityHeadersMiddleware
 from app.config.database import DatabaseService
@@ -82,12 +84,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         log.info("Application exited cleanly")
 
 
+class ObservedFastAPI(FastAPI):
+    def build_middleware_stack(self) -> ASGIApp:
+        return RequestOutcomeASGIMiddleware(
+            super().build_middleware_stack(), self.router.routes
+        )
+
+
 def create_app() -> FastAPI:
     name: str = settings.APP_NAME
     version: str = settings.APP_VERSION
 
     started_at = datetime.now(UTC)
-    app: FastAPI = FastAPI(
+    app: FastAPI = ObservedFastAPI(
         title=name,
         version=version,
         description="A production-oriented example API built with FastAPI.",
@@ -108,7 +117,6 @@ def create_app() -> FastAPI:
         started_at=app.state.monotonic_start,
     )
 
-    app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestTimeoutASGIMiddleware)
 
     app.add_middleware(
@@ -160,6 +168,7 @@ def create_app() -> FastAPI:
         max_age=86_400,
     )
 
+    app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestLoggingASGIMiddleware)
     app.add_middleware(RequestContextASGIMiddleware)
     app.add_middleware(RequestCleanupASGIMiddleware)

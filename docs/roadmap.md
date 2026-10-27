@@ -27,9 +27,20 @@ Live FastAPI structural protections match Express. Six existing hosted checks we
 
 ## 1C. Request timeout correctness
 
-Completed ahead of order and retained intentionally. Return to 1B next, then continue with 1D; see the [backlog sequence note](backlog.md#sequence-note--timeout-work-completed-ahead-of-order).
+Completed ahead of order and retained intentionally. The remaining 1B required-check configuration is still pending; 1D is now complete locally; see the [backlog sequence note](backlog.md#sequence-note--timeout-work-completed-ahead-of-order).
 
 The Express-aligned timeout/streaming/disconnect contract is implemented and verified locally. See [Request deadlines](request-timeouts.md) for behavior and cancellation limits, and [Verification](verification.md) for execution evidence. This is the timeout phase called 1B in the earlier four-milestone outline; expanded phase 1B (Compose/branch settings) remains pending.
+
+## 1D. Metrics and request outcomes
+
+Completed locally. Logging and metrics now share one response outcome and duration;
+completed responses and aborts are counted separately, and route/method labels stay
+bounded. Names, labels, units, and histogram buckets match the Express/NestJS
+contract while preserving Python log levels and the current error envelope. See
+[the metrics contract and dashboard migration](deployment.md#metrics-and-request-outcomes),
+[regression coverage](testing.md#request-outcome-regression-coverage), and
+[Verification](verification.md). Remaining phase 1B branch-check configuration is
+still a separate manual step; broader logging work remains phase 2D.
 
 ## Working decisions
 

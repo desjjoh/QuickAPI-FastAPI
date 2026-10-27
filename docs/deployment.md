@@ -141,7 +141,7 @@ plaintext with `CONTENT_TYPE_LATEST` (currently the complete media type
 ```text
 # HELP http_requests_total Total HTTP requests
 # TYPE http_requests_total counter
-http_requests_total{method="GET",path="/api/v1/items/",status="200"} 42
+http_requests_total{method="GET",route="/api/v1/items/",status="200"} 42
 ```
 
 The Python diagnostics map platform facilities into stable API fields:
@@ -186,3 +186,41 @@ Startup uses `metadata.create_all()`, which does not upgrade existing schemas. F
 Retain the tested commit and image digest, inject production configuration, and verify readiness plus a disposable API workflow in the target environment. Configure durable storage, backups, retention, and restore for the selected database. No automated promotion, migration, backup/restore, or rollback workflow is supplied.
 
 During incidents inspect structured logs/request IDs, check `/health` separately from `/ready`, and investigate dependency reachability when readiness fails. Restrict diagnostics to the intended audience. Roll back to a retained image only after checking schema compatibility; restore data using the database operator's tested recovery procedure. Neither image rollback nor an available backup establishes recoverability on its own.
+
+
+## Metrics and request outcomes
+
+The schema matches QuickAPI-Express and QuickAPI-NestJS, with Express's separate
+abort counter:
+
+| Metric | Labels | Meaning |
+| --- | --- | --- |
+| `http_requests_total` | `method`, `route`, `status` | Completed responses, including emitted 4xx/5xx and pre-header timeout 408 |
+| `http_request_duration_ms` | `method`, `route`, `status` | Completed-response duration in milliseconds; buckets 5, 15, 50, 100, 250, 500, 1000, and +Inf |
+| `http_requests_aborted_total` | `method`, `route` | Incomplete responses: disconnect, stream timeout, cancellation, or failure without a completed response |
+
+`route` is the full declared template, for example `/api/v1/items/{id}`, including
+declared mount prefixes. Missing routes and rejections before routing use
+`<unmatched>`; unsupported methods use `<other>`. Labels never contain raw item IDs,
+unknown URLs, queries, client addresses, or request IDs. The five root operational
+paths `/health`, `/ready`, `/info`, `/system`, and `/metrics` remain excluded from
+all three traffic metrics. Their access logs are still emitted.
+
+One shared per-request observation feeds access logs and metrics exactly once.
+Completion is the final response body accepted by ASGI send, not return from the
+handler, dependency cleanup, or background work. An observed disconnect/send failure,
+external cancellation, or owned streaming deadline ends an incomplete response.
+A started 200 that is truncated is an abort, never a completed 200 or a fabricated
+499/0 response. The observation retains a status only when headers were accepted;
+aborts have no status metric label. Late cleanup, failures, or attempted output do
+not change the recorded outcome. The observer adds no receive-reader task; it uses
+the timeout middleware's existing disconnect observation and ASGI channel wrappers.
+These are server-side transport observations, not proof the peer consumed every byte.
+
+**Dashboard migration:** replace the old `path` label with `route` on
+`http_requests_total`. Replace `http_request_latency_seconds` with
+`http_request_duration_ms`, including `_bucket`, `_sum`, and `_count` series.
+Histogram queries must now include the desired status grouping/filter and use
+millisecond thresholds; remove any seconds-to-milliseconds multiplication.
+Completed-only histograms exclude aborted requests; monitor the abort counter
+separately. No legacy raw-path/seconds series are exported alongside the new schema.

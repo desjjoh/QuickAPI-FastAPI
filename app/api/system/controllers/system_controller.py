@@ -145,7 +145,7 @@ async def system(request: Request) -> SystemResponse:
                     "example": (
                         "# HELP http_requests_total Total HTTP requests\n"
                         "# TYPE http_requests_total counter\n"
-                        "http_requests_total{method=\"GET\",path=\"/ready\",status=\"200\"} 42"
+                        "http_requests_total{method=\"GET\",route=\"/api/v1/items/\",status=\"200\"} 42"
                     )
                 }
             },

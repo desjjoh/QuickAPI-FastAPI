@@ -40,17 +40,23 @@ middleware added in `create_app()` is the first to see a request. The effective
 inbound order is:
 
 ```text
-cleanup → request context → request logging → CORS → security headers
+request outcome → server error handler → cleanup → request context
+→ request logging → metrics → CORS → security headers
 → body limit → content type → header sanitization → header limits
-→ method allowlist → rate limit → timeout → metrics → routing/controller
+→ method allowlist → rate limit → timeout → routing/controller
 ```
 
 Responses unwind through the same layers in reverse. This is intentional:
 
-1. Cleanup is outermost so context variables are cleared even after failures.
+1. One request-outcome observer wraps Starlette's server error handler so final
+   500 responses and transport failures are observed. Cleanup clears request context
+   even after failures.
 2. Request identity is established before logging and returned as `X-Request-ID`.
 3. Transport and security checks reject unsafe requests before domain code runs.
-4. Timeout and metrics surround routed work so operational behavior is observable.
+4. Logging and metrics subscribe to the same outcome before policy checks.
+   Duration ends when the final body is accepted by ASGI send, or when an abort
+   is observed; downstream cleanup cannot extend it. A completed 408/500 counts as
+   a response; a truncated stream counts only as an abort.
 5. Controllers validate inputs, borrow a database session, call the repository, and
    serialize a declared response model.
 
@@ -58,6 +64,12 @@ Middleware rejections use the same error renderer as routed HTTP exceptions, so
 clients do not need separate parsing behavior for transport and application errors.
 The in-memory rate limiter is process-local by design; replace it with shared storage
 before relying on a global limit across multiple workers or replicas.
+
+[Metrics and request outcomes](deployment.md#metrics-and-request-outcomes) defines
+labels, exclusions, units, and the dashboard migration. Declared route templates
+include mount prefixes; concrete IDs, query values, and unknown paths never become
+access-log routes or metric labels. Python log levels and the console layout remain
+unchanged, with `ABORTED` in the status position for incomplete responses.
 
 ## Persistence and migrations
 

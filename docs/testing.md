@@ -74,3 +74,19 @@ The [roadmap](roadmap.md) schedules disposable MySQL integration/E2E and migrati
 ## HTTP deadline and streaming checks
 
 The [timeout test guide](request-timeouts.md#verification) describes focused unit checks and real loopback Uvicorn integration checks on both h11 and httptools. The socket checks run in the existing integration layer; they are not production-only endpoints or MySQL verification.
+
+
+## Request outcome regression coverage
+
+[Outcome unit tests](../tests/unit/middleware/test_request_outcome.py) exercise
+completion/abort races, header state, channel failures, cancellation, post-response
+cleanup, duplicate/late subscribers, method bounds, and full declared mount templates.
+[Application and real-server checks](../tests/integration/middleware/test_request_outcomes.py)
+verify bounded series across varying IDs, unknown paths and methods, completed policy
+rejections/final 500s, concurrent request correlation, and matching log/metric durations.
+Eight outcome cases run real Uvicorn sockets with both h11 and httptools: pre-header
+408, ordinary-handler disconnect, streaming timeout, and streaming disconnect. They
+assert metrics/access logs settle before cancellation-resistant cleanup and remain
+unchanged after it. These supplement the existing twelve socket deadline cases in
+[timeout tests](../tests/integration/middleware/test_timeout_server.py); HTTPX ASGI
+transport alone cannot prove socket disconnect or truncated-body behavior.

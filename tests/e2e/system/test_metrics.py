@@ -7,9 +7,9 @@ from prometheus_client import CONTENT_TYPE_LATEST
 pytestmark = pytest.mark.e2e
 
 
-def counter_value(text: str, *, path: str, status: int = 200) -> float:
+def counter_value(text: str, *, route: str, status: int = 200) -> float:
     pattern = re.compile(
-        rf'^http_requests_total\{{[^}}]*method="GET"[^}}]*path="{re.escape(path)}"'
+        rf'^http_requests_total\{{[^}}]*method="GET"[^}}]*route="{re.escape(route)}"'
         rf'[^}}]*status="{status}"[^}}]*\}} ([0-9.eE+-]+)$',
         re.MULTILINE,
     )
@@ -30,12 +30,12 @@ async def test_metrics_excludes_scrapes_and_counts_known_traffic(
     client: httpx.AsyncClient,
 ) -> None:
     initial = await client.get("/metrics")
-    assert 'path="/metrics"' not in initial.text
-    assert counter_value(initial.text, path="/") == 0
+    assert 'route="/metrics"' not in initial.text
+    assert counter_value(initial.text, route="/") == 0
 
     assert (await client.get("/")).status_code == 200
     assert (await client.get("/")).status_code == 200
     after_traffic = await client.get("/metrics")
 
-    assert 'path="/metrics"' not in after_traffic.text
-    assert counter_value(after_traffic.text, path="/") == 2
+    assert 'route="/metrics"' not in after_traffic.text
+    assert counter_value(after_traffic.text, route="/") == 2

@@ -150,3 +150,68 @@ Passed: Windows full suite **411 tests**, **94.77%** overall coverage with branc
 | `tests/conftest.py` | `52ddfdf09c61e487cd08b7c87dec7dbee834af8be25618f69f7184038987252e` |
 | `docker-compose.yaml` | `9374cd60eabc3f028a40f2456ca429f45d819ffeffe59fa1c0d221f3c0b9da93` |
 | `.env.example` | `bfa1a4e6ce6097f4e3dd4e1a188c14643d74fc16c31470c569960b8b0628b3c2` |
+
+
+## Phase 1D - Metrics and request outcomes
+
+Verified on 2026-10-27 against the working tree based on commit
+`9bc06651d4f9da5fb64df5b4b71f57b04164492b`, including the uncommitted inputs
+fingerprinted below. Express's request-outcome handler and both sibling metric
+configurations were inspected directly as references.
+
+### Implemented behavior
+
+One outer ASGI observation covers final server-error responses and feeds logging
+and metrics before policy middleware can reject a request. Completion, disconnect,
+channel failure, cancellation, and owned stream expiry settle once. Durations end at
+response completion/abort, independently of cleanup or late work. Completed 408/500
+responses are distinct from incomplete streams; aborts receive no fabricated status.
+Declared route/mount templates and bounded methods replace raw URL labels. The five
+operational-path exclusions remain. Python logging levels/console layout and error
+messages/envelopes are preserved. No dependencies, environment variables, or CI jobs
+were added. See [the contract and dashboard migration](deployment.md#metrics-and-request-outcomes).
+
+### Passed
+
+| Check | Result |
+| --- | --- |
+| Windows Python 3.12.10 complete suite | 446 passed; 95.32% overall branch-measured coverage |
+| Linux Python 3.12.16 complete suite | 446 passed; 95.47% overall branch-measured coverage |
+| Linux critical coverage gates | Middleware 95% against 90%; lifecycle 97%, database 100%, API 99% against 95% |
+| Formatting, lint, application types | Black: 113 files unchanged; Ruff passed; mypy: 47 source files, on Windows and Linux |
+| Strict Pyright | All 15 changed Python files checked; zero diagnostics |
+| Documentation | 103 relative links/anchors verified |
+| Outcome observer coverage | 100% statements and branches |
+| Real-server coverage | Eight new outcome cases plus twelve existing deadline cases, across h11 and httptools |
+| Runtime image smoke | Readiness, SQLite item listing, completed counter/duration exposition, legacy-series absence, operational exclusions, and pip check passed; disposable loopback container removed |
+
+The new tests also exercise cardinality across varying IDs/unknown URLs/methods,
+405 route matching, declared dynamic and repeated mounts, actual final 500s, early
+policy failures, correlation after context cleanup and between concurrent requests,
+identical access-log/metric durations, duplicate/late subscribers, terminal-event
+races, and timing/count stability after delayed cleanup. Database tests and image
+smoke still use SQLite; this is not MySQL/release-pipeline qualification.
+
+Local runtime image: `sha256:580017393e8c8ea335f78f32d0270a73d2a06cf44e4978952378df286d9e85f4`
+(`quickapi-fastapi:phase-1d`). Linux checks install development requirements into a
+disposable container; the saved runtime image retains runtime requirements only.
+Source is mounted read-only and coverage/cache/database output goes to `/tmp`.
+
+### Not run / remaining
+
+Hosted CI for this working tree was not run. Phase 1B's manual required-check
+configuration remains pending; completing 1D does not assert branch enforcement.
+Broader logging/privacy work remains phase 2D. Socket observations establish the
+server-side outcome, not acknowledgement of byte consumption by the peer; existing
+receive/backpressure and cooperative-cancellation limits still apply.
+
+| Verified phase 1D input | SHA-256 |
+| --- | --- |
+| `app/common/middleware/request_outcome.py` | `17adf8a617d37fff3e12ef239678307cc5639a0ea38aad4eb66a95f7020c3a9e` |
+| `app/common/middleware/request_logger.py` | `7f0a3f76f745c9e8c6687f7cc4a9258313d98853b82ea38e94aed63ce969842e` |
+| `app/common/middleware/prometheus_metrics.py` | `6e9faacb39e0d67f96f1a2f7766cdeb5286e7943af728d9d751809bcb9ee1ad0` |
+| `app/common/middleware/request_timeout.py` | `beb76b8a496516805dd12cf4dd83c235cf40d644df94599e8344b11932922437` |
+| `app/config/application.py` | `d14387dede0616addad3ad96d3ac4bda80a794813416be5f992f2574e3705e1f` |
+| `app/config/metrics.py` | `972c7263d4ba2ec31450c5eb9b979b9ec2ccf38c6c842e0054f52dc1010ba060` |
+| `tests/unit/middleware/test_request_outcome.py` | `523601512772dc99f50314f7f7eeb8b9b62f122d19214b14bed969cd161b6e75` |
+| `tests/integration/middleware/test_request_outcomes.py` | `f9fedd4eae8994c91f57bf85c5c1e47395c385cd89154f7ab54c38a53249ee44` |

@@ -23,19 +23,21 @@ from fastapi import FastAPI
 
 from app.common.handlers.lifecycle_handler import LifecycleHandler
 from app.common.store.request_context import RequestContext
-from app.config.metrics import REQUEST_COUNT, REQUEST_LATENCY
+from app.config.metrics import REQUEST_ABORTED, REQUEST_COUNT, REQUEST_DURATION
 
 
 @pytest.fixture(autouse=True)
 def reset_process_state() -> Iterator[None]:
     """Isolate process-wide observability and request state for every test."""
     REQUEST_COUNT.clear()
-    REQUEST_LATENCY.clear()
+    REQUEST_DURATION.clear()
+    REQUEST_ABORTED.clear()
     RequestContext.clear()
     structlog.contextvars.clear_contextvars()
     yield
     REQUEST_COUNT.clear()
-    REQUEST_LATENCY.clear()
+    REQUEST_DURATION.clear()
+    REQUEST_ABORTED.clear()
     RequestContext.clear()
     structlog.contextvars.clear_contextvars()
 
