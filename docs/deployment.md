@@ -224,3 +224,15 @@ Histogram queries must now include the desired status grouping/filter and use
 millisecond thresholds; remove any seconds-to-milliseconds multiplication.
 Completed-only histograms exclude aborted requests; monitor the abort counter
 separately. No legacy raw-path/seconds series are exported alongside the new schema.
+
+
+## HTTP policy configuration
+
+See [HTTP configuration](http-policy.md) for settings, defaults, validation, proxy
+chain behavior, and server receive limits. Optional `.env.example` overrides are
+commented; process environment wins over `.env` and omitted values use code defaults.
+Set actual browser origins and explicit proxy IPs/CIDRs for the hosting topology.
+The application owns forwarding resolution; external Uvicorn commands must use
+`--no-proxy-headers`, as the normal entrypoint already does. Real ingress trust,
+direct-port denial, and slow-header/whole-upload protection still require deployed
+verification; application deadlines do not establish those transport guarantees.

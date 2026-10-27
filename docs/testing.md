@@ -90,3 +90,19 @@ assert metrics/access logs settle before cancellation-resistant cleanup and rema
 unchanged after it. These supplement the existing twelve socket deadline cases in
 [timeout tests](../tests/integration/middleware/test_timeout_server.py); HTTPX ASGI
 transport alone cannot prove socket disconnect or truncated-body behavior.
+
+
+## HTTP policy regression coverage
+
+[Environment tests](../tests/unit/config/test_environment.py) cover defaults, exact
+CSV syntax, bounds/relationships, malformed values, process/dotenv precedence, and
+agreement between commented example values and code defaults.
+[Proxy unit tests](../tests/unit/middleware/test_trusted_proxy.py) cover IPv4/IPv6,
+right-to-left trust chains, malformed/duplicate/unsupported forwarding, direct peers,
+non-HTTP scopes, and original header budgets.
+[Policy integration tests](../tests/integration/middleware/test_http_policy.py)
+exercise configured browser preflight/response headers, custom header/media policy,
+raw-header and body/method rejection, and six real Uvicorn socket cases across h11
+and httptools for trusted/untrusted identity and configured response deadlines.
+The socket harness disables Uvicorn proxy rewriting to exercise app-owned trust.
+Deployment-specific slow-header protection remains unverified and open.

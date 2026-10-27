@@ -32,6 +32,15 @@ python -m app.main
 
 For a self-contained local run set `DATABASE_URL=sqlite+aiosqlite:///./app.db` in `.env`. Relative SQLite paths resolve from the working directory. For external MySQL, replace the URL/credentials and verify that the database exists and is reachable. For Compose MySQL, the local credentials below are already configured; existing `.env` files are not rewritten automatically.
 
+## HTTP environment overrides
+
+[HTTP configuration](http-policy.md) lists validated defaults, ranges, and precedence.
+Optional overrides are commented out in `.env.example`; leave them commented to use
+code defaults. Process environment wins over `.env`. Lists are comma-separated and
+booleans use `true`/`false`. The browser-origin default is `http://localhost:3000`;
+configure `CORS_ORIGINS` for another frontend port. Keep shared comments and new
+variables synchronized when reconciling an existing local `.env`.
+
 ## Local Compose
 
 Copy `.env.example` to a gitignored `.env` if one does not exist; otherwise reconcile the example with your existing configuration. Do not overwrite an existing file containing configuration you need.
@@ -46,7 +55,7 @@ docker compose up -d --wait mysql
 | Connection | Address |
 | --- | --- |
 | Container API from this machine | `http://127.0.0.1:8000` |
-| Native Python API with example settings | `http://localhost:5000` |
+| Native Python API with example settings | `http://localhost:8000` |
 | MySQL from native Python/database clients | `127.0.0.1:3308` |
 | MySQL from the API container | `mysql:3306` |
 

@@ -32,6 +32,7 @@ The native Python example binds port **5000**. Swagger UI is at `/docs`, ReDoc a
 | [Development](docs/development.md) | Setup, configuration, database selection, and local commands |
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
+| [HTTP configuration](docs/http-policy.md) | Defaults, env overrides, CORS, proxy trust, and request budgets |
 | [Request deadlines](docs/request-timeouts.md) | Timeout, streaming, disconnect, and cleanup behavior |
 | [Testing](docs/testing.md) | Test layers, isolation, coverage gates, CI, and verification limits |
 | [Branch protections](docs/branch-protection.md) | Verified rulesets, existing hosted checks, and remaining manual configuration |

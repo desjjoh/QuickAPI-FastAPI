@@ -215,3 +215,81 @@ receive/backpressure and cooperative-cancellation limits still apply.
 | `app/config/metrics.py` | `972c7263d4ba2ec31450c5eb9b979b9ec2ccf38c6c842e0054f52dc1010ba060` |
 | `tests/unit/middleware/test_request_outcome.py` | `523601512772dc99f50314f7f7eeb8b9b62f122d19214b14bed969cd161b6e75` |
 | `tests/integration/middleware/test_request_outcomes.py` | `f9fedd4eae8994c91f57bf85c5c1e47395c385cd89154f7ab54c38a53249ee44` |
+
+
+## Phase 2A - Validated HTTP configuration
+
+Verified on 2026-10-27 against the working tree based on commit
+`609e143f1766e4da60f83fc4b011c4e19e3d3664`, including the uncommitted inputs
+fingerprinted below. Express/NestJS env examples and Express validation were inspected
+as naming/comment/default references. Application configuration is complete locally;
+true server/ingress header and whole-upload receive protection remains open.
+
+### Implemented behavior
+
+Pydantic Settings owns defaults and validates optional CSV/boolean/numeric env
+overrides for CORS, proxy trust, response/body deadlines, parsed-header/body budgets,
+and allowed methods/media types. Normal precedence is process environment over `.env`
+over defaults. Required identity/database/listener values retain their existing role.
+The env example is grouped and commented with actual defaults, units, bounds, and
+relationships; the local gitignored `.env` received the same shared comments while
+all pre-existing effective values were preserved. No local values are recorded here.
+
+CORS now uses exact browser-serialized origins with localhost:3000 as its default,
+replacing wildcard access. Requests without Origin receive no CORS response headers.
+Explicit IP/CIDR proxy trust defaults to empty; only a trusted connecting peer can
+supply the two supported forwarding headers. Validated right-to-left chains resolve
+identity before context/limiting. The normal entrypoint disables Uvicorn's own proxy
+rewriting; external launchers must do likewise. Parsed-header limits now precede
+preflight short-circuiting and sanitizer filtering; consumed proxy headers cannot
+evade their original budgets. Existing error envelope and deadline behavior remain.
+
+See [HTTP configuration](http-policy.md) for settings/defaults and rollout details.
+Rate-limit algorithm/configuration and operational exposure remain phases 2C/2B.
+No dependency pins, database schema, or workflow definitions changed.
+
+### Passed
+
+| Check | Result |
+| --- | --- |
+| Windows Python 3.12.10 complete suite | 606 passed; 95.77% overall branch-measured coverage |
+| Linux Python 3.12.16 complete suite | 606 passed; 95.89% overall branch-measured coverage |
+| Formatting, lint, application types on both platforms | Black: 117 files unchanged; Ruff passed; mypy: 49 source files |
+| Strict Pyright | All 14 affected Python source/test files; zero diagnostics |
+| Linux critical coverage gates | Middleware 96% against 90%; lifecycle 97%, database 100%, API 99% against 95% |
+| Proxy middleware and shared policy helpers | 100% statements/branches |
+| Env contract | Default/override and file/process/constructor precedence, malformed syntax/types/ranges/relationships, list bounds, and example/default consistency |
+| Real-server checks | Six new cases across h11/httptools for trusted/untrusted identity and configured deadlines; existing twenty socket cases retained |
+| Runtime image smoke | Readiness, custom origin/credentials/body budget, denied origin, untrusted forwarding rejection, and pip check; disposable container removed |
+| Local env preservation | Existing effective values preserved; shared comments synchronized with `.env.example` |
+| Documentation | 118 relative links/anchors verified |
+
+Linux checks installed development requirements into a disposable runtime-image
+container with source mounted read-only and test/coverage/cache output in `/tmp`.
+The final saved runtime image contains runtime dependencies only. Local image:
+`sha256:f0f9f948a0bb2312a8123fb9286528e07074846494ff2a50b0010f98d0738949`
+(`quickapi-fastapi:phase-2a`). These are local checks, not hosted/release evidence.
+
+### Not run / remaining
+
+Hosted CI for this working tree was not run. MySQL was not requalified; persistence
+and image smoke remain SQLite-backed. Real ingress trust/direct-port restrictions,
+slow-header/whole-upload receive protection, and their deployed socket verification
+remain open. No ineffective header-timeout variable is exposed: body/response/keepalive
+deadlines do not establish a TCP header-receive guarantee. External server commands
+that rewrite the peer before ASGI violate the documented proxy ownership contract.
+Broader logging/privacy and endpoint-exposure work remain in their scheduled phases.
+
+| Verified phase 2A input | SHA-256 |
+| --- | --- |
+| `.env.example` | `32d19da6fa1e8c87a9a3ae7bf62f2f428690344e7eaa326333bf910718653b7b` |
+| `app/config/environment.py` | `341d1b47c74b0b95df2f5c64c3af0d521fd580ba98a73b5183a9e839205e7579` |
+| `app/config/http_policy.py` | `3947ff9fa9c0073f98bff2bcff2eb8f86dafb3f75163a9697fe366779dbfc649` |
+| `app/config/application.py` | `ce7965f4e84b9556d36f8891fa482d514e01ababa88f0d9667c9e980e1f1a40c` |
+| `app/main.py` | `5e0d98c466bc82928a3ff8f31e5f81ccc479bd13a07ef7c2ee4da3a7e30f65fb` |
+| `app/common/middleware/trusted_proxy.py` | `644d1e4bf8c6f1c391a5e8a4a7833a0e9840fb00d23c413590c494f782747bdd` |
+| `app/common/middleware/cors.py` | `33cf0890ddf1813b66da46678dd9b58fb83f5cb09f678a729d6db50e9125a303` |
+| `app/common/middleware/request_header_sanitization.py` | `a0bdb19dc643df02bb3ee523f93810dacdfd5450c4c57abcf3dbb5c5d79a8e67` |
+| `tests/unit/config/test_environment.py` | `b59d16c26ebd3493169c45b037290ccc7e0aab7adfaa5e82584297e410e84b00` |
+| `tests/unit/middleware/test_trusted_proxy.py` | `4db073b4bc3229ba887df662e105e051cf77bed4b12d2b9272e548e4f8faff15` |
+| `tests/integration/middleware/test_http_policy.py` | `9ac2209fbf963a456e155a6099eaee280896e1fe098110c1cb6158e758a6eebe` |

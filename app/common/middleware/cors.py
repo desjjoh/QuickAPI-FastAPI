@@ -58,6 +58,10 @@ class CustomCORSASGIMiddleware:
                 detail=f"CORS origin '{origin}' not allowed.",
             )
 
+        if origin is None:
+            await self.app(scope, receive, send)
+            return
+
         if method == "OPTIONS" and "access-control-request-method" in headers:
             requested_method = headers["access-control-request-method"].upper()
             requested_headers = {
@@ -88,7 +92,7 @@ class CustomCORSASGIMiddleware:
                 self._append_header(
                     headers_list,
                     "access-control-allow-methods",
-                    ", ".join(self.opts_methods),
+                    ", ".join(sorted(self.opts_methods)),
                 )
                 self._append_header(
                     headers_list,
@@ -150,7 +154,7 @@ class CustomCORSASGIMiddleware:
 
         headers: dict[str, str] = {
             "Access-Control-Allow-Origin": origin or "*",
-            "Access-Control-Allow-Methods": ", ".join(self.opts_methods),
+            "Access-Control-Allow-Methods": ", ".join(sorted(self.opts_methods)),
             "Access-Control-Allow-Headers": ", ".join(self.opts_allowed_headers),
             "Access-Control-Max-Age": str(self.max_age),
         }

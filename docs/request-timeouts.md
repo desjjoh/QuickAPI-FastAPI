@@ -16,6 +16,12 @@ All budgets must be finite and greater than zero; invalid values fail middleware
 
 The former `header_timeout` constructor argument is replaced by `first_body_timeout`. ASGI receives a scope after HTTP headers have already been parsed; this middleware never provided a slow-header receive deadline. Server/ingress header-receive protection remains separate work. The deadline starts inside the configured middleware stack, not at TCP acceptance, and does not cover earlier middleware rejections.
 
+The three application deadlines now come from validated settings:
+`REQUEST_TIMEOUT_MS=10000`, `REQUEST_FIRST_BODY_TIMEOUT_MS=5000`, and
+`REQUEST_CHUNK_TIMEOUT_MS=2000`. They are optional env overrides, converted to seconds
+at middleware construction. Both body-wait budgets must not exceed the total.
+See [HTTP configuration](http-policy.md) for ranges, defaults, and source precedence.
+
 ## Response and error behavior
 
 - Normal completion retires the response deadline. Dependency/background cleanup after the final response body does not change an already-completed response.

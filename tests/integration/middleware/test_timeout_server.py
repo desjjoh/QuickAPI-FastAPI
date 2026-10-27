@@ -34,6 +34,7 @@ async def running(
         loop="asyncio",
         lifespan="off",
         access_log=False,
+        proxy_headers=False,
         log_config=None,
         timeout_graceful_shutdown=1,
     )

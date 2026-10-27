@@ -45,6 +45,7 @@ from app.common.middleware.request_logger import RequestLoggingASGIMiddleware
 from app.common.middleware.request_outcome import RequestOutcomeASGIMiddleware
 from app.common.middleware.request_timeout import RequestTimeoutASGIMiddleware
 from app.common.middleware.security_headers import SecurityHeadersMiddleware
+from app.common.middleware.trusted_proxy import TrustedProxyASGIMiddleware
 from app.config.database import DatabaseService
 from app.config.environment import settings
 from app.config.logging import log
@@ -117,7 +118,12 @@ def create_app() -> FastAPI:
         started_at=app.state.monotonic_start,
     )
 
-    app.add_middleware(RequestTimeoutASGIMiddleware)
+    app.add_middleware(
+        RequestTimeoutASGIMiddleware,
+        first_body_timeout=settings.REQUEST_FIRST_BODY_TIMEOUT_MS / 1000,
+        chunk_timeout=settings.REQUEST_CHUNK_TIMEOUT_MS / 1000,
+        total_timeout=settings.REQUEST_TIMEOUT_MS / 1000,
+    )
 
     app.add_middleware(
         RateLimitASGIMiddleware,
@@ -131,46 +137,56 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         MethodWhitelistASGIMiddleware,
-        allowed_methods={"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
+        allowed_methods=set(settings.HTTP_ALLOWED_METHODS),
     )
 
     app.add_middleware(
-        RequestHeaderLimitASGIMiddleware,
-        limits=HeaderLimits(
-            max_header_count=100,
-            max_single_header_bytes=4_096,
-            max_total_header_bytes=8_192,
-            allow_chunked=False,
-        ),
+        HeaderSanitizationASGIMiddleware,
+        extra_allowed=set(settings.CORS_ALLOWED_HEADERS),
     )
-
-    app.add_middleware(HeaderSanitizationASGIMiddleware)
     app.add_middleware(
         ContentTypeEnforcementASGIMiddleware,
-        default_allowed={"application/json", "multipart/form-data"},
+        default_allowed=set(settings.HTTP_ALLOWED_CONTENT_TYPES),
         route_overrides=[],
     )
 
     app.add_middleware(
         RequestBodyLimitASGIMiddleware,
-        default_limit=BodyLimit(max_body_bytes=1_048_576),
+        default_limit=BodyLimit(max_body_bytes=settings.HTTP_MAX_BODY_BYTES),
         route_overrides=[],
     )
 
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CustomCORSASGIMiddleware,
-        origin=["*"],
-        methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
-        allowed_headers=["content-type", "authorization", "x-requested-with"],
-        exposed_headers=['authorization', 'set-cookie'],
-        credentials=True,
-        max_age=86_400,
+        origin=settings.CORS_ORIGINS,
+        methods=settings.CORS_METHODS,
+        allowed_headers=settings.CORS_ALLOWED_HEADERS,
+        exposed_headers=settings.CORS_EXPOSED_HEADERS,
+        credentials=settings.CORS_CREDENTIALS,
+        max_age=settings.CORS_MAX_AGE_SECONDS,
+    )
+
+    app.add_middleware(
+        RequestHeaderLimitASGIMiddleware,
+        limits=HeaderLimits(
+            max_header_count=settings.HTTP_MAX_HEADER_COUNT,
+            max_single_header_bytes=settings.HTTP_MAX_SINGLE_HEADER_BYTES,
+            max_total_header_bytes=settings.HTTP_MAX_TOTAL_HEADER_BYTES,
+            allow_chunked=False,
+        ),
     )
 
     app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestLoggingASGIMiddleware)
     app.add_middleware(RequestContextASGIMiddleware)
+    app.add_middleware(
+        TrustedProxyASGIMiddleware,
+        trusted_proxies=settings.TRUST_PROXY,
+        max_header_bytes=settings.HTTP_MAX_SINGLE_HEADER_BYTES,
+        max_header_count=settings.HTTP_MAX_HEADER_COUNT,
+        max_total_header_bytes=settings.HTTP_MAX_TOTAL_HEADER_BYTES,
+    )
     app.add_middleware(RequestCleanupASGIMiddleware)
 
     app.exception_handler(RequestValidationError)(validation_exception_handler)

@@ -40,9 +40,9 @@ middleware added in `create_app()` is the first to see a request. The effective
 inbound order is:
 
 ```text
-request outcome → server error handler → cleanup → request context
-→ request logging → metrics → CORS → security headers
-→ body limit → content type → header sanitization → header limits
+request outcome → server error handler → cleanup → trusted proxy → request context
+→ request logging → metrics → header limits → CORS → security headers
+→ body limit → content type → header sanitization
 → method allowlist → rate limit → timeout → routing/controller
 ```
 
@@ -51,8 +51,10 @@ Responses unwind through the same layers in reverse. This is intentional:
 1. One request-outcome observer wraps Starlette's server error handler so final
    500 responses and transport failures are observed. Cleanup clears request context
    even after failures.
-2. Request identity is established before logging and returned as `X-Request-ID`.
-3. Transport and security checks reject unsafe requests before domain code runs.
+2. Explicit IP/CIDR proxy trust resolves client identity before request context.
+   Request identity is established before logging and returned as `X-Request-ID`.
+3. Parsed-header budgets run before preflight responses and sanitizer filtering;
+   transport and security checks reject unsafe requests before domain code runs.
 4. Logging and metrics subscribe to the same outcome before policy checks.
    Duration ends when the final body is accepted by ASGI send, or when an abort
    is observed; downstream cleanup cannot extend it. A completed 408/500 counts as
@@ -70,6 +72,9 @@ labels, exclusions, units, and the dashboard migration. Declared route templates
 include mount prefixes; concrete IDs, query values, and unknown paths never become
 access-log routes or metric labels. Python log levels and the console layout remain
 unchanged, with `ABORTED` in the status position for incomplete responses.
+
+[HTTP configuration](http-policy.md) defines defaults, environment overrides,
+validation, proxy ownership, and the separate server receive-protection boundary.
 
 ## Persistence and migrations
 

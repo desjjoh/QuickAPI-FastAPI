@@ -13,7 +13,22 @@ os.environ.update(
         "API_PUBLISHED_PORT": "8000",
         "MYSQL_PUBLISHED_PORT": "3308",
         "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
-        "METRICS_API_KEY": "test-metrics-key",
+        "CORS_ORIGINS": "http://localhost:3000,https://client.test,https://client.example",
+        "CORS_METHODS": "GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS",
+        "CORS_ALLOWED_HEADERS": "content-type,authorization,x-requested-with",
+        "CORS_EXPOSED_HEADERS": "authorization,set-cookie",
+        "CORS_CREDENTIALS": "true",
+        "CORS_MAX_AGE_SECONDS": "86400",
+        "TRUST_PROXY": "",
+        "REQUEST_TIMEOUT_MS": "10000",
+        "REQUEST_FIRST_BODY_TIMEOUT_MS": "5000",
+        "REQUEST_CHUNK_TIMEOUT_MS": "2000",
+        "HTTP_MAX_BODY_BYTES": "1048576",
+        "HTTP_MAX_HEADER_COUNT": "100",
+        "HTTP_MAX_SINGLE_HEADER_BYTES": "4096",
+        "HTTP_MAX_TOTAL_HEADER_BYTES": "8192",
+        "HTTP_ALLOWED_METHODS": "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS",
+        "HTTP_ALLOWED_CONTENT_TYPES": "application/json,multipart/form-data",
     }
 )
 

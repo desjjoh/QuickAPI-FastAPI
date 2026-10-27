@@ -17,7 +17,8 @@ The completed work covers response-state tracking, one pre-header JSON 408, inte
 | Remaining work | Roadmap phase |
 | --- | --- |
 | Save and verify the six confirmed required checks in GitHub; structural rules/check inventory already verified | 1B, 6E |
-| Validated CORS/proxy trust, HTTP budgets (including true server/ingress header-receive protection), and operational/docs/metrics exposure | 2A, 2B |
+| True server/ingress header/whole-upload receive protection and deployed proxy/direct-port verification; application HTTP configuration is implemented locally | 2A deployment boundary, 8 |
+| Operational/docs/metrics exposure controls | 2B |
 | Bounded rate-limit storage, capacity/quota responses, retry timing, probe policy | 2C |
 | Alembic baseline, explicit migrations, pending/history/drift checks | 3A, 3C |
 | Guarded disposable MySQL integration/E2E infrastructure and required CI checks | 3B |

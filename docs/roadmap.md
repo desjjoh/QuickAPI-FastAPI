@@ -42,6 +42,16 @@ contract while preserving Python log levels and the current error envelope. See
 [Verification](verification.md). Remaining phase 1B branch-check configuration is
 still a separate manual step; broader logging work remains phase 2D.
 
+## 2A. Validated HTTP configuration
+
+Application configuration is implemented locally with defaults in Pydantic Settings
+and optional env overrides. Exact CORS origins, proxy IP/CIDR trust, request deadlines,
+size budgets, and method/media policies are validated and wired into the stack.
+[HTTP configuration](http-policy.md) documents ranges, source precedence, behavior
+changes, and external-server requirements. True slow-header/whole-upload receive
+protection remains an explicit deployment task; phase 2A does not claim that the
+application deadlines provide it. See [Verification](verification.md).
+
 ## Working decisions
 
 - Use Express and NestJS as references for behavior and quality. Prefer native FastAPI/Pydantic/SQLAlchemy/Uvicorn mechanisms where they satisfy the same requirements.

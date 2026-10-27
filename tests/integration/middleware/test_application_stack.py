@@ -18,8 +18,9 @@ def test_configured_order_is_explicit() -> None:
         cast(type[object], middleware.cls).__name__
         for middleware in app.user_middleware
     ]
-    assert names[:3] == [
+    assert names[:4] == [
         "RequestCleanupASGIMiddleware",
+        "TrustedProxyASGIMiddleware",
         "RequestContextASGIMiddleware",
         "RequestLoggingASGIMiddleware",
     ]

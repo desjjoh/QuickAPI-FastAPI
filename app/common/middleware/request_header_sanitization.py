@@ -10,6 +10,7 @@ from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.common.handlers.exception_handler import http_exception_handler
+from app.config.http_policy import FORBIDDEN_HEADERS
 
 
 async def empty_receive() -> Message:
@@ -18,23 +19,7 @@ async def empty_receive() -> Message:
 
 class HeaderSanitizationASGIMiddleware:
 
-    BLOCKLIST: ClassVar[set[str]] = {
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-        "proxy-connection",
-        "x-forwarded-for",
-        "x-forwarded-host",
-        "x-forwarded-proto",
-        "forwarded",
-        "via",
-        "client-ip",
-        "true-client-ip",
-    }
+    BLOCKLIST: ClassVar[set[str]] = set(FORBIDDEN_HEADERS)
 
     ALLOWLIST: ClassVar[set[str]] = {
         "host",
