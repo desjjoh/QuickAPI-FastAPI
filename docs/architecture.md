@@ -86,3 +86,7 @@ does not yet prove.
 Keep HTTP validation/serialization in API models/controllers, queries and commit/rollback boundaries in repositories, and transport policies in middleware. Add services when domain orchestration needs them. Register long-lived dependencies with the lifecycle handler and test readiness and cleanup failures.
 
 Update [API contracts](api-contracts.md) when routes/models change, [Development](development.md) when configuration changes, and [Deployment](deployment.md) when runtime behavior changes. Track unresolved limitations in [Backlog](backlog.md).
+
+## Request deadlines
+
+See [Request deadlines and streaming](request-timeouts.md) for the pure-ASGI response state boundary, bounded receive ownership, cancellation/cleanup limits, and Express-aligned HTTP outcomes. It does not implement TCP header deadlines or mutation rollback guarantees.

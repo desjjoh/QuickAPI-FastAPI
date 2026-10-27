@@ -68,3 +68,7 @@ Place tests at the boundary that owns the behavior: unit for isolated decisions,
 The reported local execution attempt was unavailable because the machine had Python 3.14 while this project targets Python 3.12. That is an environment mismatch, not a failed test run, and does not establish current runtime availability. [Roadmap phase 1A](roadmap.md#1a-environment-and-dependencies) now provides a supported execution path; see [Verification](verification.md) for fresh Windows/Linux results and remaining limitations.
 
 The [roadmap](roadmap.md) schedules disposable MySQL integration/E2E and migration-upgrade/rollback evidence in 3B/3C, MySQL runtime-image smoke in 6B, aggregate fail-closed CI and required-check verification in 6D/6E, and candidate-bound release evidence in milestone 7. These are planned checks, not capabilities or passing results supplied by the current workflow.
+
+## HTTP deadline and streaming checks
+
+The [timeout test guide](request-timeouts.md#verification) describes focused unit checks and real loopback Uvicorn integration checks on both h11 and httptools. The socket checks run in the existing integration layer; they are not production-only endpoints or MySQL verification.

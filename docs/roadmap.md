@@ -19,6 +19,10 @@ The agreed [milestone and phase list](milestones.md) is the source of truth for 
 
 Completed locally with pip, manually pinned runtime/development requirements, and a Python 3.12 project environment. Fresh Windows/Linux installations, static checks, the complete suites, Linux critical coverage gates, runtime dependency exclusion, and the existing SQLite image smoke passed. See [the verification record](verification.md) for versions, working-tree/image identity, results, and limitations. Hosted CI remains unverified; Compose and branch settings belong to 1B.
 
+## 1C. Request timeout correctness
+
+The Express-aligned timeout/streaming/disconnect contract is implemented and verified locally. See [Request deadlines](request-timeouts.md) for behavior and cancellation limits, and [Verification](verification.md) for execution evidence. This is the timeout phase called 1B in the earlier four-milestone outline; expanded phase 1B (Compose/branch settings) remains pending.
+
 ## Working decisions
 
 - Use Express and NestJS as references for behavior and quality. Prefer native FastAPI/Pydantic/SQLAlchemy/Uvicorn mechanisms where they satisfy the same requirements.

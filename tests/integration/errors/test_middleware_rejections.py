@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 import httpx
@@ -36,6 +37,8 @@ def rejecting_app(kind: str) -> FastAPI:
     @app.get("/")
     @app.post("/")
     async def endpoint() -> dict[str, bool]:
+        if kind == "408":
+            await asyncio.sleep(1)
         return {"ok": True}
 
     if kind == "400":
@@ -51,7 +54,7 @@ def rejecting_app(kind: str) -> FastAPI:
     elif kind == "405":
         app.add_middleware(MethodWhitelistASGIMiddleware, allowed_methods={"GET"})
     elif kind == "408":
-        app.add_middleware(RequestTimeoutASGIMiddleware, header_timeout=0)
+        app.add_middleware(RequestTimeoutASGIMiddleware, total_timeout=0.01)
     elif kind == "413":
         app.add_middleware(RequestBodyLimitASGIMiddleware, default_limit=BodyLimit(2))
     elif kind == "415":

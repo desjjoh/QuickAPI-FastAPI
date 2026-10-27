@@ -2,7 +2,7 @@
 
 [Documentation index](../README.md#documentation)
 
-The [Express parity roadmap](roadmap.md) defines the agreed sequence, scope, and testable completion conditions. Phase 1A is complete locally; see [Verification](verification.md). Entries below are remaining work, using the expanded phase numbers in [Milestones](milestones.md). Reverify current source before implementation. Remove completed entries and record behavior/evidence in the relevant guide or CI record.
+The [Express parity roadmap](roadmap.md) defines the agreed sequence, scope, and testable completion conditions. Phases 1A and 1C are complete locally; see [Verification](verification.md). Entries below are remaining work, using the expanded phase numbers in [Milestones](milestones.md). Reverify current source before implementation. Remove completed entries and record behavior/evidence in the relevant guide or CI record.
 
 ## Foundation and server work
 
@@ -10,9 +10,8 @@ The [Express parity roadmap](roadmap.md) defines the agreed sequence, scope, and
 | --- | --- |
 | Compose required settings and unused settings | 1B |
 | Verify branch protection alignment and actual hosted check names before requiring them | 1B, 6E |
-| Timeout after response start, streaming/disconnect cleanup, duplicate/late response prevention | 1C |
 | Raw-path metric cardinality and request-outcome consistency | 1D |
-| Validated CORS/proxy trust, HTTP budgets, and operational/docs/metrics exposure | 2A, 2B |
+| Validated CORS/proxy trust, HTTP budgets (including true server/ingress header-receive protection), and operational/docs/metrics exposure | 2A, 2B |
 | Bounded rate-limit storage, capacity/quota responses, retry timing, probe policy | 2C |
 | Alembic baseline, explicit migrations, pending/history/drift checks | 3A, 3C |
 | Guarded disposable MySQL integration/E2E infrastructure and required CI checks | 3B |

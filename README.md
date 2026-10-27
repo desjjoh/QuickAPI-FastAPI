@@ -30,6 +30,7 @@ The example binds port **5000**. Swagger UI is at `/docs`, ReDoc at `/redoc`, an
 | [Development](docs/development.md) | Setup, configuration, database selection, and local commands |
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
+| [Request deadlines](docs/request-timeouts.md) | Timeout, streaming, disconnect, and cleanup behavior |
 | [Testing](docs/testing.md) | Test layers, isolation, coverage gates, CI, and verification limits |
 | [Deployment and operations](docs/deployment.md) | Container commands, probes, diagnostics, persistence, and recovery |
 | [Technical backlog](docs/backlog.md) | Confirmed gaps and deliberately deferred work |

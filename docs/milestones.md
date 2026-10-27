@@ -2,7 +2,7 @@
 
 ## Summary
 
-Yes. This is the consolidated list, including the original backlog, production-assurance gaps, migrations, and branch-check enforcement. Phase 1A is complete locally; see [verification](verification.md). All other phases remain pending.
+Yes. This is the consolidated list, including the original backlog, production-assurance gaps, migrations, and branch-check enforcement. Phases 1A and 1C are complete locally; see [verification](verification.md). All other phases remain pending.
 
 ### Milestone 1 — Reproducible foundation and existing fixes
 
@@ -10,7 +10,7 @@ Yes. This is the consolidated list, including the original backlog, production-a
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **1A — Environment and dependencies (complete locally)**   | Establish Python 3.12 execution; resolve conflicting pins; separate runtime and development requirements | Fresh installations and static/test checks run reproducibly; environment limitations recorded separately                 |
 | **1B — Startup and branch protections** | Fix Compose configuration; verify ruleset targets, protections, and available check names                | Compose reaches readiness and serves an API request; protection settings documented without requiring nonexistent checks |
-| **1C — Request timeout correctness**    | Handle response-start state, streaming expiry, disconnects, cleanup, and late responses                  | No duplicate headers or late responses; focused ASGI and real-server checks pass                                         |
+| **1C — Request timeout correctness (complete locally)**    | Handle response-start state, streaming expiry, disconnects, cleanup, and late responses                  | No duplicate headers or late responses; focused ASGI and real-server checks pass                                         |
 | **1D — Metrics and request outcomes**   | Bound route labels; consistently record completion, failure, timeout, and abort                          | Varying IDs/unknown URLs cannot grow metric labels without bound; outcome tests pass                                     |
 
 ### Milestone 2 — HTTP policies and operational behavior
