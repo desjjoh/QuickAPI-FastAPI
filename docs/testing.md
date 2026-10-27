@@ -4,7 +4,7 @@
 
 ## Setup and test boundaries
 
-Install [requirements.txt](../requirements.txt) in a Python 3.12 virtual environment. Markers and coverage settings live in [pyproject.toml](../pyproject.toml); job dependencies and commands live in [the Quality workflow](../.github/workflows/tests.yml).
+Install [requirements-dev.txt](../requirements-dev.txt) in a fresh Python 3.12 virtual environment and run `python -m pip check`. Markers and coverage settings live in [pyproject.toml](../pyproject.toml); job dependencies and commands live in [the Quality workflow](../.github/workflows/tests.yml).
 
 | Layer | Location | Boundary |
 | --- | --- | --- |
@@ -19,9 +19,9 @@ Install [requirements.txt](../requirements.txt) in a Python 3.12 virtual environ
 Run the same static checks used by CI:
 
 ```bash
-black --check app tests
-ruff check app tests
-mypy app
+python -m black --check app tests
+python -m ruff check app tests
+python -m mypy app
 ```
 
 Every test has an explicit layer marker. CI first verifies that each layer collects
@@ -62,3 +62,9 @@ Record the commit/environment and distinguish passed, failed, skipped/not run, a
 ## Regression coverage
 
 Place tests at the boundary that owns the behavior: unit for isolated decisions, repository integration for transaction/query behavior, and HTTP for client-visible contracts. Protect consequential failure paths without mirroring implementation details. Track unresolved gaps in [Backlog](backlog.md).
+
+## Roadmap verification baseline
+
+The reported local execution attempt was unavailable because the machine had Python 3.14 while this project targets Python 3.12. That is an environment mismatch, not a failed test run, and does not establish current runtime availability. [Roadmap phase 1A](roadmap.md#1a-environment-and-dependencies) now provides a supported execution path; see [Verification](verification.md) for fresh Windows/Linux results and remaining limitations.
+
+The [roadmap](roadmap.md) schedules disposable MySQL integration/E2E and migration-upgrade/rollback evidence in 3B/3C, MySQL runtime-image smoke in 6B, aggregate fail-closed CI and required-check verification in 6D/6E, and candidate-bound release evidence in milestone 7. These are planned checks, not capabilities or passing results supplied by the current workflow.

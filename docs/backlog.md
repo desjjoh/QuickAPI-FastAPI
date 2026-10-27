@@ -2,27 +2,52 @@
 
 [Documentation index](../README.md#documentation)
 
-These items describe the checked-in implementation, not completed work or release evidence. Reverify against the current checkout before implementation and update this list when behavior changes.
+The [Express parity roadmap](roadmap.md) defines the agreed sequence, scope, and testable completion conditions. Phase 1A is complete locally; see [Verification](verification.md). Entries below are remaining work, using the expanded phase numbers in [Milestones](milestones.md). Reverify current source before implementation. Remove completed entries and record behavior/evidence in the relevant guide or CI record.
 
-## Confirmed gaps
+## Foundation and server work
 
-| Area | Current gap | Completion evidence |
-| --- | --- | --- |
-| Compose | Required `APP_VERSION`, `ENV`, and `PORT` are absent; `DEBUG`/`WORKERS` are unused | Validated settings and Compose readiness/API smoke checks |
-| Dependencies | Development manifest conflicts with main pytest/pytest-asyncio pins; runtime image includes quality tools | Resolve duplicate pins, define runtime/dev split, verify fresh installs and container checks |
-| Streaming timeout | Middleware may render a second response after HTTP headers started | Response-state handling and timeout regression coverage before/after response start |
-| Metrics | Raw URL paths create series for individual IDs and unknown routes | Route-template labels and bounded unmatched-route coverage |
-| Price | Float validation does not match database `Numeric(10, 2)` precision/range | Decide rounding/rejection policy and verify models/storage on the target engine |
-| Pagination | Sorting lacks a unique tie-breaker | Defined stable ordering and tests with equal sort values |
+| Remaining work | Roadmap phase |
+| --- | --- |
+| Compose required settings and unused settings | 1B |
+| Verify branch protection alignment and actual hosted check names before requiring them | 1B, 6E |
+| Timeout after response start, streaming/disconnect cleanup, duplicate/late response prevention | 1C |
+| Raw-path metric cardinality and request-outcome consistency | 1D |
+| Validated CORS/proxy trust, HTTP budgets, and operational/docs/metrics exposure | 2A, 2B |
+| Bounded rate-limit storage, capacity/quota responses, retry timing, probe policy | 2C |
+| Alembic baseline, explicit migrations, pending/history/drift checks | 3A, 3C |
+| Guarded disposable MySQL integration/E2E infrastructure and required CI checks | 3B |
+| Representative-data upgrades/backfills and supported migration/application rollback evidence | 3C and every later schema change |
+| Pool/queue capacity, acquisition/connect budgets, TLS policy, readiness outage/recovery | 3D, 3E |
+| Safe logging/diagnostics (including third-party debug output at ERROR); shutdown admission, drain, cleanup, final deadline | 2D, 4A |
 
-## Deferred capabilities
+## Item contracts and persistence
 
-- Authentication/authorization and operational access: select and implement the consuming service's trust boundary. CORS and an unconsumed metrics key provide no authentication.
-- Migrations and MySQL verification: reviewed revisions and target-engine checks are needed before claiming deployed-schema safety.
-- Shared rate-limit storage: current limits are process-local and cover probes too; decide global and operational policies before scaling.
-- Mutation concurrency/idempotency: define contracts and uncertain-outcome handling before introducing retries.
-- Release operations: immutable promotion, durable storage, backups/restores, compatible rollback, and environment-specific validation remain operator responsibilities.
+| Remaining work | Roadmap phase |
+| --- | --- |
+| Transaction ownership through response preparation; pre-commit expiry handling and uncertain commit outcomes | 4B, 4C |
+| Decimal price validation aligned with storage; matching filter rules | 5A, 5B |
+| Unique pagination tie-breaker, safe offsets, explicit defaults/naming/ID compatibility decisions | 5A, 5C |
+| Revision migration/backfill, required preconditions, stale-write protection, agreed deletion route | 5D |
+| Atomic durable idempotency, replay conflicts, retention, bounded cleanup, failure/retry evidence | 5E |
 
-## Documentation maintenance
+## Production assurance and release enforcement
 
-Keep README as the entry point and detailed guidance in this directory, matching sibling QuickAPI/QuickFE repos. Link implementation/configuration sources, document runnable commands and limits, and distinguish configured gates from verified results. Update guides with behavior changes; avoid copying unrelated features or readiness claims from other apps.
+| Remaining work | Roadmap phase |
+| --- | --- |
+| Non-root runtime and digest-pinned bases; runtime/dev dependency separation verified in 1A | 6A |
+| Actual production-container smoke against MySQL instead of SQLite, including mutations and lifecycle | 6B |
+| Dependency audit and exact final-image scan, blocking policy, scoped expiring exceptions | 6C |
+| Retained results/security evidence and an always-running aggregate fail-closed CI job | 6D |
+| Configure/verify required GitHub status checks once those checks actually run | 6E |
+| SBOM/provenance, exact-source release gate, MySQL candidate verification, digest-preserving publication and rollback identity | 7A–7D |
+
+## Explicit scope and deferred deployment work
+
+- Authentication/authorization remain outside the deliberately small items API's scope, matching Express. This is an access limitation to document, not an implicit commitment to build an identity system. Operational exposure policy is included in 2B; CORS and an unconsumed metrics key provide no authentication.
+- Shared Redis rate limiting remains deferred until multi-instance enforcement is needed. Current enforcement is process-local.
+- Real ingress/proxy trust, authorized diagnostic access/direct-port denial, orchestrator drain/failover, deployment CA/DNS/rotation, fleet connection capacity, log retention, durable storage, and backup restoration need the selected hosting environment. See [Deployment](deployment.md).
+- Migration rollback tests do not establish backup restoration. Image rollback requires schema compatibility. These boundaries remain explicit even after repository gates pass.
+
+## Verification discipline
+
+The supplied assessment is A-range application code/testing discipline and B+ production assurance; it is not a fresh verification of this commit. The roadmap closes the listed assurance gaps and records environment-dependent evidence separately. Keep passed, failed, skipped/not run, and unavailable results distinct. Defined workflows, test counts, or SQLite coverage alone do not establish a verified MySQL release.

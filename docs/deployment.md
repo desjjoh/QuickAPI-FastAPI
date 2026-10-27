@@ -4,7 +4,7 @@
 
 ## Runtime configuration and access
 
-Use Python 3.12 and inject required settings from [Development](development.md#configuration). The image copies application code and installed dependencies; `.env` is excluded. Use `ENV=production` to disable reload and align listening/published ports and probes.
+Use Python 3.12 and inject required settings from [Development](development.md#configuration). The image installs runtime-only [requirements.txt](../requirements.txt), checks dependency consistency, and copies application code; `.env` is excluded. Development tools are installed separately from `requirements-dev.txt` for local/CI checks. Use `ENV=production` to disable reload and align listening/published ports and probes.
 
 Domain, diagnostics, metrics, and API documentation endpoints have no application authentication. Apply the consuming service's network/authentication boundary. CORS currently allows all origins with credentials and is not a trust boundary. The rate limiter is process-local; workers/replicas do not share state.
 

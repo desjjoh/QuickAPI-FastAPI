@@ -130,6 +130,8 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv-*/
+.pytest-local-tmp/
 env/
 venv/
 ENV/

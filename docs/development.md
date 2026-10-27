@@ -9,9 +9,10 @@ Use Python 3.12, matching CI and the container runtime. Run commands from the re
 PowerShell:
 
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+python -m pip check
 Copy-Item .env.example .env
 # Edit .env before starting the app.
 python -m app.main
@@ -20,9 +21,10 @@ python -m app.main
 Bash:
 
 ```bash
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+python -m pip check
 cp .env.example .env
 # Edit .env before starting the app.
 python -m app.main
@@ -30,7 +32,17 @@ python -m app.main
 
 For a self-contained local run set `DATABASE_URL=sqlite+aiosqlite:///./app.db` in `.env`. Relative SQLite paths resolve from the working directory. For MySQL, replace the example credentials and verify that the database exists and is reachable.
 
-Use [requirements.txt](../requirements.txt), as CI does. It currently includes runtime and quality tools. [requirements-dev.txt](../requirements-dev.txt) includes that file and then pins conflicting pytest/pytest-asyncio versions; it is not currently a working alternative. See [Backlog](backlog.md).
+## Interpreter and dependency maintenance
+
+Pip is the selected package installer. [requirements.txt](../requirements.txt) contains runtime dependencies and manually maintained transitive pins. [requirements-dev.txt](../requirements-dev.txt) includes it and adds formatting, typing, tests, HTTP test clients, and their supporting packages. Local development and CI install the development file; Docker installs only the runtime file. No uv or generated lockfile is required.
+
+After activation, verify `python --version` reports 3.12 and `python -m pip --version` points inside this repository's `.venv`. The Windows launcher may need a new terminal after installing Python. If `py -3.12` cannot find it, use the full path to the installed Python 3.12 executable. An existing virtual environment retains the interpreter used when it was created; installing 3.12 does not convert a 3.14 environment. Preserve or remove the old environment deliberately and create a fresh one with 3.12.
+
+For production or a separate runtime-only verification environment, create another Python 3.12 virtual environment and install only `requirements.txt`, then run `python -m pip check`. Installing the runtime file into an existing development environment does not remove its development tools.
+
+When updating dependencies, edit the appropriate exact pins, reconcile related transitive requirements, and verify fresh runtime and development installations. Run `python -m pip check`, static checks, tests, and the runtime-image checks. Avoid replacing these curated lists with an unreviewed `pip freeze` from a long-lived environment. Existing package versions were retained during the split; coverage's previously implicit version is now explicitly pinned. These files pin application packages, not Python/pip or operating-system packages.
+
+SQLite remains a supported local runtime option, so `aiosqlite` stays in runtime requirements. MySQL production-like verification is a later phase.
 
 ## Configuration
 
@@ -48,7 +60,7 @@ cp .env.example .env
 | `LOG_LEVEL`    | `DEBUG`, `INFO`, `WARN`, or `ERROR`.                    |
 | `HOST`         | Bind address; defaults to `0.0.0.0`.                    |
 | `PORT`         | Integer from 1 through 65535.                           |
-| `TIMEZONE` | Valid IANA identifier; defaults to `Etc/UTC`. |
+| `TIMEZONE`     | Valid IANA identifier; defaults to `Etc/UTC`.           |
 | `DATABASE_URL` | SQLAlchemy async URL; MySQL uses `mysql+asyncmy://...`. |
 
 Pydantic validates configuration while importing the application. Missing or invalid
