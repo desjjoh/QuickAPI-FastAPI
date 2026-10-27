@@ -4,7 +4,7 @@
 
 ## Prerequisites and startup
 
-Use Python 3.12, matching CI and the container runtime. Run commands from the repository root. The example database is external MySQL; this repo does not start a MySQL service for you.
+Use Python 3.12, matching CI and the container runtime. Run commands from the repository root. The checked-in Compose topology supplies local MySQL 8.4.6 and an optional API container. For native Python, start MySQL first with `docker compose up -d --wait mysql`, then use the example database URL at `127.0.0.1:3308`. An external MySQL instance or local SQLite remains an option.
 
 PowerShell:
 
@@ -30,7 +30,41 @@ cp .env.example .env
 python -m app.main
 ```
 
-For a self-contained local run set `DATABASE_URL=sqlite+aiosqlite:///./app.db` in `.env`. Relative SQLite paths resolve from the working directory. For MySQL, replace the example credentials and verify that the database exists and is reachable.
+For a self-contained local run set `DATABASE_URL=sqlite+aiosqlite:///./app.db` in `.env`. Relative SQLite paths resolve from the working directory. For external MySQL, replace the URL/credentials and verify that the database exists and is reachable. For Compose MySQL, the local credentials below are already configured; existing `.env` files are not rewritten automatically.
+
+## Local Compose
+
+Copy `.env.example` to a gitignored `.env` if one does not exist; otherwise reconcile the example with your existing configuration. Do not overwrite an existing file containing configuration you need.
+
+```sh
+# Entire local stack; waits for actual service health.
+docker compose up --build -d --wait
+# Or run only MySQL while starting the API natively on port 5000.
+docker compose up -d --wait mysql
+```
+
+| Connection | Address |
+| --- | --- |
+| Container API from this machine | `http://127.0.0.1:8000` |
+| Native Python API with example settings | `http://localhost:5000` |
+| MySQL from native Python/database clients | `127.0.0.1:3308` |
+| MySQL from the API container | `mysql:3306` |
+
+`API_PUBLISHED_PORT` and `MYSQL_PUBLISHED_PORT` are optional host-port overrides, commented out in `.env.example`. Omitted or empty values use ports 8000 and 3308 respectively; uncomment only when changing them. Settings validation accepts only whole-number ports from 1 through 65535; malformed, fractional, whitespace-only, zero, and out-of-range values fail. Compose forwards its resolved overrides into the API container for validation. Both bind to loopback. The API container explicitly uses `HOST=0.0.0.0`, `PORT=8000`, and `ENV=production` so its built-image process does not enable development reload. Its health check always probes internal port 8000. Native Python uses its configured `PORT` and `ENV` independently.
+
+Compose loads application identity/logging/timezone from `.env`, then overrides `DATABASE_URL` to `mysql+asyncmy://quickapi:change-me@mysql:3306/quickapi`. A native `localhost` URL cannot address the separate database container from inside the API. Changing `MYSQL_PUBLISHED_PORT` requires updating the native `DATABASE_URL` too. To use a different external database for containers, deliberately replace the local Compose database configuration; changing only `.env`'s native URL does not override it.
+
+This file is **local development only**. It uses database `quickapi`, user `quickapi`, password `change-me`, and root password `local-root-password`. Those are matching, fixed local defaults, not deployment secrets. MySQL health checks authenticate as the application user and execute `SELECT 1` against that database. API startup waits for MySQL health. Schema creation still uses `create_all()`; migrations are later work.
+
+Compose project scoping names the containers, network, and `mysql_data` volume; there are no fixed container names that collide with Express/NestJS. The default MySQL host port differs from their usual 3307. Use another published port or `docker compose -p <project>` when needed; project isolation does not by itself change published ports.
+
+```sh
+docker compose ps
+docker compose logs --tail 100 api mysql
+docker compose down
+```
+
+`down` removes this project's containers/network and preserves its database volume. Recreating the stack reuses the data. `docker compose down --volumes` also deletes this project's MySQL data; use it only for an intentional local reset. Restart/recreation is not a backup strategy. MySQL initialization credentials apply when a volume is first created; changing Compose values does not rotate users in an existing database.
 
 ## Interpreter and dependency maintenance
 
@@ -60,6 +94,8 @@ cp .env.example .env
 | `LOG_LEVEL`    | `DEBUG`, `INFO`, `WARN`, or `ERROR`.                    |
 | `HOST`         | Bind address; defaults to `0.0.0.0`.                    |
 | `PORT`         | Integer from 1 through 65535.                           |
+| `API_PUBLISHED_PORT` | Optional host API port, 1-65535; missing/empty defaults to 8000. |
+| `MYSQL_PUBLISHED_PORT` | Optional host MySQL port, 1-65535; missing/empty defaults to 3308. |
 | `TIMEZONE`     | Valid IANA identifier; defaults to `Etc/UTC`.           |
 | `DATABASE_URL` | SQLAlchemy async URL; MySQL uses `mysql+asyncmy://...`. |
 

@@ -10,6 +10,8 @@ os.environ.update(
         "LOG_LEVEL": "ERROR",
         "HOST": "127.0.0.1",
         "PORT": "8000",
+        "API_PUBLISHED_PORT": "8000",
+        "MYSQL_PUBLISHED_PORT": "3308",
         "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
         "METRICS_API_KEY": "test-metrics-key",
     }

@@ -99,3 +99,54 @@ Updated local runtime image ID: `sha256:393e223f296ac3057a13eaff81a642c7ff168fd5
 Resolved the four reported Pylance diagnostics after the full-suite snapshot above: task retention/removal now stays inside the middleware through `track_work`, the async context-manager fixture declares `AsyncGenerator[int, None]`, and body-deadline parameter cases have an explicit `list[tuple[list[Message], str]]` type.
 
 Verification of this follow-up: Pyright strict mode on all three affected files reported **0 errors, 0 warnings, 0 informations**; Black, Ruff, and application mypy passed; **39 focused timeout/socket tests passed** on Windows Python 3.12. No diagnostic suppressions or project dependencies were added. The full Windows/Linux results and image identity above refer to the preceding implementation snapshot; those broader checks were not repeated for this typing/class-boundary follow-up.
+
+
+## Phase 1B — Startup and branch protections
+
+Verified on 2026-10-27 against the working tree based on commit `8b0246a524a979aa902575d9519e025c847819e1`, including the uncommitted configuration changes below. Application source, dependency pins, and tests were not changed by this phase. Existing documentation edits were retained.
+
+### Passed locally
+
+- `docker compose config --quiet` succeeds. Structural checks confirm the fixed internal API port/mode, authenticated MySQL health dependency, loopback-only published ports, named-volume storage, and absence of fixed container names.
+- A uniquely named project `quickapi-fastapi-1b-a8601e5c` built the runtime image and started MySQL 8.4.6 plus API through `up --build --detach --wait`. A temporary override selected `.env.example` for API configuration instead of developer secrets; host ports were allocated dynamically. No application/database topology was substituted.
+- Both services became healthy. A POST returned 201, its subsequent GET returned the expected name and price 12.34, and readiness succeeded.
+- All project containers/network were removed with `down` while retaining the named volume. A second `up --detach --wait` recreated both containers/network and the earlier item was still readable with the expected fields.
+- Only this disposable project's containers/network/volume were removed at the end. Existing `.env` and development data were not edited or deleted. No permanent local stack was left running.
+- Windows Python 3.12.10 static checks passed: Black 110 files unchanged, Ruff clean, mypy 46 source files. Complete suite: **393 passed**, **94.76%** overall coverage with branch measurement.
+- Workflow YAML semantic checks confirm unchanged job/check identities and job dependencies, all PRs, pushes to main/staging/dev, merge-group/manual events, read-only contents permissions, and cancellation of superseded runs.
+
+Local API image ID: `sha256:29546e9e6a31939cf88eb9c4668ad1363eba1217bfbfd959083a40fbb63739cc` (`quickapi-fastapi:local`). Compose version: 5.5.1. This is local startup/persistence evidence, not an immutable published release or a MySQL-backed CI/release qualification gate.
+
+### Verified on GitHub
+
+- FastAPI ruleset 25976668 is active on main/dev/staging and matches Express ruleset 25689316 on structural PR/merge/bypass/deletion/non-fast-forward settings. Its required-status-check list is empty; Express requires `Deployment gate`.
+- NestJS rulesets 16198248/16198302/16198404 use their own `Check`/`Migration Check` contexts; main/staging require up-to-date checks while dev does not. Those names are not copied to FastAPI.
+- Successful hosted Quality run [39889071406](https://github.com/desjjoh/QuickAPI-FastAPI/actions/runs/39889071406), dated 2026-10-23 at SHA `cfa6bdf27f5cdb4a7190ab17d948f4636ee8bbd5`, emitted `static-analysis`, `test-layers (unit)`, `test-layers (integration)`, `test-layers (e2e)`, `combined-coverage`, and `production-container`, all successful. This is historical exact-SHA evidence, not a pass for today's configuration.
+- main/dev and the milestone branch existed in the observed remote branch list; staging was not listed, but its protection target is already configured. No branches were created/reset.
+
+### Pending / unavailable
+
+The connector permits ruleset reads but has no administrative write tool; earlier native Firefox access was blocked by browser URL-policy support. No remote protection setting was changed. [The six-check configuration](branch-protection.md#remaining-manual-setting) must still be saved and verified before marking all of 1B complete. The proposed workflow triggers need a hosted run after the normal push/PR process; this task did not publish commits or open/merge a PR.
+
+The existing CI suites/container smoke remain SQLite-backed. The local MySQL startup check is not migration, target-engine failure-path, backup/restore, TLS, or release-pipeline evidence. Those tasks remain in milestones 3, 6, 7, and 8. Linux complete-suite repetition was not needed for this configuration-only phase; the Compose runtime itself ran on Linux/MySQL.
+
+| Verified phase 1B input | SHA-256 |
+| --- | --- |
+| `docker-compose.yaml` | `4f60c503e1ba4b77f279dc9725c33cee7be94b29f244512147caf8145c7d2809` |
+| `.env.example` | `38f6a8837a1170874034c8bf1b423d183a58706f600f4bd6a5dbda7042bec903` |
+| `.github/workflows/tests.yml` | `c7b193844a343478993b5b3589ec12fb5189d9cab4ead27a5b1f4302a2c7d690` |
+
+
+### Optional published-port validation follow-up
+
+`API_PUBLISHED_PORT` and `MYSQL_PUBLISHED_PORT` are now declared settings. Missing/empty values default to 8000/3308, and supplied values require whole-number ports from 1 through 65535. Compose forwards the resolved publishing values into the API environment; these fields do not change the internal listener's `PORT`. Comments are synchronized in `.env.example` and the gitignored local `.env`, with optional overrides remaining commented out.
+
+Passed: Windows full suite **411 tests**, **94.77%** overall coverage with branch measurement; Black/Ruff/mypy; strict Pyright on affected validator/test/fixture files (**0 diagnostics**); Compose default/custom mapping-to-environment consistency; Linux runtime checks of custom overrides, blank defaults, and malformed/range/type rejection. Local runtime image: `sha256:655330da7d77d04e0dae467c2003091c9286233a64617b3d5835d7145ed565a9`. No services or database data were started/changed for that Linux validation check. The Linux complete suite and hosted CI were not repeated for this follow-up; branch-check administration remains pending.
+
+| Verified follow-up input | SHA-256 |
+| --- | --- |
+| `app/config/environment.py` | `dd7f90723c8fa2109b295ab2e66e8e4cab4ac62e5493c1d44dbc30f4bba7e994` |
+| `tests/unit/config/test_environment.py` | `02ef5333e269972e306debb879f01adbc331f3c9e25c1cd742b07a44c56ac0e8` |
+| `tests/conftest.py` | `52ddfdf09c61e487cd08b7c87dec7dbee834af8be25618f69f7184038987252e` |
+| `docker-compose.yaml` | `9374cd60eabc3f028a40f2456ca429f45d819ffeffe59fa1c0d221f3c0b9da93` |
+| `.env.example` | `bfa1a4e6ce6097f4e3dd4e1a188c14643d74fc16c31470c569960b8b0628b3c2` |

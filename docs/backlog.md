@@ -4,12 +4,19 @@
 
 The [Express parity roadmap](roadmap.md) defines the agreed sequence, scope, and testable completion conditions. Phases 1A and 1C are complete locally; see [Verification](verification.md). Entries below are remaining work, using the expanded phase numbers in [Milestones](milestones.md). Reverify current source before implementation. Remove completed entries and record behavior/evidence in the relevant guide or CI record.
 
+## Sequence note — timeout work completed ahead of order
+
+Phase **1C — Request timeout correctness** was completed ahead of **1B — Startup and branch protections** after using the timeout phase's number from the earlier outline. Keep the implemented changes; no rollback is planned.
+
+The completed work covers response-state tracking, one pre-header JSON 408, interrupted streams without replacement responses, disconnect/cancellation handling, bounded body-message ownership, tracked cleanup/late failures, and the `first_body_timeout` rename. Real Uvicorn socket checks and the follow-up Pylance typing fixes are recorded in [Verification](verification.md); behavior and limitations live in [Request deadlines](request-timeouts.md).
+
+**Remaining phase 1B work: save and verify required status checks.** Compose startup/MySQL persistence are verified locally, the structural rules match Express, and existing hosted check names are confirmed. Adding those six checks still requires the [manual GitHub setting](branch-protection.md#remaining-manual-setting). Once that setting is verified, continue with 1D; do not repeat 1C. Database rollback, running-SQL cancellation, and application shutdown draining remain in their later phases.
+
 ## Foundation and server work
 
 | Remaining work | Roadmap phase |
 | --- | --- |
-| Compose required settings and unused settings | 1B |
-| Verify branch protection alignment and actual hosted check names before requiring them | 1B, 6E |
+| Save and verify the six confirmed required checks in GitHub; structural rules/check inventory already verified | 1B, 6E |
 | Raw-path metric cardinality and request-outcome consistency | 1D |
 | Validated CORS/proxy trust, HTTP budgets (including true server/ingress header-receive protection), and operational/docs/metrics exposure | 2A, 2B |
 | Bounded rate-limit storage, capacity/quota responses, retry timing, probe policy | 2C |

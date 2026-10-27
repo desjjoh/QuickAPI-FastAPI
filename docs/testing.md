@@ -53,11 +53,13 @@ The `shopt` and recursive glob commands require Bash, matching Ubuntu CI. PowerS
 
 ## CI sequence and verification limits
 
-Pull requests and pushes to `main` run static analysis, then the unit/integration/E2E matrix, then combined coverage, then the production-container job. Layer runs disable coverage; combined coverage reruns all tests and applies overall and critical-package thresholds.
+Pull requests, pushes to `main`/`staging`/`dev`, merge groups, and manual dispatch run static analysis, then the unit/integration/E2E matrix, then combined coverage, then the production-container job. Layer runs disable coverage; combined coverage reruns all tests and applies overall and critical-package thresholds.
 
 Container CI builds the image, starts it with explicit production settings and disposable SQLite, polls `/ready`, and reads `/api/v1/items/`. It does not test Compose, MySQL, container mutations, durable persistence, schema upgrades, restore, or rollback. See [Deployment](deployment.md).
 
 Record the commit/environment and distinguish passed, failed, skipped/not run, and unavailable checks. A workflow definition is not evidence that a particular commit passed. This documentation update makes no new runtime or release-readiness claim.
+
+Current hosted check names and the manual required-check configuration are documented in [Branch protections](branch-protection.md). The latest observed successful hosted run is historical evidence for its own SHA, not confirmation that the updated trigger configuration or this working tree has passed GitHub CI.
 
 ## Regression coverage
 

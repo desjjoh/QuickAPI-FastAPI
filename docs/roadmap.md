@@ -17,9 +17,17 @@ The agreed [milestone and phase list](milestones.md) is the source of truth for 
 
 ## 1A. Environment and dependencies
 
-Completed locally with pip, manually pinned runtime/development requirements, and a Python 3.12 project environment. Fresh Windows/Linux installations, static checks, the complete suites, Linux critical coverage gates, runtime dependency exclusion, and the existing SQLite image smoke passed. See [the verification record](verification.md) for versions, working-tree/image identity, results, and limitations. Hosted CI remains unverified; Compose and branch settings belong to 1B.
+Completed locally with pip, manually pinned runtime/development requirements, and a Python 3.12 project environment. Fresh Windows/Linux installations, static checks, the complete suites, Linux critical coverage gates, runtime dependency exclusion, and the existing SQLite image smoke passed. See [the verification record](verification.md) for versions, working-tree/image identity, results, and limitations. Hosted CI for that working tree remains unverified; see 1B for subsequent Compose/rule inventory evidence.
+
+## 1B. Startup and branch protections
+
+Local Compose now supplies MySQL, authenticated health-based startup ordering, consistent container settings/ports, and persistent project-scoped storage. A fresh disposable project passed readiness, item create/read, and persistence across container recreation. The workflow adds major-branch pushes, merge groups, and manual dispatch while preserving current check names. See [Verification](verification.md).
+
+Live FastAPI structural protections match Express. Six existing hosted checks were confirmed from a successful historical run, but FastAPI's required-check list is empty. This phase remains **partially complete** until the [manual required-check setting](branch-protection.md#remaining-manual-setting) is saved and verified. No hosted result for this working tree or remote rule update is claimed.
 
 ## 1C. Request timeout correctness
+
+Completed ahead of order and retained intentionally. Return to 1B next, then continue with 1D; see the [backlog sequence note](backlog.md#sequence-note--timeout-work-completed-ahead-of-order).
 
 The Express-aligned timeout/streaming/disconnect contract is implemented and verified locally. See [Request deadlines](request-timeouts.md) for behavior and cancellation limits, and [Verification](verification.md) for execution evidence. This is the timeout phase called 1B in the earlier four-milestone outline; expanded phase 1B (Compose/branch settings) remains pending.
 

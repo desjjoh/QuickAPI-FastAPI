@@ -28,9 +28,13 @@ SQLite makes the smoke test self-contained; `/tmp/quickapi.db` is disposable con
 
 Run the container in one terminal and curl checks in a second. The example uses Bash continuation; use a single line or PowerShell continuation syntax in PowerShell.
 
-## Compose limitation
+## Local Compose topology
 
-The [Compose file](../docker-compose.yaml) supplies `APP_NAME` and interpolated `DATABASE_URL`, but omits required `APP_VERSION`, `ENV`, and `PORT`. A project `.env` supplies Compose interpolation; it is not automatically injected into the container. `docker compose up --build` is currently incomplete. `DEBUG`/`WORKERS` are unused. Use the explicit `docker run` example until Compose is corrected and smoke-tested. No database service is included.
+The checked-in [Compose file](../docker-compose.yaml) is a local development stack, not a hosted production deployment definition. It includes MySQL 8.4.6, a project-scoped persistent volume, an authenticated database health check, API startup ordering, and a health check on the API's fixed internal port 8000. Both API/database host ports are loopback-only and configurable. No fixed container names are shared with sibling apps.
+
+Compose reads `.env` and overrides container-specific settings: `HOST=0.0.0.0`, `PORT=8000`, `ENV=production`, and a local MySQL service URL. Native Python keeps its own port/mode/database URL. The unused `DEBUG`/`WORKERS` entries were removed. See [local setup, credentials, persistence, and reset commands](development.md#local-compose).
+
+A fresh disposable Compose project passed MySQL readiness, an API create/read, and record retention across container/network recreation with its volume preserved. This is local startup/persistence evidence, not a MySQL-backed release gate. CI's existing image smoke still uses SQLite; migration validation and production-like MySQL test/release qualification remain scheduled separately. See [Verification](verification.md).
 
 ## Application lifespan and operational endpoints
 
