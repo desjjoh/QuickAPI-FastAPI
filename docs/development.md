@@ -32,6 +32,15 @@ python -m app.main
 
 For a self-contained local run set `DATABASE_URL=sqlite+aiosqlite:///./app.db` in `.env`. Relative SQLite paths resolve from the working directory. For external MySQL, replace the URL/credentials and verify that the database exists and is reachable. For Compose MySQL, the local credentials below are already configured; existing `.env` files are not rewritten automatically.
 
+## HTTP environment overrides
+
+[HTTP configuration](http-policy.md) lists validated defaults, ranges, and precedence.
+Optional overrides are commented out in `.env.example`; leave them commented to use
+code defaults. Process environment wins over `.env`. Lists are comma-separated and
+booleans use `true`/`false`. The browser-origin default is `http://localhost:3000`;
+configure `CORS_ORIGINS` for another frontend port. Keep shared comments and new
+variables synchronized when reconciling an existing local `.env`.
+
 ## Local Compose
 
 Copy `.env.example` to a gitignored `.env` if one does not exist; otherwise reconcile the example with your existing configuration. Do not overwrite an existing file containing configuration you need.
@@ -39,14 +48,14 @@ Copy `.env.example` to a gitignored `.env` if one does not exist; otherwise reco
 ```sh
 # Entire local stack; waits for actual service health.
 docker compose up --build -d --wait
-# Or run only MySQL while starting the API natively on port 5000.
+# Or run only MySQL and start the API natively with python -m app.main.
 docker compose up -d --wait mysql
 ```
 
 | Connection | Address |
 | --- | --- |
 | Container API from this machine | `http://127.0.0.1:8000` |
-| Native Python API with example settings | `http://localhost:5000` |
+| Native Python API with example settings | `http://localhost:8000` |
 | MySQL from native Python/database clients | `127.0.0.1:3308` |
 | MySQL from the API container | `mysql:3306` |
 
@@ -54,7 +63,7 @@ docker compose up -d --wait mysql
 
 Compose loads application identity/logging/timezone from `.env`, then overrides `DATABASE_URL` to `mysql+asyncmy://quickapi:change-me@mysql:3306/quickapi`. A native `localhost` URL cannot address the separate database container from inside the API. Changing `MYSQL_PUBLISHED_PORT` requires updating the native `DATABASE_URL` too. To use a different external database for containers, deliberately replace the local Compose database configuration; changing only `.env`'s native URL does not override it.
 
-This file is **local development only**. It uses database `quickapi`, user `quickapi`, password `change-me`, and root password `local-root-password`. Those are matching, fixed local defaults, not deployment secrets. MySQL health checks authenticate as the application user and execute `SELECT 1` against that database. API startup waits for MySQL health. Schema creation still uses `create_all()`; migrations are later work.
+This file is **local development only**. It uses database `quickapi`, user `quickapi`, password `change-me`, and root password `local-root-password`. Those are matching, fixed local defaults, not deployment secrets. MySQL health checks authenticate as the application user and execute `SELECT 1` against that database. API startup waits for MySQL health. Schema creation uses `create_all()` and does not upgrade existing schemas.
 
 Compose project scoping names the containers, network, and `mysql_data` volume; there are no fixed container names that collide with Express/NestJS. The default MySQL host port differs from their usual 3307. Use another published port or `docker compose -p <project>` when needed; project isolation does not by itself change published ports.
 
@@ -74,9 +83,9 @@ After activation, verify `python --version` reports 3.12 and `python -m pip --ve
 
 For production or a separate runtime-only verification environment, create another Python 3.12 virtual environment and install only `requirements.txt`, then run `python -m pip check`. Installing the runtime file into an existing development environment does not remove its development tools.
 
-When updating dependencies, edit the appropriate exact pins, reconcile related transitive requirements, and verify fresh runtime and development installations. Run `python -m pip check`, static checks, tests, and the runtime-image checks. Avoid replacing these curated lists with an unreviewed `pip freeze` from a long-lived environment. Existing package versions were retained during the split; coverage's previously implicit version is now explicitly pinned. These files pin application packages, not Python/pip or operating-system packages.
+When updating dependencies, edit the appropriate exact pins, reconcile related transitive requirements, and verify fresh runtime and development installations. Run `python -m pip check`, static checks, tests, and the runtime-image checks. Avoid replacing these curated lists with an unreviewed `pip freeze` from a long-lived environment. These files pin application packages, not Python/pip or operating-system packages.
 
-SQLite remains a supported local runtime option, so `aiosqlite` stays in runtime requirements. MySQL production-like verification is a later phase.
+SQLite is a supported local runtime option; `aiosqlite` is a runtime dependency. The automated persistence suites use SQLite; see [Testing](testing.md) for database verification boundaries.
 
 ## Configuration
 
@@ -91,7 +100,7 @@ cp .env.example .env
 | `APP_NAME`     | Non-empty, at most 120 characters.                      |
 | `APP_VERSION`  | Three-part semantic version such as `1.0.0`.            |
 | `ENV`          | `development`, `test`, or `production`.                 |
-| `LOG_LEVEL`    | `DEBUG`, `INFO`, `WARN`, or `ERROR`.                    |
+| `LOG_LEVEL`    | `DEBUG`, `INFO`, `WARN`, or `ERROR`; default INFO hides successful requests. |
 | `HOST`         | Bind address; defaults to `0.0.0.0`.                    |
 | `PORT`         | Integer from 1 through 65535.                           |
 | `API_PUBLISHED_PORT` | Optional host API port, 1-65535; missing/empty defaults to 8000. |
@@ -106,7 +115,7 @@ systems should inject secrets and configuration instead of baking them into imag
 
 ## Runtime behavior and troubleshooting
 
-The example uses port 5000 and `ENV=development`, which enables Uvicorn reload. Test/production modes disable reload. Open `http://localhost:5000/docs`, `/redoc`, or `/openapi.json` for the API schema. The versioned collection is `/api/v1/items/`.
+The example uses port 8000 and `ENV=development`, which enables Uvicorn reload. Test/production modes disable reload. Open `http://localhost:8000/docs`, `/redoc`, or `/openapi.json` when `DOCS_ENABLED` is enabled. The versioned collection is `/api/v1/items/`.
 
 `DEBUG`, `WORKERS`, and `METRICS_API_KEY` are not consumed settings. Setting a metrics key does not protect `/metrics`. [Settings validation](../app/config/environment.py) is the source of truth.
 
@@ -116,3 +125,34 @@ The example uses port 5000 and `ENV=development`, which enables Uvicorn reload. 
 - Container configuration differs from local startup: `.env` is excluded from the image. Follow [Deployment](deployment.md).
 
 Startup creates missing tables but does not migrate existing schemas; see [Architecture](architecture.md#persistence-and-migrations). Quality commands and fixture isolation are documented in [Testing](testing.md).
+
+
+## Operational endpoint overrides
+
+[Exposure controls](operational-exposure.md) default docs/diagnostics/metrics on in
+development/test and off in production. Commented `DOCS_ENABLED=false`,
+`DIAGNOSTICS_ENABLED=false`, and `METRICS_ENABLED=false` examples show production
+defaults; leave them commented to retain environment-dependent defaults. Compose
+runs the API in production mode, so explicit local overrides are needed for container
+docs/diagnostics/metrics. Keep these variables/comments synchronized with `.env.example`.
+Public liveness/readiness remain available; readiness never includes dependency details.
+
+
+## Rate-limit overrides
+
+[Bounded rate limiting](rate-limiting.md) defaults to `RATE_LIMIT_WINDOW_MS=60000`,
+`RATE_LIMIT_MAX=200`, and `RATE_LIMIT_MAX_CLIENTS=10000`. Optional assignments are
+commented in both env files; leave them commented to use code defaults. Requests and
+client-capacity settings must also respect their combined two-million-slot bound.
+Probes/preflights share quota, so reducing limits can affect local tools and health
+checks. Favicon GET/HEAD remains exempt. Stores reset on application restart and
+are independent across workers.
+
+
+## Logging configuration
+
+[Logging](logging.md) uses readable console output in development/test and UTC JSON
+in production. Successful request access logs use DEBUG; INFO retains lifecycle
+messages and hides successful requests. Both `.env.example` and local override files
+should carry the same shared comments. No output-format override is required.
+Configuration diagnostics identify fields without printing their supplied values.

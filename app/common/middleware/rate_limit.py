@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from fastapi import status
-from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -16,39 +14,45 @@ def get_client_ip(request: Request) -> str:
 
 
 class RateLimitASGIMiddleware:
-
     def __init__(self, app: ASGIApp, limiter: RateLimiter) -> None:
         self.app = app
         self.limiter = limiter
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
-            return await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+            return
+        path = scope.get("path", "")
+        root = scope.get("root_path", "")
+        if root and (path == root or path.startswith(root + "/")):
+            path = path[len(root) :]
+        if path == "/favicon.ico" and scope["method"] in {"GET", "HEAD"}:
+            await self.app(scope, receive, send)
+            return
 
-        try:
-            await self._run_rate_limit(scope, receive, send)
-
-        except HTTPException as exc:
-            request: Request = Request(scope, receive=receive)
-            exc.headers = {**(exc.headers or {}), "X-RateLimit-Result": "rejected"}
-            response: JSONResponse = await http_exception_handler(request, exc)
-
-            async def empty_receive() -> Message:
-                return {"type": "http.request", "body": b"", "more_body": False}
-
-            return await response(scope, empty_receive, send)
-
-    async def _run_rate_limit(self, scope: Scope, receive: Receive, send: Send) -> None:
-        request: Request = Request(scope)
-        ip: str = get_client_ip(request)
-
-        allowed: bool = self.limiter.allow(ip)
-
-        if not allowed:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many requests — please slow down.",
+        decision = self.limiter.admit(get_client_ip(Request(scope)))
+        if not decision.allowed:
+            seconds = f"{self.limiter.policy.window_ms / 1000:.3f}".rstrip("0").rstrip(
+                "."
             )
+            message = (
+                "Rate limiter capacity is exhausted. Try again later."
+                if decision.status == 503
+                else f"Too many requests \u2014 limit is {self.limiter.policy.max_requests} per {seconds}s."
+            )
+            response = await http_exception_handler(
+                Request(scope, receive),
+                HTTPException(
+                    decision.status or 429,
+                    message,
+                    headers={
+                        "Retry-After": str(decision.retry_after_seconds),
+                        "X-RateLimit-Result": "rejected",
+                    },
+                ),
+            )
+            await response(scope, receive, send)
+            return
 
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":

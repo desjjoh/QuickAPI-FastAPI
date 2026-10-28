@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp
 
-from app.api.api_routes import router as api_router
+from app.api.api_routes import create_router
 from app.api.system.services.system_service import (
     SystemDiagnosticsService,
     SystemInfoService,
@@ -26,6 +26,7 @@ from app.common.middleware.content_type_enforcement import (
 )
 from app.common.middleware.cors import CustomCORSASGIMiddleware
 from app.common.middleware.method_whitelist import MethodWhitelistASGIMiddleware
+from app.common.middleware.operational_exposure import OperationalExposureASGIMiddleware
 from app.common.middleware.prometheus_metrics import PrometheusASGIMiddleware
 from app.common.middleware.rate_limit import RateLimitASGIMiddleware
 from app.common.middleware.request_body_limit import (
@@ -45,6 +46,7 @@ from app.common.middleware.request_logger import RequestLoggingASGIMiddleware
 from app.common.middleware.request_outcome import RequestOutcomeASGIMiddleware
 from app.common.middleware.request_timeout import RequestTimeoutASGIMiddleware
 from app.common.middleware.security_headers import SecurityHeadersMiddleware
+from app.common.middleware.trusted_proxy import TrustedProxyASGIMiddleware
 from app.config.database import DatabaseService
 from app.config.environment import settings
 from app.config.logging import log
@@ -67,10 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         yield
 
     except Exception as exc:
-        error_type: str = exc.__class__.__name__
-        error_msg: str = getattr(exc, "msg", None) or str(exc).split("\n")[0]
-
-        log.error(f"{error_type} — {error_msg}", exception=exc)
+        log.error("Application runtime failed.", error=exc)
 
         log.critical('Unhandled fatal error during server runtime — forcing exit')
 
@@ -97,6 +96,9 @@ def create_app() -> FastAPI:
 
     started_at = datetime.now(UTC)
     app: FastAPI = ObservedFastAPI(
+        docs_url="/docs" if settings.DOCS_ENABLED else None,
+        redoc_url="/redoc" if settings.DOCS_ENABLED else None,
+        openapi_url="/openapi.json" if settings.DOCS_ENABLED else None,
         title=name,
         version=version,
         description="A production-oriented example API built with FastAPI.",
@@ -117,67 +119,93 @@ def create_app() -> FastAPI:
         started_at=app.state.monotonic_start,
     )
 
-    app.add_middleware(RequestTimeoutASGIMiddleware)
-
     app.add_middleware(
-        RateLimitASGIMiddleware,
-        limiter=RateLimiter(
-            max_burst=10,
-            burst_window=5,
-            max_sustained=100,
-            sustained_period=60,
-        ),
+        OperationalExposureASGIMiddleware,
+        docs_enabled=settings.DOCS_ENABLED,
+        diagnostics_enabled=settings.DIAGNOSTICS_ENABLED,
+        metrics_enabled=settings.METRICS_ENABLED,
+    )
+    app.add_middleware(
+        RequestTimeoutASGIMiddleware,
+        first_body_timeout=settings.REQUEST_FIRST_BODY_TIMEOUT_MS / 1000,
+        chunk_timeout=settings.REQUEST_CHUNK_TIMEOUT_MS / 1000,
+        total_timeout=settings.REQUEST_TIMEOUT_MS / 1000,
     )
 
     app.add_middleware(
         MethodWhitelistASGIMiddleware,
-        allowed_methods={"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
+        allowed_methods=set(settings.HTTP_ALLOWED_METHODS),
     )
 
     app.add_middleware(
-        RequestHeaderLimitASGIMiddleware,
-        limits=HeaderLimits(
-            max_header_count=100,
-            max_single_header_bytes=4_096,
-            max_total_header_bytes=8_192,
-            allow_chunked=False,
-        ),
+        HeaderSanitizationASGIMiddleware,
+        extra_allowed=set(settings.CORS_ALLOWED_HEADERS),
     )
-
-    app.add_middleware(HeaderSanitizationASGIMiddleware)
     app.add_middleware(
         ContentTypeEnforcementASGIMiddleware,
-        default_allowed={"application/json", "multipart/form-data"},
+        default_allowed=set(settings.HTTP_ALLOWED_CONTENT_TYPES),
         route_overrides=[],
     )
 
     app.add_middleware(
         RequestBodyLimitASGIMiddleware,
-        default_limit=BodyLimit(max_body_bytes=1_048_576),
+        default_limit=BodyLimit(max_body_bytes=settings.HTTP_MAX_BODY_BYTES),
         route_overrides=[],
     )
 
-    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(
         CustomCORSASGIMiddleware,
-        origin=["*"],
-        methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
-        allowed_headers=["content-type", "authorization", "x-requested-with"],
-        exposed_headers=['authorization', 'set-cookie'],
-        credentials=True,
-        max_age=86_400,
+        origin=settings.CORS_ORIGINS,
+        methods=settings.CORS_METHODS,
+        allowed_headers=settings.CORS_ALLOWED_HEADERS,
+        exposed_headers=settings.CORS_EXPOSED_HEADERS,
+        credentials=settings.CORS_CREDENTIALS,
+        max_age=settings.CORS_MAX_AGE_SECONDS,
+    )
+
+    app.add_middleware(
+        RateLimitASGIMiddleware,
+        limiter=RateLimiter(
+            window_ms=settings.RATE_LIMIT_WINDOW_MS,
+            max_requests=settings.RATE_LIMIT_MAX,
+            max_clients=settings.RATE_LIMIT_MAX_CLIENTS,
+        ),
+    )
+
+    app.add_middleware(SecurityHeadersMiddleware, docs_enabled=settings.DOCS_ENABLED)
+
+    app.add_middleware(
+        RequestHeaderLimitASGIMiddleware,
+        limits=HeaderLimits(
+            max_header_count=settings.HTTP_MAX_HEADER_COUNT,
+            max_single_header_bytes=settings.HTTP_MAX_SINGLE_HEADER_BYTES,
+            max_total_header_bytes=settings.HTTP_MAX_TOTAL_HEADER_BYTES,
+            allow_chunked=False,
+        ),
     )
 
     app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestLoggingASGIMiddleware)
     app.add_middleware(RequestContextASGIMiddleware)
+    app.add_middleware(
+        TrustedProxyASGIMiddleware,
+        trusted_proxies=settings.TRUST_PROXY,
+        max_header_bytes=settings.HTTP_MAX_SINGLE_HEADER_BYTES,
+        max_header_count=settings.HTTP_MAX_HEADER_COUNT,
+        max_total_header_bytes=settings.HTTP_MAX_TOTAL_HEADER_BYTES,
+    )
     app.add_middleware(RequestCleanupASGIMiddleware)
 
     app.exception_handler(RequestValidationError)(validation_exception_handler)
     app.exception_handler(StarletteHTTPException)(http_exception_handler)
     app.exception_handler(Exception)(unhandled_exception_handler)
 
-    app.include_router(api_router)
+    app.include_router(
+        create_router(
+            diagnostics_enabled=settings.DIAGNOSTICS_ENABLED,
+            metrics_enabled=settings.METRICS_ENABLED,
+        )
+    )
 
     configure_custom_validation_openapi(app)
 

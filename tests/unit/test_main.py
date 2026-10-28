@@ -28,6 +28,7 @@ def test_main_forwards_settings_and_selects_reload_by_environment(
         port=9123,
         reload=reload_enabled,
         log_config=None,
+        proxy_headers=False,
     )
 
 

@@ -6,8 +6,9 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
 class SecurityHeadersMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, docs_enabled: bool = True) -> None:
         self.app = app
+        self.docs_enabled = docs_enabled
 
         self.headers: Iterable[tuple[bytes, bytes]] = [
             (b"x-frame-options", b"DENY"),
@@ -37,7 +38,7 @@ class SecurityHeadersMiddleware:
             return await self.app(scope, receive, send)
 
         path = scope.get("path", "")
-        if path.startswith(("/docs", "/redoc", "/openapi.json")):
+        if self.docs_enabled and path.startswith(("/docs", "/redoc", "/openapi.json")):
             return await self.app(scope, receive, send)
 
         async def send_wrapper(message: Message) -> None:

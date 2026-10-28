@@ -13,8 +13,10 @@ from prometheus_client.samples import Sample
 from starlette.responses import StreamingResponse
 
 from app.common.middleware.request_outcome import RequestOutcomeASGIMiddleware
+from app.common.store.rate_limit import RateLimitDecision
 from app.common.store.request_context import RequestContext
 from app.config.application import create_app
+from app.config.environment import settings
 from app.config.metrics import REQUEST_ABORTED, REQUEST_COUNT, REQUEST_DURATION
 
 from .test_timeout_server import application, running
@@ -36,7 +38,8 @@ async def test_bounded_routes_methods_and_identifiers(
 ) -> None:
     app = create_app()
     monkeypatch.setattr(
-        "app.config.rate_limiter.RateLimiter.allow", Mock(return_value=True)
+        "app.config.rate_limiter.RateLimiter.admit",
+        Mock(return_value=RateLimitDecision(allowed=True)),
     )
     logger = Mock()
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
@@ -85,11 +88,14 @@ async def test_bounded_routes_methods_and_identifiers(
 async def test_actual_500_and_policy_rejections_are_completed_once_with_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(settings, "RATE_LIMIT_MAX", 12)
     app = create_app()
+    # Three rejected/failed requests and nine probes consume twelve admissions.
+    # Use an explicit test quota rather than coupling this test to production defaults.
     records: list[tuple[str, str | None]] = []
     expected_ids: list[str] = []
 
-    def capture(message: str) -> None:
+    def capture(message: str, **fields: object) -> None:
         records.append(
             (message, structlog.contextvars.get_contextvars().get("request_id"))
         )
@@ -295,13 +301,13 @@ async def test_concurrent_requests_keep_their_context_and_shared_duration(
     messages: dict[str, str] = {}
     both_entered = asyncio.Event()
 
-    def capture(message: str) -> None:
+    def capture(message: str, **fields: object) -> None:
         request_id = structlog.contextvars.get_contextvars().get("request_id")
         assert isinstance(request_id, str)
         messages[request_id] = message
 
     logger = Mock()
-    logger.info.side_effect = capture
+    logger.debug.side_effect = capture
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
 
     @app.get("/first")

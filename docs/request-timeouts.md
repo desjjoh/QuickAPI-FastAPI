@@ -2,7 +2,7 @@
 
 [Documentation index](../README.md#documentation)
 
-The [pure-ASGI middleware](../app/common/middleware/request_timeout.py) follows QuickAPI-Express's HTTP outcome policy: one JSON 408 before response headers, interruption of an incomplete stream after headers, and no late response after abandonment. Python uses cooperative task cancellation and tracked cleanup rather than Express promise/listener handling.
+The [pure-ASGI middleware](../app/common/middleware/request_timeout.py) sends one JSON 408 before response headers, interrupts an incomplete stream after headers, and suppresses late responses after abandonment. It uses cooperative task cancellation and tracks downstream cleanup.
 
 ## Deadline contract
 
@@ -12,16 +12,28 @@ The [pure-ASGI middleware](../app/common/middleware/request_timeout.py) follows 
 | `first_body_timeout` | 5 seconds | Maximum wait for the first requested body message |
 | `chunk_timeout` | 2 seconds | Maximum wait for each subsequent requested body message until the request body is complete |
 
-All budgets must be finite and greater than zero; invalid values fail middleware construction. They are constructor settings, not newly added environment variables. The overall deadline still applies when the handler never reads a body. Body-receive deadlines do not apply to the disconnect wait after the final request-body message.
+Constructor budgets must be finite and greater than zero; invalid values fail
+middleware construction. The overall deadline applies when the handler never reads
+a body. Body-receive deadlines do not apply to the disconnect wait after the final
+request-body message.
 
-The former `header_timeout` constructor argument is replaced by `first_body_timeout`. ASGI receives a scope after HTTP headers have already been parsed; this middleware never provided a slow-header receive deadline. Server/ingress header-receive protection remains separate work. The deadline starts inside the configured middleware stack, not at TCP acceptance, and does not cover earlier middleware rejections.
+Application settings provide optional environment overrides:
+`REQUEST_TIMEOUT_MS=10000`, `REQUEST_FIRST_BODY_TIMEOUT_MS=5000`, and
+`REQUEST_CHUNK_TIMEOUT_MS=2000`. Milliseconds convert to seconds at middleware
+construction. Both body-wait budgets must not exceed the total. See
+[HTTP configuration](http-policy.md) for ranges, defaults, and source precedence.
+
+ASGI receives a scope after HTTP headers have been parsed. `first_body_timeout` is
+a body-message deadline, not slow-header protection. Server/ingress header-receive
+protection requires separate configuration. The response deadline starts at timeout
+middleware entry, not TCP acceptance, and does not cover outer middleware rejections.
 
 ## Response and error behavior
 
 - Normal completion retires the response deadline. Dependency/background cleanup after the final response body does not change an already-completed response.
-- Expiry before headers returns exactly one 408 with the existing `{ status, message, timestamp }` envelope. Total expiry retains `Total request timeout exceeded.`; body waits identify first-body or chunk expiry.
+- Expiry before headers returns exactly one 408 with the `{ status, message, timestamp }` envelope. Total expiry uses `Total request timeout exceeded.`; body waits identify first-body or chunk expiry.
 - Expiry after headers raises a dedicated internal stream-abort error. Uvicorn closes the incomplete HTTP response; there is no replacement JSON/408 and no synthetic final chunk that would falsely mark the stream complete. A client can observe its original status and partial bytes followed by an incomplete-body/connection error. Uvicorn/the outer error boundary may log the exception even though the wire contains no 500 response.
-- Late sends are suppressed after expiry, disconnect, or response completion. Downstream exceptions, including unrelated `TimeoutError`, retain their existing error path. External server cancellation propagates rather than being converted to 408.
+- Late sends are suppressed after expiry, disconnect, or response completion. Downstream exceptions, including unrelated `TimeoutError`, follow normal exception handling. External server cancellation propagates rather than being converted to 408.
 - Explicit ASGI disconnects and transport `OSError` close the sending boundary and request cooperative cancellation. A receive-side `TimeoutError` is preserved, since its being an `OSError` subclass does not establish client disconnection.
 
 ## Body ownership and backpressure
@@ -36,7 +48,7 @@ The response deadline can finish the transport before cancellation-resistant wor
 
 Cancellation is cooperative. It cannot force a blocked event loop, stop synchronous thread work, prove SQL cancellation, or guarantee rollback. Async resource owners must make cleanup cancellation-safe. In Starlette's AnyIO streaming cancel scopes, cleanup awaits may require a shielded cancel scope; arbitrary unshielded async generator cleanup cannot be guaranteed to finish by this middleware.
 
-Retaining tasks is not a complete application shutdown/drain mechanism. Admission control, aggregate draining/deadlines, and pre-commit transaction guarantees remain in milestone 4. Successful delivery of a 408 does not establish whether a concurrent database mutation committed.
+Retaining tasks does not implement application-wide shutdown admission, draining, or transaction guarantees. Successful delivery of a 408 does not establish whether a concurrent database mutation committed. See the [technical backlog](backlog.md) for shutdown and transaction requirements.
 
 ## Verification
 

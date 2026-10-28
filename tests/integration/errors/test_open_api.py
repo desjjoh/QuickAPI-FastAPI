@@ -187,8 +187,7 @@ def test_operational_json_contracts_are_strict_and_complete(
     required = {
         "RootResponse": {"message"},
         "HealthResponse": {"alive", "status", "uptime", "timestamp"},
-        "ReadyResponse": {"ready", "status", "timestamp", "checks"},
-        "ReadyCheck": {"name", "status", "response_time_ms"},
+        "ReadyResponse": {"ready", "status", "timestamp"},
         "InfoResponse": {
             "name",
             "version",
@@ -241,11 +240,7 @@ def test_operational_json_contracts_are_strict_and_complete(
     ready = schemas["ReadyResponse"]["properties"]
     assert ready["status"]["enum"] == ["ready", "not_ready"]
     assert ready["timestamp"]["format"] == "date-time"
-    assert ready["checks"]["items"] == {"$ref": "#/components/schemas/ReadyCheck"}
-    check = schemas["ReadyCheck"]["properties"]
-    assert check["name"]["minLength"] == 1
-    assert check["status"]["enum"] == ["up", "down"]
-    assert check["response_time_ms"]["minimum"] == 0
+    assert "ReadyCheck" not in schemas
 
     info = schemas["InfoResponse"]["properties"]
     assert info["version"]["pattern"] == r"^\d+\.\d+\.\d+$"

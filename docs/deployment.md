@@ -6,7 +6,7 @@
 
 Use Python 3.12 and inject required settings from [Development](development.md#configuration). The image installs runtime-only [requirements.txt](../requirements.txt), checks dependency consistency, and copies application code; `.env` is excluded. Development tools are installed separately from `requirements-dev.txt` for local/CI checks. Use `ENV=production` to disable reload and align listening/published ports and probes.
 
-Domain, diagnostics, metrics, and API documentation endpoints have no application authentication. Apply the consuming service's network/authentication boundary. CORS currently allows all origins with credentials and is not a trust boundary. The rate limiter is process-local; workers/replicas do not share state.
+Domain routes and any enabled operational endpoints have no application authentication. Documentation, diagnostics, and metrics default off in production; see [exposure controls](operational-exposure.md). Apply the consuming service's network/authentication boundary. CORS uses configured exact origins and is not an authentication boundary. The rate limiter is process-local; workers/replicas do not share state.
 
 ## Production container validation
 
@@ -34,7 +34,10 @@ The checked-in [Compose file](../docker-compose.yaml) is a local development sta
 
 Compose reads `.env` and overrides container-specific settings: `HOST=0.0.0.0`, `PORT=8000`, `ENV=production`, and a local MySQL service URL. Native Python keeps its own port/mode/database URL. The unused `DEBUG`/`WORKERS` entries were removed. See [local setup, credentials, persistence, and reset commands](development.md#local-compose).
 
-A fresh disposable Compose project passed MySQL readiness, an API create/read, and record retention across container/network recreation with its volume preserved. This is local startup/persistence evidence, not a MySQL-backed release gate. CI's existing image smoke still uses SQLite; migration validation and production-like MySQL test/release qualification remain scheduled separately. See [Verification](verification.md).
+Compose provides a local MySQL development topology. The CI runtime-image smoke
+uses SQLite and does not exercise Compose persistence, MySQL failure paths, or
+migration upgrades. See [Testing](testing.md) for verification boundaries and
+[Verification](verification.md) for dated execution evidence.
 
 ## Application lifespan and operational endpoints
 
@@ -42,7 +45,9 @@ FastAPI's lifespan starts registered services before the app becomes ready. The
 database service creates/checks its schema, readiness requires startup completion
 and healthy registered services, and shutdown stops only successfully started
 services in reverse order. Partial startup failure rolls back already-started
-services. The unversioned operational surface is:
+services. The unversioned operational surface is shown below. `/info` and `/system` require
+`DIAGNOSTICS_ENABLED`; `/metrics` requires `METRICS_ENABLED`. Both flags default off
+in production, and enabling them supplies no authentication.
 
 | Route          | Purpose                                                                 |
 | -------------- | ----------------------------------------------------------------------- |
@@ -55,10 +60,10 @@ services. The unversioned operational surface is:
 
 Liveness and readiness are intentionally different. A failed liveness probe means
 the process should be restarted. A failed readiness probe returns HTTP 503 and
-means the running process should temporarily receive no application traffic. The
-`database` entry in `ready.checks` is the registered database service's bounded
-health check; it reports `up` only after startup and a successful database probe.
-It is also summarized as `db` by `/system`.
+means the running process should temporarily receive no application traffic. Readiness still performs bounded dependency checks internally, but its public
+response omits dependency names/timings in every environment. `/system` retains its
+existing `db` summary when diagnostics are enabled. See the
+[public probe contract](operational-exposure.md#public-probes-and-readiness).
 
 Representative, contract-complete JSON responses are shown below (timestamps,
 host values, timings, and resource measurements naturally vary):
@@ -86,8 +91,7 @@ host values, timings, and resource measurements naturally vary):
 {
   "ready": true,
   "status": "ready",
-  "timestamp": "2026-09-01T12:00:00Z",
-  "checks": [{ "name": "database", "status": "up", "response_time_ms": 1.2 }]
+  "timestamp": "2026-09-01T12:00:00Z"
 }
 ```
 
@@ -158,17 +162,16 @@ The Python diagnostics map platform facilities into stable API fields:
 - unavailable resource APIs, collection errors, or collection timeouts yield the
   documented non-negative zero/`unknown` fallbacks rather than an endpoint error.
 
-Under the existing no-authentication policy these operational routes remain public.
+Enabled operational endpoints have no application authentication.
 Their payloads contain operational metadata but no credentials, connection strings,
 environment-variable values, or other secrets. Apply a network trust boundary or
 authentication before exposing them where host/process metadata is considered
 sensitive.
 
-Probe polling is not application traffic: Prometheus request middleware excludes
-`/health`, `/ready`, `/info`, `/system`, and the existing `/metrics` scrape endpoint.
-The greeting and versioned API routes remain instrumented. Metrics currently label requests with `method`, raw URL `path`, and `status`.
-Paths are not normalized to route templates: item IDs and unknown paths create
-additional series. Cardinality remains an operational gap; see [Backlog](backlog.md).
+Prometheus traffic metrics exclude `/health`, `/ready`, `/info`, `/system`, and
+`/metrics`. Other routes use bounded declared route templates and normalized methods;
+unknown routes use `<unmatched>`. See [Metrics and request outcomes](#metrics-and-request-outcomes)
+for the complete labels, units, and completion/abort contract.
 
 Run the targeted operational contract checks and then the complete suite with the
 established commands:
@@ -217,10 +220,41 @@ not change the recorded outcome. The observer adds no receive-reader task; it us
 the timeout middleware's existing disconnect observation and ASGI channel wrappers.
 These are server-side transport observations, not proof the peer consumed every byte.
 
-**Dashboard migration:** replace the old `path` label with `route` on
-`http_requests_total`. Replace `http_request_latency_seconds` with
-`http_request_duration_ms`, including `_bucket`, `_sum`, and `_count` series.
-Histogram queries must now include the desired status grouping/filter and use
-millisecond thresholds; remove any seconds-to-milliseconds multiplication.
-Completed-only histograms exclude aborted requests; monitor the abort counter
-separately. No legacy raw-path/seconds series are exported alongside the new schema.
+Dashboard queries use the `route` label and millisecond duration thresholds.
+Histogram grouping/filtering includes `status`; `_bucket`, `_sum`, and `_count`
+series derive from `http_request_duration_ms`. Completed-response histograms exclude
+aborted requests, which are measured by `http_requests_aborted_total`.
+
+
+## HTTP policy configuration
+
+See [HTTP configuration](http-policy.md) for settings, defaults, validation, proxy
+chain behavior, and server receive limits. Optional `.env.example` overrides are
+commented; process environment wins over `.env` and omitted values use code defaults.
+Set actual browser origins and explicit proxy IPs/CIDRs for the hosting topology.
+The application owns forwarding resolution; external Uvicorn commands must use
+`--no-proxy-headers`, as the normal entrypoint already does. Real ingress trust,
+direct-port denial, and slow-header/whole-upload protection still require deployed
+verification; application deadlines do not establish those transport guarantees.
+
+
+## Limiter capacity and probe policy
+
+[Rate limiting](rate-limiting.md) uses an exact bounded rolling window per application
+process. Defaults are 200 requests/60 seconds/client, 10000 clients, and a combined
+maximum of 2000000 timestamp slots. Quota exhaustion returns 429; a new identity at
+store capacity receives 503; both carry `Retry-After`. Existing clients are not evicted
+or reset to admit new identities. Probes, diagnostics, metrics, and preflights share
+the resolved client's quota. Configure proxy trust, probe frequency, and capacity for
+the selected topology. Limiter failures precede CORS; see the documented browser
+response boundary. Multi-worker/replica enforcement is independent; distributed
+quotas and hosting-level behavior require separate qualification.
+
+
+## Production logging
+
+[Logging and diagnostics](logging.md) defines UTC JSON records, safe error metadata,
+and the dependency logging bridge. INFO shows lifecycle events and suppresses successful
+request access records; choose DEBUG when those records are required. Request bodies,
+queries, credentials, SQL parameters, raw paths, and exception text are not logging
+payloads. Log access/retention/shipping require deployment-level configuration.

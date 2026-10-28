@@ -2,7 +2,10 @@
 
 [Documentation index](../README.md#documentation)
 
-The agreed [milestone and phase list](milestones.md) is the source of truth for implementation order and testable completion conditions. It expands the earlier four-milestone outline into eight milestones. [Backlog](backlog.md) tracks remaining work using those current phase numbers; [Verification](verification.md) records completed behavior and check results.
+The [milestone and phase list](milestones.md) defines implementation order and
+acceptance criteria. [Backlog](backlog.md) tracks unresolved requirements, and
+[Verification](verification.md) records dated execution evidence. Reference guides
+describe the supported application contracts.
 
 | Milestone | Focus |
 | --- | --- |
@@ -17,30 +20,60 @@ The agreed [milestone and phase list](milestones.md) is the source of truth for 
 
 ## 1A. Environment and dependencies
 
-Completed locally with pip, manually pinned runtime/development requirements, and a Python 3.12 project environment. Fresh Windows/Linux installations, static checks, the complete suites, Linux critical coverage gates, runtime dependency exclusion, and the existing SQLite image smoke passed. See [the verification record](verification.md) for versions, working-tree/image identity, results, and limitations. Hosted CI for that working tree remains unverified; see 1B for subsequent Compose/rule inventory evidence.
+The project targets Python 3.12 and uses pip with manually pinned runtime/development
+requirements. Development and CI install the development requirements; the runtime
+image contains runtime dependencies. See [Development](development.md) for setup and
+[Verification](verification.md) for execution evidence.
 
 ## 1B. Startup and branch protections
 
-Local Compose now supplies MySQL, authenticated health-based startup ordering, consistent container settings/ports, and persistent project-scoped storage. A fresh disposable project passed readiness, item create/read, and persistence across container recreation. The workflow adds major-branch pushes, merge groups, and manual dispatch while preserving current check names. See [Verification](verification.md).
-
-Live FastAPI structural protections match Express. Six existing hosted checks were confirmed from a successful historical run, but FastAPI's required-check list is empty. This phase remains **partially complete** until the [manual required-check setting](branch-protection.md#remaining-manual-setting) is saved and verified. No hosted result for this working tree or remote rule update is claimed.
+Local Compose supplies MySQL, authenticated health-based startup ordering, persistent
+project-scoped storage, and loopback-only publishing. Required hosted-check contexts
+and the remote ruleset verification procedure are documented in
+[Branch protections](branch-protection.md#required-check-configuration). Local startup
+and persistence checks do not establish remote check enforcement.
 
 ## 1C. Request timeout correctness
 
-Completed ahead of order and retained intentionally. The remaining 1B required-check configuration is still pending; 1D is now complete locally; see the [backlog sequence note](backlog.md#sequence-note--timeout-work-completed-ahead-of-order).
-
-The Express-aligned timeout/streaming/disconnect contract is implemented and verified locally. See [Request deadlines](request-timeouts.md) for behavior and cancellation limits, and [Verification](verification.md) for execution evidence. This is the timeout phase called 1B in the earlier four-milestone outline; expanded phase 1B (Compose/branch settings) remains pending.
+The [request deadline contract](request-timeouts.md) defines pre-header JSON 408s,
+stream interruption, disconnect/cancellation handling, and cleanup boundaries.
+Database transaction and application-wide shutdown guarantees have separate acceptance
+criteria in the milestone list.
 
 ## 1D. Metrics and request outcomes
 
-Completed locally. Logging and metrics now share one response outcome and duration;
-completed responses and aborts are counted separately, and route/method labels stay
-bounded. Names, labels, units, and histogram buckets match the Express/NestJS
-contract while preserving Python log levels and the current error envelope. See
-[the metrics contract and dashboard migration](deployment.md#metrics-and-request-outcomes),
-[regression coverage](testing.md#request-outcome-regression-coverage), and
-[Verification](verification.md). Remaining phase 1B branch-check configuration is
-still a separate manual step; broader logging work remains phase 2D.
+Logging and metrics share one response outcome/duration. Completed responses and
+aborts are counted separately; route and method labels are bounded. See
+[the metrics contract](deployment.md#metrics-and-request-outcomes) and
+[regression coverage](testing.md#request-outcome-regression-coverage).
+
+## 2A. Validated HTTP configuration
+
+[HTTP configuration](http-policy.md) defines Pydantic Settings defaults and optional
+env overrides for CORS, proxy IP/CIDR trust, request deadlines, size budgets, and
+method/media policies. Slow-header and whole-upload receive protection requires a
+supported server/ingress configuration and deployed verification.
+
+## 2B. Operational endpoint exposure
+
+[Operational exposure](operational-exposure.md) defines docs/diagnostics/metrics flags,
+production defaults, and disabled-path behavior. Public readiness omits dependency
+details; metric collection is independent of HTTP exposition. Enabled operational
+endpoints require the consuming deployment's access restrictions.
+
+## 2C. Bounded rate limiting
+
+[Rate limiting](rate-limiting.md) defines exact rolling windows, request/client/storage
+bounds, 429/503 responses, retry timing, and per-process enforcement. Probes/preflights
+share quota, favicon GET/HEAD is exempt, and the guide documents the CORS boundary.
+
+## 2D. Logging and diagnostics
+
+[Logging](logging.md) defines console/production JSON output, native severity levels,
+successful-request DEBUG records, safe error diagnostics, configuration privacy, and
+standard/dependency logging controls. [Verification](verification.md) identifies the
+validated source snapshot and execution boundaries. Deployment log access, retention,
+and shipping require hosting-specific controls.
 
 ## Working decisions
 
@@ -48,8 +81,7 @@ still a separate manual step; broader logging work remains phase 2D.
 - Use pip with manually maintained requirements; no uv adoption or generated lockfile is planned.
 - Review concrete public-contract changes before milestone 5: IDs, names, defaults, price acceptance, required revisions, deletion route, and replay headers.
 - Tests and documentation land with each phase. Record passed, failed, skipped/not run, and unavailable checks separately; require exact-source hosted evidence before claiming a release.
-- The supplied A-range application/B+ production-assurance assessment is the planning baseline, not a newly verified grade. SQLite coverage and a local smoke do not establish MySQL or production readiness.
-- The earlier Python 3.14-only execution limitation was an environment mismatch, not a test failure. Phase 1A now supplies a verified 3.12 path without retargeting application code.
+- SQLite coverage and a local smoke do not establish MySQL or production readiness; verification claims require evidence for the relevant environment and source.
 
 ## Scope and operational boundaries
 
@@ -57,4 +89,4 @@ Authentication/authorization remain a separate scope decision; operational endpo
 
 Migration upgrades, representative backfills, and supported rollback evidence are repository/CI work. Real ingress/access rules, orchestrator behavior, deployed CA/DNS/rotation, fleet capacity, log retention, durable storage, and backup restoration require the chosen hosting environment and remain in milestone 8. A down migration or retained image does not prove backup restoration or schema-compatible rollback.
 
-The two-to-three-day estimate is a working estimate, not permission to omit verification. Reassess after baseline and MySQL/migration work expose actual constraints. Remove completed items from the backlog and retain their evidence in implementation guides and verification records.
+Estimates do not replace acceptance criteria. Reassess scheduling when database or environment constraints change. Remove resolved items from the backlog, document supported behavior in reference guides, and record execution evidence in Verification.

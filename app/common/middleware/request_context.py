@@ -30,7 +30,6 @@ class RequestContextASGIMiddleware:
         structlog.contextvars.bind_contextvars(
             request_id=request_id,
             method=method,
-            path=path,
             ip=client,
         )
 

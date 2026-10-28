@@ -3,9 +3,7 @@ import sys
 import uvicorn
 
 from app.config.environment import settings
-
-red = "\033[91m"
-bold = "\033[1m"
+from app.config.logging import log
 
 
 def main() -> None:
@@ -15,6 +13,8 @@ def main() -> None:
         port=settings.PORT,
         reload=(settings.ENV == "development"),
         log_config=None,
+        # The app owns proxy trust; never let Uvicorn apply a second policy.
+        proxy_headers=False,
     )
 
 
@@ -23,11 +23,8 @@ def run() -> None:
     try:
         main()
 
-    except Exception:
-        print(
-            f"{red}❌ {bold}Fatal error during server initialization — forcing exit\n"
-        )
-
+    except Exception as exc:
+        log.critical("Fatal error during server initialization.", error=exc)
         sys.exit(1)
 
 

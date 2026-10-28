@@ -57,19 +57,25 @@ Pull requests, pushes to `main`/`staging`/`dev`, merge groups, and manual dispat
 
 Container CI builds the image, starts it with explicit production settings and disposable SQLite, polls `/ready`, and reads `/api/v1/items/`. It does not test Compose, MySQL, container mutations, durable persistence, schema upgrades, restore, or rollback. See [Deployment](deployment.md).
 
-Record the commit/environment and distinguish passed, failed, skipped/not run, and unavailable checks. A workflow definition is not evidence that a particular commit passed. This documentation update makes no new runtime or release-readiness claim.
+Record the commit/environment and distinguish passed, failed, skipped/not run, and unavailable checks. A workflow definition is not evidence that a particular commit passed.
 
-Current hosted check names and the manual required-check configuration are documented in [Branch protections](branch-protection.md). The latest observed successful hosted run is historical evidence for its own SHA, not confirmation that the updated trigger configuration or this working tree has passed GitHub CI.
+Hosted check names and required-check configuration are documented in [Branch protections](branch-protection.md). Dated execution results belong to [Verification](verification.md); each result applies to its recorded source/environment.
 
 ## Regression coverage
 
 Place tests at the boundary that owns the behavior: unit for isolated decisions, repository integration for transaction/query behavior, and HTTP for client-visible contracts. Protect consequential failure paths without mirroring implementation details. Track unresolved gaps in [Backlog](backlog.md).
 
-## Roadmap verification baseline
+## Verification boundaries
 
-The reported local execution attempt was unavailable because the machine had Python 3.14 while this project targets Python 3.12. That is an environment mismatch, not a failed test run, and does not establish current runtime availability. [Roadmap phase 1A](roadmap.md#1a-environment-and-dependencies) now provides a supported execution path; see [Verification](verification.md) for fresh Windows/Linux results and remaining limitations.
+Use Python 3.12 for local checks. An unsupported interpreter or an unavailable service
+is an execution limitation, not a passing or failing application test. Record the
+source identity, environment, and outcome in [Verification](verification.md).
 
-The [roadmap](roadmap.md) schedules disposable MySQL integration/E2E and migration-upgrade/rollback evidence in 3B/3C, MySQL runtime-image smoke in 6B, aggregate fail-closed CI and required-check verification in 6D/6E, and candidate-bound release evidence in milestone 7. These are planned checks, not capabilities or passing results supplied by the current workflow.
+Automated persistence suites and the image smoke use SQLite. The workflow does not
+qualify MySQL, migration upgrades/downgrades, backup restoration, or candidate-bound
+release publication. It has no aggregate fail-closed job. Required checks must be
+configured separately in GitHub; see [Branch protections](branch-protection.md).
+Additional verification requirements are tracked in [Backlog](backlog.md).
 
 ## HTTP deadline and streaming checks
 
@@ -87,6 +93,57 @@ rejections/final 500s, concurrent request correlation, and matching log/metric d
 Eight outcome cases run real Uvicorn sockets with both h11 and httptools: pre-header
 408, ordinary-handler disconnect, streaming timeout, and streaming disconnect. They
 assert metrics/access logs settle before cancellation-resistant cleanup and remain
-unchanged after it. These supplement the existing twelve socket deadline cases in
+unchanged after it. These supplement twelve socket deadline cases in
 [timeout tests](../tests/integration/middleware/test_timeout_server.py); HTTPX ASGI
 transport alone cannot prove socket disconnect or truncated-body behavior.
+
+
+## HTTP policy regression coverage
+
+[Environment tests](../tests/unit/config/test_environment.py) cover defaults, exact
+CSV syntax, bounds/relationships, malformed values, process/dotenv precedence, and
+agreement between commented example values and code defaults.
+[Proxy unit tests](../tests/unit/middleware/test_trusted_proxy.py) cover IPv4/IPv6,
+right-to-left trust chains, malformed/duplicate/unsupported forwarding, direct peers,
+non-HTTP scopes, and original header budgets.
+[Policy integration tests](../tests/integration/middleware/test_http_policy.py)
+exercise configured browser preflight/response headers, custom header/media policy,
+raw-header and body/method rejection, and six real Uvicorn socket cases across h11
+and httptools for trusted/untrusted identity and configured response deadlines.
+The socket harness disables Uvicorn proxy rewriting to exercise app-owned trust.
+Deployment-specific slow-header protection remains unverified and open.
+
+
+## Operational exposure regression coverage
+
+[Operational integration tests](../tests/integration/middleware/test_operational_exposure.py)
+exercise environment defaults, all eight independent flag combinations, disabled route
+families/methods/assets/redirects, mounted paths, forwarding behavior, handler non-execution,
+per-app route isolation, registered OpenAPI paths, continued metric collection, and
+minimal public probes with dependencies up/down. Two real-server cases cover production
+defaults across h11/httptools. Environment tests also reject ambiguous flag values and
+verify explicit overrides. Controller/model/E2E/OpenAPI checks enforce the minimal
+public readiness contract.
+
+
+## Bounded rate-limit regression coverage
+
+[Core limiter tests](../tests/unit/config/test_rate_limiter.py) cover exact rolling
+boundaries/ring reuse, sustained rejection without growth/extended expiry, distinct
+identity floods, tracked-client admission at capacity, ordered reclamation, long keys,
+instance independence, constructor bounds, and atomic thread admission.
+[HTTP tests](../tests/integration/middleware/test_rate_limiting.py) cover remaining
+retry timing, 429/503 envelopes, trusted/untrusted identity, probe/other-route accounting,
+preflights and CORS rejection ordering, raw-header protection, and favicon GET/HEAD
+exemption. Two real Uvicorn cases exercise concurrent bursts, isolation, capacity,
+and exact recovery across h11/httptools. Environment tests cover all three settings,
+strict types/ranges, the combined slot ceiling, and env-example/default consistency.
+
+
+## Logging privacy checks
+
+[Logging tests](logging.md#verification) capture actual console/JSON output, including
+fresh processes and real server failures. They verify level filtering, single-line
+presentation, metadata exclusion, request correlation after context cleanup, diagnostic
+allowlists/fingerprints, safe bootstrap failures, and Windows-compatible output. The
+complete suite also protects request/timeout outcome semantics and public error contracts.

@@ -1,24 +1,31 @@
 from __future__ import annotations
 
+from array import array
 from dataclasses import dataclass
-from time import monotonic
+from typing import Literal
 
 
-@dataclass
+@dataclass(slots=True)
 class RateLimitState:
-    burst_tokens: float
-    sustained_tokens: float
-    last_burst_reset: float
-    last_refill: float
-    last_seen: float
+    timestamps: array[float]
+    head: int = 0
+    count: int = 0
+    expires_at: float = 0.0
 
     @classmethod
-    def new(cls, max_burst: int, max_sustained: int) -> RateLimitState:
-        now = monotonic()
-        return cls(
-            burst_tokens=max_burst,
-            sustained_tokens=max_sustained,
-            last_burst_reset=now,
-            last_refill=now,
-            last_seen=now,
-        )
+    def new(cls, capacity: int) -> RateLimitState:
+        return cls(timestamps=array("d", [0.0]) * capacity)
+
+
+@dataclass(frozen=True, slots=True)
+class RateLimitDecision:
+    allowed: bool
+    status: Literal[429, 503] | None = None
+    retry_after_seconds: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class RateLimitUsage:
+    clients: int
+    stored_requests: int
+    timestamp_slots: int

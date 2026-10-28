@@ -60,9 +60,8 @@ def rejecting_app(kind: str) -> FastAPI:
     elif kind == "415":
         app.add_middleware(ContentTypeEnforcementASGIMiddleware)
     elif kind == "429":
-        limiter = RateLimiter(
-            max_burst=0, burst_window=5, max_sustained=0, sustained_period=60
-        )
+        limiter = RateLimiter(max_requests=1)
+        limiter.admit("127.0.0.1")
         app.add_middleware(RateLimitASGIMiddleware, limiter=limiter)
     else:
         app.add_middleware(

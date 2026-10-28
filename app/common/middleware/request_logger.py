@@ -31,18 +31,27 @@ class RequestLoggingASGIMiddleware:
                 f"{status_label.ljust(3)} {result.method.ljust(7)} "
                 f"{shorten_path(result.route, 30).ljust(32)} {result.duration_ms:.2f}ms"
             )
-            level: Literal["error", "warning", "info"] = (
+            level: Literal["error", "warning", "debug"] = (
                 "error"
                 if status is not None and status >= 500
                 else (
                     "warning"
                     if result.outcome == "aborted"
                     or (status is not None and status >= 400)
-                    else "info"
+                    else "debug"
                 )
             )
             # The final server error can be emitted after request context cleanup.
             with structlog.contextvars.bound_contextvars(request_id=request_id):
-                getattr(log, level)(msg)
+                getattr(log, level)(
+                    msg,
+                    requestId=request_id,
+                    method=result.method,
+                    route=result.route,
+                    status=result.status,
+                    durationMs=result.duration_ms,
+                    outcome=result.outcome,
+                    headersSent=result.headers_sent,
+                )
 
         await observe_request(self.app, scope, receive, send, "logging", record)

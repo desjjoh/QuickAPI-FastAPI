@@ -1,84 +1,101 @@
 from __future__ import annotations
 
+import hashlib
+import math
+from collections import OrderedDict
+from collections.abc import Callable
+from threading import Lock
 from time import monotonic
+from typing import Literal
 
-from app.common.store.rate_limit import RateLimitState
+from app.common.store.rate_limit import (
+    RateLimitDecision,
+    RateLimitState,
+    RateLimitUsage,
+)
+from app.config.rate_limit_policy import (
+    DEFAULT_MAX_CLIENTS,
+    DEFAULT_MAX_REQUESTS,
+    DEFAULT_WINDOW_MS,
+    RateLimitPolicy,
+)
 
 
 class RateLimiter:
+    """One bounded rolling-window store per instance, with atomic local admission."""
+
     def __init__(
         self,
-        max_burst: int = 10,
-        burst_window: float = 5.0,
-        max_sustained: int = 100,
-        sustained_period: float = 60.0,
-        gc_interval: float = 120.0,
-    ):
-        self.max_burst = max_burst
-        self.burst_window = burst_window
-        self.max_sustained = max_sustained
-        self.sustained_period = sustained_period
-        self.gc_interval = gc_interval
+        window_ms: int = DEFAULT_WINDOW_MS,
+        max_requests: int = DEFAULT_MAX_REQUESTS,
+        max_clients: int = DEFAULT_MAX_CLIENTS,
+        *,
+        clock: Callable[[], float] | None = None,
+    ) -> None:
+        self.policy = RateLimitPolicy(
+            window_ms=window_ms, max_requests=max_requests, max_clients=max_clients
+        )
+        # An injected clock uses monotonic milliseconds, matching the public policy.
+        self._now = clock if clock is not None else lambda: monotonic() * 1000
+        self._clients: OrderedDict[bytes, RateLimitState] = OrderedDict()
+        self._stored_requests = 0
+        self._lock = Lock()
 
-        self._clients: dict[str, RateLimitState] = {}
-        self._last_gc = monotonic()
-
-    def _get_state(self, ip: str) -> RateLimitState:
-        state: RateLimitState | None = self._clients.get(ip)
-
-        if state is None:
-            state = RateLimitState.new(self.max_burst, self.max_sustained)
-            self._clients[ip] = state
-
-        return state
-
-    def _refill(self, state: RateLimitState) -> None:
-        now: float = monotonic()
-        elapsed: float = now - state.last_refill
-
-        if elapsed > 0:
-            refill_rate = self.max_sustained / self.sustained_period
-            state.last_refill = now
-            state.sustained_tokens = min(
-                self.max_sustained,
-                state.sustained_tokens + elapsed * refill_rate,
+    @property
+    def usage(self) -> RateLimitUsage:
+        with self._lock:
+            return RateLimitUsage(
+                len(self._clients),
+                self._stored_requests,
+                len(self._clients) * self.policy.max_requests,
             )
 
-        if (now - state.last_burst_reset) >= self.burst_window:
-            state.burst_tokens = self.max_burst
-            state.last_burst_reset = now
+    def admit(self, identity: str) -> RateLimitDecision:
+        # Resolve identity before calling us; never reinterpret forwarding here.
+        key = hashlib.sha256(identity.encode("utf-8")).digest()
+        with self._lock:
+            now = self._now()
+            self._expire_clients(now)
+            client = self._clients.get(key)
+            if client is None:
+                if len(self._clients) >= self.policy.max_clients:
+                    earliest = next(iter(self._clients.values()))
+                    return self._reject(503, earliest.expires_at, now)
+                client = RateLimitState.new(self.policy.max_requests)
 
-        state.last_seen = now
+            cutoff = now - self.policy.window_ms
+            while client.count and client.timestamps[client.head] <= cutoff:
+                client.head = (client.head + 1) % self.policy.max_requests
+                client.count -= 1
+                self._stored_requests -= 1
+            if client.count == self.policy.max_requests:
+                return self._reject(
+                    429, client.timestamps[client.head] + self.policy.window_ms, now
+                )
 
-    def _gc(self) -> None:
-        now: float = monotonic()
+            tail = (client.head + client.count) % self.policy.max_requests
+            client.timestamps[tail] = now
+            client.count += 1
+            client.expires_at = now + self.policy.window_ms
+            self._stored_requests += 1
+            self._clients[key] = client
+            # Equal windows and a monotonic clock order clients by next expiry.
+            # Rejections never move an entry or extend its expiry.
+            self._clients.move_to_end(key)
+            return RateLimitDecision(allowed=True)
 
-        if (now - self._last_gc) < self.gc_interval:
-            return
+    def _expire_clients(self, now: float) -> None:
+        while self._clients:
+            key, client = next(iter(self._clients.items()))
+            if client.expires_at > now:
+                break
+            del self._clients[key]
+            self._stored_requests -= client.count
 
-        cutoff: float = self.sustained_period * 2
-        to_delete: list[str] = [
-            ip for ip, s in self._clients.items() if (now - s.last_seen) > cutoff
-        ]
-
-        for ip in to_delete:
-            del self._clients[ip]
-
-        self._last_gc = now
-
-    def allow(self, ip: str) -> bool:
-        state: RateLimitState = self._get_state(ip)
-
-        self._refill(state)
-        self._gc()
-
-        if state.burst_tokens < 1:
-            return False
-
-        if state.sustained_tokens < 1:
-            return False
-
-        state.burst_tokens -= 1
-        state.sustained_tokens -= 1
-
-        return True
+    @staticmethod
+    def _reject(
+        status: Literal[429, 503], available_at: float, now: float
+    ) -> RateLimitDecision:
+        return RateLimitDecision(
+            False, status, max(1, math.ceil((available_at - now) / 1000))
+        )

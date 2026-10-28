@@ -190,8 +190,6 @@ class LifecycleHandler:
                 await svc.stop()
                 log.debug(f"Service stopped ← {svc.name}")
             except Exception as exc:
-                error_type = exc.__class__.__name__
-                error_msg = getattr(exc, "msg", None) or str(exc).split("\n")[0]
-                log.error(f"{error_type} — {error_msg}")
+                log.error("Service shutdown failed.", error=exc)
 
                 log.warning(f"Failed to stop service ← {svc.name}")

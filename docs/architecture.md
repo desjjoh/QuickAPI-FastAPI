@@ -40,10 +40,10 @@ middleware added in `create_app()` is the first to see a request. The effective
 inbound order is:
 
 ```text
-request outcome → server error handler → cleanup → request context
-→ request logging → metrics → CORS → security headers
-→ body limit → content type → header sanitization → header limits
-→ method allowlist → rate limit → timeout → routing/controller
+request outcome → server error handler → cleanup → trusted proxy → request context
+→ request logging → metrics → header limits → security headers → rate limit → CORS
+→ body limit → content type → header sanitization
+→ method allowlist → timeout → operational exposure → routing/controller
 ```
 
 Responses unwind through the same layers in reverse. This is intentional:
@@ -51,8 +51,10 @@ Responses unwind through the same layers in reverse. This is intentional:
 1. One request-outcome observer wraps Starlette's server error handler so final
    500 responses and transport failures are observed. Cleanup clears request context
    even after failures.
-2. Request identity is established before logging and returned as `X-Request-ID`.
-3. Transport and security checks reject unsafe requests before domain code runs.
+2. Explicit IP/CIDR proxy trust resolves client identity before request context.
+   Request identity is established before logging and returned as `X-Request-ID`.
+3. Parsed-header budgets run before preflight responses and sanitizer filtering;
+   transport and security checks reject unsafe requests before domain code runs.
 4. Logging and metrics subscribe to the same outcome before policy checks.
    Duration ends when the final body is accepted by ASGI send, or when an abort
    is observed; downstream cleanup cannot extend it. A completed 408/500 counts as
@@ -62,14 +64,24 @@ Responses unwind through the same layers in reverse. This is intentional:
 
 Middleware rejections use the same error renderer as routed HTTP exceptions, so
 clients do not need separate parsing behavior for transport and application errors.
-The in-memory rate limiter is process-local by design; replace it with shared storage
-before relying on a global limit across multiple workers or replicas.
+The [bounded rolling-window limiter](rate-limiting.md) is process-local, with
+fixed-capacity timestamp rings and expiry-ordered client storage. Admission occurs
+before CORS preflights and later policy rejections, while raw-header budgets remain
+ahead of it. Shared storage is required for a global quota across workers/replicas.
 
 [Metrics and request outcomes](deployment.md#metrics-and-request-outcomes) defines
 labels, exclusions, units, and the dashboard migration. Declared route templates
 include mount prefixes; concrete IDs, query values, and unknown paths never become
-access-log routes or metric labels. Python log levels and the console layout remain
-unchanged, with `ABORTED` in the status position for incomplete responses.
+access-log routes or metric labels. [Logging](logging.md) uses DEBUG for successful requests, WARNING for client errors
+and aborts, and ERROR for server failures. Console access records use `ABORTED` for
+incomplete responses; production records expose the structured outcome.
+
+[HTTP configuration](http-policy.md) defines defaults, environment overrides,
+validation, proxy ownership, and the separate server receive-protection boundary.
+
+[Operational exposure](operational-exposure.md) controls per-app route registration
+and reserves disabled path families. Native docs are installed only when enabled.
+Public readiness serializes no dependency details; internal service checking remains.
 
 ## Persistence and migrations
 
@@ -78,7 +90,7 @@ after the response dependency scope completes. Read queries do not commit. Each
 repository mutation owns its transaction: it flushes and refreshes, commits on
 success, and rolls back on any failure so the session is safe to close or reuse.
 
-At startup, this reference currently calls SQLAlchemy `metadata.create_all()`. That
+At startup, the application calls SQLAlchemy `metadata.create_all()`. That
 is deterministic for a fresh database but **is not a schema migration system** and
 does not alter existing columns. Before evolving a deployed schema:
 
@@ -102,3 +114,14 @@ Update [API contracts](api-contracts.md) when routes/models change, [Development
 ## Request deadlines
 
 See [Request deadlines and streaming](request-timeouts.md) for the pure-ASGI response state boundary, bounded receive ownership, cancellation/cleanup limits, and Express-aligned HTTP outcomes. It does not implement TCP header deadlines or mutation rollback guarantees.
+
+
+## Documentation conventions
+
+Reference guides describe the current supported behavior in the present tense.
+Document configuration, contracts, commands, and limitations directly, without
+implementation chronology, phase-completion notes, or descriptions of superseded
+behavior. Keep implementation plans/status in the roadmap, milestones, and backlog;
+write verification reports as final documents organized by scope, source identity,
+results, and limitations. Verification reports also avoid phase-completion narratives.
+Update related examples and links when a contract changes.

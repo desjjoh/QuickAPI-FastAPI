@@ -141,7 +141,7 @@ class _RequestDeadline:
             if error is not None and self.closed:
                 log.error(
                     "Request work failed after its response closed.",
-                    error_type=type(error).__name__,
+                    error=error,
                 )
 
     async def run_app(self) -> None:

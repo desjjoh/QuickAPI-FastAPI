@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from app.common.store.request_context import RequestContext
 from app.config.application import create_app
+from app.config.environment import settings
 
 pytestmark = pytest.mark.integration
 
@@ -18,8 +19,9 @@ def test_configured_order_is_explicit() -> None:
         cast(type[object], middleware.cls).__name__
         for middleware in app.user_middleware
     ]
-    assert names[:3] == [
+    assert names[:4] == [
         "RequestCleanupASGIMiddleware",
+        "TrustedProxyASGIMiddleware",
         "RequestContextASGIMiddleware",
         "RequestLoggingASGIMiddleware",
     ]
@@ -27,8 +29,9 @@ def test_configured_order_is_explicit() -> None:
         "CustomCORSASGIMiddleware"
     )
     assert (
-        names.index("CustomCORSASGIMiddleware")
-        < names.index("SecurityHeadersMiddleware")
+        names.index("SecurityHeadersMiddleware")
+        < names.index("RateLimitASGIMiddleware")
+        < names.index("CustomCORSASGIMiddleware")
         < names.index("RequestBodyLimitASGIMiddleware")
     )
     assert (
@@ -68,11 +71,14 @@ async def test_stack_context_logging_cleanup_cors_security_metrics(
         and response.headers["x-frame-options"] == "DENY"
     )
     assert RequestContext.get() is None
-    logger.info.assert_called()
+    logger.debug.assert_called()
     count.labels.assert_called()
 
 
-async def test_stack_body_header_and_rate_rejections() -> None:
+async def test_stack_body_header_and_rate_rejections(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "RATE_LIMIT_MAX", 12)
     app: FastAPI = create_app()
     assert (
         await request(
