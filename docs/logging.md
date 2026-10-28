@@ -65,12 +65,24 @@ back to `UnknownError`. SQLAlchemy uses `echo=False` and `hide_parameters=True`.
 
 ## Server, dependency, and bootstrap output
 
-Standard logging records pass through a privacy-safe handler. Dependency loggers use
-a WARNING minimum and the configured output threshold. Original dependency message
+Standard logging records pass through a privacy-safe handler. All dependency records
+use a WARNING minimum and the configured output threshold, including unlisted file
+watcher loggers and children that explicitly enable DEBUG. Application DEBUG output
+remains independent of this floor. Original dependency message
 text/format arguments are never formatted into application output: records use
 `Dependency log event.` or `Server event.`, plus safe exception diagnostics where
 available. Uvicorn access output is disabled because application outcomes own access
 logging. Python warnings are routed through standard logging.
+
+In development, Uvicorn's reloader uses `watchfiles.main`, which can emit DEBUG
+events such as `2 changes detected: ...` before Uvicorn filters the changed paths.
+An event can describe a non-Python file that does not trigger a reload; matching
+Python changes can trigger one. These are routine filesystem notifications, not
+warnings or evidence of application failure, and the dependency WARNING floor
+suppresses them. The generic dependency message is supplied by this application's
+handler, not by Watchfiles. Because it discards the original logger name and message,
+an existing generic line alone cannot identify its source or the changed files;
+diagnosis requires a controlled capture of the original record.
 
 Configuration errors are reported before the logger can be constructed. They identify
 invalid/missing field names without echoing supplied values or exception messages.

@@ -75,31 +75,45 @@ def test_invalid_environment_never_prints_supplied_values(environment: str) -> N
         assert "Environment validation failed" in result.stdout
 
 
-def test_dependency_threshold_and_message_privacy_in_fresh_process() -> None:
+@pytest.mark.parametrize("level", ["DEBUG", "INFO", "WARN", "ERROR"])
+def test_dependency_threshold_and_message_privacy_in_fresh_process(level: str) -> None:
     code = """
 import logging
 from app.config.logging import log
 logging.getLogger('aiosqlite').debug('private-value-never-log')
+# Reproduce unlisted reload/dependency loggers, including an explicit child level.
+for name in ('watchfiles.main', 'unlisted_dependency.child'):
+    dependency = logging.getLogger(name)
+    dependency.setLevel(logging.DEBUG)
+    dependency.debug('private-value-never-log')
+    dependency.info('private-value-never-log')
+logging.getLogger('watchfiles.main').warning('private-value-never-log')
 logging.getLogger('sqlalchemy.engine').error('private-value-never-log %s', 'private-value-never-log')
-log.debug('Hidden successful request.')
+log.debug('Successful request.')
 log.info('Application ready.')
 """
     result = subprocess.run(
         [sys.executable, "-c", code],
-        env={**os.environ, "ENV": "production", "LOG_LEVEL": "INFO"},
+        env={**os.environ, "ENV": "production", "LOG_LEVEL": level},
         capture_output=True,
         text=True,
         timeout=10,
     )
     assert result.returncode == 0 and not result.stderr
-    assert (
-        SECRET not in result.stdout and "Hidden successful request" not in result.stdout
-    )
+    assert SECRET not in result.stdout
     entries = [json.loads(line) for line in result.stdout.splitlines()]
-    assert [entry["msg"] for entry in entries] == [
-        "Dependency log event.",
-        "Application ready.",
+    dependencies = [
+        entry for entry in entries if entry["msg"] == "Dependency log event."
     ]
+    assert [entry["levelLabel"] for entry in dependencies] == (
+        ["error"] if level == "ERROR" else ["warning", "error"]
+    )
+    assert any(entry["msg"] == "Successful request." for entry in entries) == (
+        level == "DEBUG"
+    )
+    assert any(entry["msg"] == "Application ready." for entry in entries) == (
+        level in {"DEBUG", "INFO"}
+    )
 
 
 @pytest.mark.parametrize("environment", ["development", "production"])

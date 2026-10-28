@@ -191,7 +191,9 @@ class SafeDependencyHandler(logging.Handler):
 
 
 def configure_dependency_logging() -> None:
-    minimum = LOG_LEVEL_MAP[settings.LOG_LEVEL]
+    # Application DEBUG output is independent of dependency verbosity. Enforce
+    # the floor on the handler too: child loggers can set their own DEBUG level.
+    minimum = max(logging.WARNING, LOG_LEVEL_MAP[settings.LOG_LEVEL])
     logging.captureWarnings(True)
     root = logging.getLogger()
     root.setLevel(minimum)

@@ -2,6 +2,24 @@
 
 [Documentation index](../README.md#documentation)
 
+## Dependency logging filter verification
+
+Verified on 2026-10-28 with the Windows Python 3.12 environment, against base commit
+`2d19fc60440e5805d0c7b1706540281ef57678ab` and the local inputs below.
+
+The focused logging suite passes 24 tests. Ruff, Black, and mypy pass for the affected
+Python files (mypy covers the application module). Fresh-process checks at DEBUG,
+INFO, WARN, and ERROR verify that unlisted dependencies and explicitly enabled
+child loggers cannot emit DEBUG/INFO records, real warnings retain WARNING,
+errors retain ERROR, and application DEBUG/lifecycle filtering remains independent.
+Complete suites, Docker smoke, and hosted CI were not repeated for this filter change;
+the complete-suite results below belong to their recorded snapshot.
+
+| Input | SHA-256 |
+| --- | --- |
+| `app/config/logging.py` | `7cbfa7efd5338ffe0d0125ad18862dff4c2f7776d8825af6ba0bcfef6e02af9a` |
+| `tests/integration/middleware/test_logging_privacy.py` | `8de694af15ccff97554357fc1ef462193d74cac85dae2fb8ba9e2158d38da1a1` |
+
 ## Scope and source identity
 
 | Field                                           | Verified scope                                                                       |
