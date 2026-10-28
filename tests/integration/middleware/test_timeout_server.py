@@ -108,7 +108,15 @@ async def test_real_408_precedes_slow_cleanup_and_suppresses_late_response(
 @pytest.mark.parametrize("protocol", ["h11", "httptools"])
 async def test_real_stream_is_truncated_before_async_cleanup_finishes(
     protocol: Literal["h11", "httptools"],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from uuid import UUID
+
+    # Status-like digits in correlation headers must not look like a second response.
+    monkeypatch.setattr(
+        "app.common.middleware.request_context.uuid.uuid4",
+        lambda: UUID("408500ab-0000-0000-0000-000000000000"),
+    )
     app = application()
     cleaning = asyncio.Event()
     release = asyncio.Event()
@@ -139,8 +147,9 @@ async def test_real_stream_is_truncated_before_async_cleanup_finishes(
             await writer.drain()
             wire = await asyncio.wait_for(reader.read(), 2)
             assert wire.count(b"HTTP/1.1") == 1
-            assert b"200 OK" in wire and b"partial" in wire
-            assert b"408" not in wire and b"500" not in wire
+            assert wire.split(b"\r\n", 1)[0] == b"HTTP/1.1 200 OK"
+            assert b"partial" in wire
+            assert b"x-request-id: 408500ab\r\n" in wire
             assert not wire.endswith(b"0\r\n\r\n")
             await asyncio.wait_for(cleaning.wait(), 1)
             assert not cleaned.is_set()
