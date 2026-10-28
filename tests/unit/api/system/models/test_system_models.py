@@ -92,27 +92,27 @@ def test_health_response_factory_derives_status(alive: bool, status: str) -> Non
     assert response.status == status
 
 
-@pytest.mark.parametrize(
-    "data",
-    [
-        {
-            "ready": True,
-            "status": "ready",
-            "timestamp": datetime.now(),
-        },
-        {
-            "ready": True,
-            "status": "not_ready",
-            "timestamp": datetime.now(UTC),
-        },
-        {
-            "ready": True,
-            "status": "ready",
-            "timestamp": datetime.now(UTC),
-            "checks": [{"name": "database", "status": "down", "response_time_ms": 0.0}],
-        },
-    ],
-)
+INVALID_READY_DATA: list[dict[str, object]] = [
+    {
+        "ready": True,
+        "status": "ready",
+        "timestamp": datetime.now(),
+    },
+    {
+        "ready": True,
+        "status": "not_ready",
+        "timestamp": datetime.now(UTC),
+    },
+    {
+        "ready": True,
+        "status": "ready",
+        "timestamp": datetime.now(UTC),
+        "checks": [{"name": "database", "status": "down", "response_time_ms": 0.0}],
+    },
+]
+
+
+@pytest.mark.parametrize("data", INVALID_READY_DATA)
 def test_ready_response_rejects_invalid_contracts(data: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         ReadyResponse.model_validate(data)

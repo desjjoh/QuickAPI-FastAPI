@@ -12,12 +12,12 @@ Required-check enforcement is tracked under 1B/6E. See
 [Branch protections](branch-protection.md#required-check-configuration) for setup
 and verification requirements.
 
-| Phase                                                             | Scope                                                                                                    | Completion check                                                                                                         |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **1A — Environment and dependencies (complete locally)**          | Establish Python 3.12 execution; resolve conflicting pins; separate runtime and development requirements | Fresh installations and static/test checks run reproducibly; environment limitations recorded separately                 |
-| **1B — Startup and branch protections (required checks pending)** | Fix Compose configuration; verify ruleset targets, protections, and available check names                | Compose reaches readiness and serves an API request; protection settings documented without requiring nonexistent checks |
-| **1C — Request timeout correctness (complete locally)**           | Handle response-start state, streaming expiry, disconnects, cleanup, and late responses                  | No duplicate headers or late responses; focused ASGI and real-server checks pass                                         |
-| **1D — Metrics and request outcomes (complete locally)**          | Bound route labels; consistently record completion, failure, timeout, and abort                          | Varying IDs/unknown URLs cannot grow metric labels without bound; outcome tests pass                                     |
+| Phase                                                      | Scope                                                                                                    | Completion check                                                                                                         |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **1A — Environment and dependencies (complete locally)**   | Establish Python 3.12 execution; resolve conflicting pins; separate runtime and development requirements | Fresh installations and static/test checks run reproducibly; environment limitations recorded separately                 |
+| **1B — Startup and branch protections (complete locally)** | Fix Compose configuration; verify ruleset targets, protections, and available check names                | Compose reaches readiness and serves an API request; protection settings documented without requiring nonexistent checks |
+| **1C — Request timeout correctness (complete locally)**    | Handle response-start state, streaming expiry, disconnects, cleanup, and late responses                  | No duplicate headers or late responses; focused ASGI and real-server checks pass                                         |
+| **1D — Metrics and request outcomes (complete locally)**   | Bound route labels; consistently record completion, failure, timeout, and abort                          | Varying IDs/unknown URLs cannot grow metric labels without bound; outcome tests pass                                     |
 
 ### Milestone 2 — HTTP policies and operational behavior
 
@@ -26,7 +26,7 @@ and verification requirements.
 | **2A — Validated HTTP configuration (application complete locally; transport protection open)** | CORS, proxy trust, request budgets, and production defaults                                              | Invalid configuration fails startup; forwarding and browser preflight tests pass         |
 | **2B — Operational endpoint exposure (complete locally)**                                       | Configure documentation, diagnostics, and metrics availability; document unauthenticated access          | Enabled/disabled behavior matches policy; no implied protection from CORS or unused keys |
 | **2C — Bounded rate limiting (complete locally)**                                               | Client-storage limits, quota/capacity responses, retry timing, expiry, and probe policy                  | Exhaustion and recovery tests pass; process-local limits are explicit                    |
-| **2D — Logging and diagnostics (complete locally)**                                                                | Safe error detail, consistent request outcomes, readable console output, deliberate production structure | Privacy, formatting, failure, timeout, and disconnect regression checks pass             |
+| **2D — Logging and diagnostics (complete locally)**                                             | Safe error detail, consistent request outcomes, readable console output, deliberate production structure | Privacy, formatting, failure, timeout, and disconnect regression checks pass             |
 
 ### Milestone 3 — Migrations and production-like persistence
 
