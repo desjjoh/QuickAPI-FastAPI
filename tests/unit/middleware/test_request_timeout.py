@@ -242,9 +242,12 @@ async def test_cancellation_resistant_late_work_is_observed_without_late_respons
             await asyncio.sleep(0)
             if logger.error.called:
                 break
-    logger.error.assert_called_once_with(
-        "Request work failed after its response closed.", error_type="ValueError"
+    logger.error.assert_called_once()
+    assert (
+        logger.error.call_args.args[0]
+        == "Request work failed after its response closed."
     )
+    assert isinstance(logger.error.call_args.kwargs["error"], ValueError)
     assert len(transport.sent) == 2
 
 

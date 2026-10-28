@@ -39,9 +39,8 @@ CORS_ORIGINS="http://localhost:3000,http://localhost:5173"
 ```
 
 Production must configure its actual frontend origins when browser access is needed.
-The localhost default is identical in all environments and replaces the previous
-wildcard. Allowed origins receive origin-specific response headers and `Vary: Origin`.
-Disallowed origins/method/header preflights retain the existing 403 envelope. Requests
+The localhost default is identical in all environments. Allowed origins receive origin-specific response headers and `Vary: Origin`.
+Disallowed origins/method/header preflights receive the JSON 403 error envelope. Requests
 without Origin remain valid and receive no CORS response headers. Configured request
 headers also pass the application's sanitizer, which otherwise retains its existing
 base allowlist and protocol restrictions. Listing `set-cookie` does not make that
@@ -101,7 +100,7 @@ convert to seconds only when configuring the existing Python timeout middleware;
 [response/stream/cancellation behavior](request-timeouts.md) is unchanged.
 
 Header byte accounting remains name + value, excluding wire framing. Parsed-header
-budgets now run before CORS preflight short-circuiting and before sanitizer filtering,
+budgets run before CORS preflight short-circuiting and before sanitizer filtering,
 so unknown headers cannot evade the limits by being dropped. Trusted proxy handling
 consumes headers only after the original count/size budgets pass. This protects the
 application policy boundary; a server may reject a request before ASGI with its own
@@ -113,7 +112,8 @@ only a non-empty subset of these methods. `HTTP_ALLOWED_CONTENT_TYPES` defaults 
 parameters or wildcards. Existing route validation and body-method rules remain:
 allowing a media type does not change an item's JSON schema or make no-body methods
 accept bodies. Chunked transfer and unsafe-header restrictions remain code policy.
-Rate-limit configuration/algorithm changes belong to phase 2C.
+[Rate limiting](rate-limiting.md) defines the three validated rolling-window settings,
+combined storage bound, response timing, and probe/preflight policy.
 
 ## Server receive protection boundary
 
@@ -130,7 +130,7 @@ the deployment backlog; application settings alone do not complete that guarante
 
 ## Operational availability
 
-[Operational exposure](operational-exposure.md) adds `DOCS_ENABLED`,
+[Operational exposure](operational-exposure.md) is controlled by `DOCS_ENABLED`,
 `DIAGNOSTICS_ENABLED`, and `METRICS_ENABLED`. These optional strict booleans default
 on in development/test and off in production; commented env examples show production
 values. They control availability, not authentication. Public probes remain minimal

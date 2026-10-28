@@ -24,7 +24,7 @@ async def test_emitted_level_and_fields(
     await invoke(
         RequestLoggingASGIMiddleware(app), http_scope(method="GET", path="/hello")
     )
-    message = logger.info.call_args.args[0]
+    message = logger.debug.call_args.args[0]
     assert (
         "200" in message
         and "GET" in message

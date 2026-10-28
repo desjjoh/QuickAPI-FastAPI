@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI
 
 from app.common.handlers.lifecycle_handler import ReadinessCheckResult
+from app.common.store.rate_limit import RateLimitDecision
 from app.config.application import create_app
 from app.config.environment import Settings, settings
 from app.config.metrics import REQUEST_COUNT
@@ -37,7 +38,8 @@ def application(
     for key in (*FLAGS, "ENV"):
         monkeypatch.setattr(settings, key, getattr(policy, key))
     monkeypatch.setattr(
-        "app.config.rate_limiter.RateLimiter.allow", Mock(return_value=True)
+        "app.config.rate_limiter.RateLimiter.admit",
+        Mock(return_value=RateLimitDecision(allowed=True)),
     )
     return create_app()
 

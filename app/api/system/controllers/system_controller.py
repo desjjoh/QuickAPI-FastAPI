@@ -25,7 +25,7 @@ _favicon_path: Path = Path(__file__).resolve().parents[3] / "public" / "favicon.
 
 
 ## GET /favicon.ico
-@router.get("/favicon.ico", include_in_schema=False)
+@router.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
 async def favicon() -> FileResponse:
     return FileResponse(_favicon_path, media_type="image/x-icon")
 

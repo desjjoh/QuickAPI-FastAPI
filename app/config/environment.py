@@ -1,8 +1,12 @@
+import json
+import os
 import re
 import sys
+from datetime import UTC, datetime
 from typing import Annotated, Literal, NoReturn, Self, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from dotenv import dotenv_values
 from pydantic import (
     AnyHttpUrl,
     Field,
@@ -15,6 +19,15 @@ from pydantic_core import ErrorDetails
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from app.config.http_policy import FORBIDDEN_HEADERS, HTTP_METHODS, proxy_network
+from app.config.rate_limit_policy import (
+    DEFAULT_MAX_CLIENTS,
+    DEFAULT_MAX_REQUESTS,
+    DEFAULT_WINDOW_MS,
+    ClientCapacity,
+    RateLimitPolicy,
+    RequestCapacity,
+    WindowMilliseconds,
+)
 
 StringList = Annotated[list[str], NoDecode]
 
@@ -74,6 +87,10 @@ class Settings(BaseSettings):
     CORS_CREDENTIALS: bool = True
     CORS_MAX_AGE_SECONDS: int = Field(86_400, ge=0, le=86_400)
     TRUST_PROXY: StringList = Field(default_factory=list, max_length=100)
+
+    RATE_LIMIT_WINDOW_MS: WindowMilliseconds = DEFAULT_WINDOW_MS
+    RATE_LIMIT_MAX: RequestCapacity = DEFAULT_MAX_REQUESTS
+    RATE_LIMIT_MAX_CLIENTS: ClientCapacity = DEFAULT_MAX_CLIENTS
 
     REQUEST_TIMEOUT_MS: int = Field(10_000, ge=1, le=2_147_483_647)
     REQUEST_FIRST_BODY_TIMEOUT_MS: int = Field(5_000, ge=1, le=2_147_483_647)
@@ -203,6 +220,9 @@ class Settings(BaseSettings):
         raise ValueError("must be true or false")
 
     @field_validator(
+        "RATE_LIMIT_WINDOW_MS",
+        "RATE_LIMIT_MAX",
+        "RATE_LIMIT_MAX_CLIENTS",
         "REQUEST_TIMEOUT_MS",
         "REQUEST_FIRST_BODY_TIMEOUT_MS",
         "REQUEST_CHUNK_TIMEOUT_MS",
@@ -234,6 +254,11 @@ class Settings(BaseSettings):
             raise ValueError("body wait deadlines must not exceed REQUEST_TIMEOUT_MS")
         if not set(self.CORS_METHODS).issubset(self.HTTP_ALLOWED_METHODS):
             raise ValueError("CORS_METHODS must be a subset of HTTP_ALLOWED_METHODS")
+        RateLimitPolicy(
+            window_ms=self.RATE_LIMIT_WINDOW_MS,
+            max_requests=self.RATE_LIMIT_MAX,
+            max_clients=self.RATE_LIMIT_MAX_CLIENTS,
+        )
         return self
 
     @field_validator("API_PUBLISHED_PORT", "MYSQL_PUBLISHED_PORT", mode="before")
@@ -283,35 +308,42 @@ def load_settings() -> Settings:
 def print_env_error_and_exit(err: ValidationError) -> NoReturn:
     red = "\033[91m"
     reset = "\033[0m"
-    bold = "\033[1m"
     yellow = "\033[93m"
     dark_green = '\x1b[2m\x1b[32m'
 
     errors: list[ErrorDetails] = err.errors()
 
-    print(
-        f"\n{red}❌ {bold}Environment validation failed! ({len(errors)} issues){reset}\n"
-    )
-
     loc_names: list[str] = [
-        ".".join(str(x) for x in issue.get("loc", [])) for issue in errors
+        ".".join(str(x) for x in issue.get("loc", [])) or "configuration"
+        for issue in errors
     ]
+    mode = os.environ.get("ENV")
+    if mode is None:
+        mode = dotenv_values(".env").get("ENV")
+    if mode == "production":
+        print(
+            json.dumps(
+                {
+                    "time": datetime.now(UTC)
+                    .isoformat(timespec="milliseconds")
+                    .replace("+00:00", "Z"),
+                    "levelLabel": "critical",
+                    "msg": "Environment validation failed.",
+                    "fields": loc_names,
+                }
+            )
+        )
+        sys.exit(1)
+
+    print(f"\n{red}Environment validation failed! ({len(errors)} issues){reset}\n")
     max_len: int = max(len(name) for name in loc_names)
 
-    for issue, name in zip(errors, loc_names):
-        msg: str = issue.get("msg", "Invalid value")
-
-        if issue.get("type") == "missing" or "input" not in issue:
-            received_repr = "undefined"
-        else:
-            received_repr = repr(issue["input"])
-
+    for name in loc_names:
         print(
-            f"  - {yellow}{name.ljust(max_len)}{reset}  → "
-            f"{msg}, (received: {red}{received_repr}{reset})"
+            f"  - {yellow}{name.ljust(max_len)}{reset}  - Invalid or missing configuration value."
         )
 
-    print(f"\n{dark_green}Fix the fields above and restart the application…{reset}\n")
+    print(f"\n{dark_green}Fix the fields above and restart the application...{reset}\n")
     sys.exit(1)
 
 

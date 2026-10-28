@@ -6,6 +6,7 @@ import pytest
 from fastapi import Request
 
 from app.common.middleware.request_timeout import RequestTimeoutASGIMiddleware
+from app.common.store.rate_limit import RateLimitDecision
 from app.common.store.request_context import RequestContext
 from app.config.application import create_app
 from app.config.environment import settings
@@ -147,8 +148,8 @@ async def test_real_proxy_identity_shared_by_context_and_limiter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "TRUST_PROXY", ["127.0.0.0/8"] if trusted else [])
-    limiter = Mock(return_value=True)
-    monkeypatch.setattr("app.config.rate_limiter.RateLimiter.allow", limiter)
+    limiter = Mock(return_value=RateLimitDecision(allowed=True))
+    monkeypatch.setattr("app.config.rate_limiter.RateLimiter.admit", limiter)
     app = create_app()
 
     @app.get("/identity")
@@ -179,7 +180,7 @@ async def test_real_proxy_identity_shared_by_context_and_limiter(
                 limiter.assert_called_once_with("198.51.100.8")
             else:
                 assert result.status_code == 400
-                limiter.assert_not_called()
+                limiter.assert_called_once_with("127.0.0.1")
 
 
 @pytest.mark.parametrize("protocol", ["h11", "httptools"])

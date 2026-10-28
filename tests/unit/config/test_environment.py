@@ -341,7 +341,8 @@ def test_example_optional_http_values_match_code_defaults(
     keys = {
         key
         for key in Settings.model_fields
-        if key.startswith(("CORS_", "HTTP_", "REQUEST_")) or key == "TRUST_PROXY"
+        if key.startswith(("CORS_", "HTTP_", "REQUEST_", "RATE_LIMIT_"))
+        or key == "TRUST_PROXY"
     }
     assert keys <= overrides.keys()
     assert all(getattr(documented, key) == getattr(defaults, key) for key in keys)
@@ -392,3 +393,59 @@ def test_explicit_null_is_not_an_operational_default(
     values = settings(monkeypatch).model_dump()
     with pytest.raises(ValidationError):
         Settings.model_validate({**values, key: None})
+
+
+RATE_NUMBERS = {
+    "RATE_LIMIT_WINDOW_MS": (60000, 1, 86400000),
+    "RATE_LIMIT_MAX": (200, 1, 10000),
+    "RATE_LIMIT_MAX_CLIENTS": (10000, 1, 100000),
+}
+
+
+def test_rate_limit_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = settings(monkeypatch)
+    assert all(
+        getattr(result, key) == default for key, (default, _, _) in RATE_NUMBERS.items()
+    )
+
+
+@pytest.mark.parametrize("key", RATE_NUMBERS)
+@pytest.mark.parametrize(
+    "value", ["", " ", "0", "-1", "1.5", "NaN", "Infinity", "true", "1e3"]
+)
+def test_rate_limit_invalid_values(
+    monkeypatch: pytest.MonkeyPatch, key: str, value: str
+) -> None:
+    with pytest.raises(ValidationError):
+        settings(monkeypatch, **{key: value})
+
+
+@pytest.mark.parametrize("key", RATE_NUMBERS)
+def test_rate_limit_boundaries(monkeypatch: pytest.MonkeyPatch, key: str) -> None:
+    _, lower, upper = RATE_NUMBERS[key]
+    base = {"RATE_LIMIT_MAX": "1", "RATE_LIMIT_MAX_CLIENTS": "1"}
+    for value in [lower, upper]:
+        assert getattr(settings(monkeypatch, **{**base, key: str(value)}), key) == value
+    with pytest.raises(ValidationError):
+        settings(monkeypatch, **{**base, key: str(upper + 1)})
+
+
+@pytest.mark.parametrize("value", [True, 1.5, float("nan"), float("inf")])
+@pytest.mark.parametrize("key", RATE_NUMBERS)
+def test_rate_limit_python_types_are_strict(
+    monkeypatch: pytest.MonkeyPatch, key: str, value: object
+) -> None:
+    values = settings(monkeypatch).model_dump()
+    with pytest.raises(ValidationError):
+        Settings.model_validate({**values, key: value})
+
+
+def test_rate_limit_combined_storage_bound(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert (
+        settings(
+            monkeypatch, RATE_LIMIT_MAX="10000", RATE_LIMIT_MAX_CLIENTS="200"
+        ).RATE_LIMIT_MAX_CLIENTS
+        == 200
+    )
+    with pytest.raises(ValidationError):
+        settings(monkeypatch, RATE_LIMIT_MAX="201", RATE_LIMIT_MAX_CLIENTS="10000")

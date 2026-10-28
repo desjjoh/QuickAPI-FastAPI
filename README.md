@@ -32,15 +32,17 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Development](docs/development.md) | Setup, configuration, database selection, and local commands |
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
+| [Logging](docs/logging.md) | Console/JSON output, levels, request correlation, and safe diagnostics |
+| [Rate limiting](docs/rate-limiting.md) | Bounded rolling windows, storage capacity, retry timing, and probe policy |
 | [Operational exposure](docs/operational-exposure.md) | Docs/diagnostic/metrics flags, production defaults, and minimal probes |
 | [HTTP configuration](docs/http-policy.md) | Defaults, env overrides, CORS, proxy trust, and request budgets |
 | [Request deadlines](docs/request-timeouts.md) | Timeout, streaming, disconnect, and cleanup behavior |
 | [Testing](docs/testing.md) | Test layers, isolation, coverage gates, CI, and verification limits |
-| [Branch protections](docs/branch-protection.md) | Verified rulesets, existing hosted checks, and remaining manual configuration |
+| [Branch protections](docs/branch-protection.md) | Major-branch policy, check contexts, and required-check configuration |
 | [Deployment and operations](docs/deployment.md) | Container commands, probes, diagnostics, persistence, and recovery |
 | [Technical backlog](docs/backlog.md) | Confirmed gaps and deliberately deferred work |
 
-See the [Express parity roadmap](docs/roadmap.md) and [milestone list](docs/milestones.md) for phased repairs, MySQL/migration work, API alignment, and production/release verification. Phase 1A results are recorded in [Verification](docs/verification.md).
+Implementation plans and status are maintained in the [roadmap](docs/roadmap.md), [milestone list](docs/milestones.md), and [technical backlog](docs/backlog.md). Dated execution evidence is recorded in [Verification](docs/verification.md).
 
 Configuration examples live in [.env.example](.env.example), validation in [app/config/environment.py](app/config/environment.py), dependencies in [requirements.txt](requirements.txt), and CI commands in [.github/workflows/tests.yml](.github/workflows/tests.yml).
 
@@ -53,7 +55,7 @@ Configuration examples live in [.env.example](.env.example), validation in [app/
 | Runtime diagnostics | `/info` and `/system` |
 | Prometheus metrics | `/metrics` |
 
-Routes currently have no application authentication. This service does not implement the account, article, or authorization contracts of QuickAPI-NestJS.
+Routes have no application authentication. This service does not implement the account, article, or authorization contracts of QuickAPI-NestJS.
 
 ## Quality checks
 

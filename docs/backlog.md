@@ -2,15 +2,17 @@
 
 [Documentation index](../README.md#documentation)
 
-The [Express parity roadmap](roadmap.md) defines the agreed sequence, scope, and testable completion conditions. Phases 1A, 1C, and 1D are complete locally; see [Verification](verification.md). Entries below are remaining work, using the expanded phase numbers in [Milestones](milestones.md). Reverify current source before implementation. Remove completed entries and record behavior/evidence in the relevant guide or CI record.
+The [roadmap](roadmap.md) and [milestone list](milestones.md) define implementation
+order and acceptance criteria. This backlog contains unresolved requirements using
+their phase identifiers. Dated results belong to [Verification](verification.md);
+reference guides describe supported behavior.
 
-## Sequence note — timeout work completed ahead of order
+## Branch-check enforcement
 
-Phase **1C — Request timeout correctness** was completed ahead of **1B — Startup and branch protections** after using the timeout phase's number from the earlier outline. Keep the implemented changes; no rollback is planned.
-
-The completed work covers response-state tracking, one pre-header JSON 408, interrupted streams without replacement responses, disconnect/cancellation handling, bounded body-message ownership, tracked cleanup/late failures, and the `first_body_timeout` rename. Real Uvicorn socket checks and the follow-up Pylance typing fixes are recorded in [Verification](verification.md); behavior and limitations live in [Request deadlines](request-timeouts.md).
-
-**Remaining phase 1B work: save and verify required status checks.** Compose startup/MySQL persistence are verified locally, the structural rules match Express, and existing hosted check names are confirmed. Adding those six checks still requires the [manual GitHub setting](branch-protection.md#remaining-manual-setting). Phase 1D is now complete locally; continue with milestone 2 after the remaining setting is verified. Do not repeat 1C. Database rollback, running-SQL cancellation, and application shutdown draining remain in their later phases.
+Save and verify the six required GitHub checks according to
+[the configuration guide](branch-protection.md#required-check-configuration).
+Repository workflow definitions and local runtime checks do not establish that a
+remote ruleset enforces those contexts for a candidate pull request.
 
 ## Foundation and server work
 
@@ -18,12 +20,11 @@ The completed work covers response-state tracking, one pre-header JSON 408, inte
 | --- | --- |
 | Save and verify the six confirmed required checks in GitHub; structural rules/check inventory already verified | 1B, 6E |
 | True server/ingress header/whole-upload receive protection and deployed proxy/direct-port verification; application HTTP configuration is implemented locally | 2A deployment boundary, 8 |
-| Bounded rate-limit storage, capacity/quota responses, retry timing, probe policy | 2C |
 | Alembic baseline, explicit migrations, pending/history/drift checks | 3A, 3C |
 | Guarded disposable MySQL integration/E2E infrastructure and required CI checks | 3B |
 | Representative-data upgrades/backfills and supported migration/application rollback evidence | 3C and every later schema change |
 | Pool/queue capacity, acquisition/connect budgets, TLS policy, readiness outage/recovery | 3D, 3E |
-| Safe logging/diagnostics (including third-party debug output at ERROR); shutdown admission, drain, cleanup, final deadline | 2D, 4A |
+| Shutdown admission, drain, cleanup, and final deadline | 4A |
 
 ## Item contracts and persistence
 

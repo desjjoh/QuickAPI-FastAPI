@@ -69,10 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         yield
 
     except Exception as exc:
-        error_type: str = exc.__class__.__name__
-        error_msg: str = getattr(exc, "msg", None) or str(exc).split("\n")[0]
-
-        log.error(f"{error_type} — {error_msg}", exception=exc)
+        log.error("Application runtime failed.", error=exc)
 
         log.critical('Unhandled fatal error during server runtime — forcing exit')
 
@@ -136,16 +133,6 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(
-        RateLimitASGIMiddleware,
-        limiter=RateLimiter(
-            max_burst=10,
-            burst_window=5,
-            max_sustained=100,
-            sustained_period=60,
-        ),
-    )
-
-    app.add_middleware(
         MethodWhitelistASGIMiddleware,
         allowed_methods=set(settings.HTTP_ALLOWED_METHODS),
     )
@@ -166,7 +153,6 @@ def create_app() -> FastAPI:
         route_overrides=[],
     )
 
-    app.add_middleware(SecurityHeadersMiddleware, docs_enabled=settings.DOCS_ENABLED)
     app.add_middleware(
         CustomCORSASGIMiddleware,
         origin=settings.CORS_ORIGINS,
@@ -176,6 +162,17 @@ def create_app() -> FastAPI:
         credentials=settings.CORS_CREDENTIALS,
         max_age=settings.CORS_MAX_AGE_SECONDS,
     )
+
+    app.add_middleware(
+        RateLimitASGIMiddleware,
+        limiter=RateLimiter(
+            window_ms=settings.RATE_LIMIT_WINDOW_MS,
+            max_requests=settings.RATE_LIMIT_MAX,
+            max_clients=settings.RATE_LIMIT_MAX_CLIENTS,
+        ),
+    )
+
+    app.add_middleware(SecurityHeadersMiddleware, docs_enabled=settings.DOCS_ENABLED)
 
     app.add_middleware(
         RequestHeaderLimitASGIMiddleware,

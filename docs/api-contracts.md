@@ -59,7 +59,7 @@ FastAPI's default validation schema with this contract.
 
 JSON mutations should send `Content-Type: application/json`. Middleware may reject requests before routing for body/header limits, content type, method, rate, or timeout policies. [Application assembly](../app/config/application.py) defines active limits and CORS policy; [Architecture](architecture.md#request-lifecycle-and-middleware-order) records their order.
 
-The process-local limiter allows a burst of 10 per 5 seconds and a sustained token bucket with capacity 100 refilling over 60 seconds. It also wraps operational routes. Handle 429 responses.
+The process-local limiter defaults to 200 admitted requests in the preceding 60 seconds per resolved client, with bounded client storage. Quota exhaustion returns 429; new identities at storage capacity receive 503. Both include positive `Retry-After` and the existing error envelope. Operational routes and preflights share the quota; favicon GET/HEAD is exempt. See [rate limiting](rate-limiting.md) for settings, response details, and process/CORS boundaries.
 
 Repository mutations commit before returning. No optimistic concurrency token, idempotency-key contract, or replay protection exists. Avoid automatic mutation retries unless the caller can reconcile an uncertain result. Implement and test guarantees before documenting them.
 
@@ -69,7 +69,6 @@ Operational payloads and access boundaries are documented in [Deployment](deploy
 ## Public readiness
 
 `GET /ready` returns only `ready`, `status`, and UTC `timestamp`, with HTTP 200 or
-503 according to startup/dependency health. The previous public `checks` array is
-removed in phase 2B; dependency names and timings are not part of the public probe
-contract. `/health` remains a separate dependency-free liveness check. Operational
+503 according to startup/dependency health. Dependency names and timings are not
+part of the public probe contract. `/health` remains a separate dependency-free liveness check. Operational
 exposure flags do not disable either probe.

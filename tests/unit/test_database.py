@@ -29,7 +29,9 @@ class CreateEngineTest(unittest.TestCase):
         ):
             engine = database.create_engine()
 
-        create_async_engine.assert_called_once_with(configured_url, echo=False)
+        create_async_engine.assert_called_once_with(
+            configured_url, echo=False, hide_parameters=True
+        )
         self.assertIs(engine, create_async_engine.return_value)
 
 

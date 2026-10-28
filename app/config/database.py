@@ -17,7 +17,7 @@ class Base(DeclarativeBase):
 
 
 def create_engine() -> AsyncEngine:
-    return create_async_engine(settings.DATABASE_URL, echo=False)
+    return create_async_engine(settings.DATABASE_URL, echo=False, hide_parameters=True)
 
 
 engine: AsyncEngine = create_engine()

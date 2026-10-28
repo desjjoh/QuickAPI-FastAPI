@@ -3,9 +3,7 @@ import sys
 import uvicorn
 
 from app.config.environment import settings
-
-red = "\033[91m"
-bold = "\033[1m"
+from app.config.logging import log
 
 
 def main() -> None:
@@ -25,11 +23,8 @@ def run() -> None:
     try:
         main()
 
-    except Exception:
-        print(
-            f"{red}❌ {bold}Fatal error during server initialization — forcing exit\n"
-        )
-
+    except Exception as exc:
+        log.critical("Fatal error during server initialization.", error=exc)
         sys.exit(1)
 
 
