@@ -23,7 +23,7 @@ Use Python 3.12. Docker Engine is needed for container verification.
 
 For the complete local container stack, run `docker compose up --build -d --wait`; the container API is at `http://127.0.0.1:8000`. Compose overrides the native database URL, bind address, port, and mode for its internal topology. See [local Compose](docs/development.md#local-compose).
 
-The native Python example binds port **5000**. Swagger UI is at `/docs`, ReDoc at `/redoc`, and OpenAPI JSON at `/openapi.json`. See [Development](docs/development.md) for shell-specific commands and configuration.
+The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, Swagger UI is at `/docs`, ReDoc at `/redoc`, and OpenAPI JSON at `/openapi.json`. See [Development](docs/development.md) for shell-specific commands and configuration.
 
 ## Documentation
 
@@ -32,6 +32,7 @@ The native Python example binds port **5000**. Swagger UI is at `/docs`, ReDoc a
 | [Development](docs/development.md) | Setup, configuration, database selection, and local commands |
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
+| [Operational exposure](docs/operational-exposure.md) | Docs/diagnostic/metrics flags, production defaults, and minimal probes |
 | [HTTP configuration](docs/http-policy.md) | Defaults, env overrides, CORS, proxy trust, and request budgets |
 | [Request deadlines](docs/request-timeouts.md) | Timeout, streaming, disconnect, and cleanup behavior |
 | [Testing](docs/testing.md) | Test layers, isolation, coverage gates, CI, and verification limits |

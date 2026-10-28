@@ -6,7 +6,7 @@
 
 Use Python 3.12 and inject required settings from [Development](development.md#configuration). The image installs runtime-only [requirements.txt](../requirements.txt), checks dependency consistency, and copies application code; `.env` is excluded. Development tools are installed separately from `requirements-dev.txt` for local/CI checks. Use `ENV=production` to disable reload and align listening/published ports and probes.
 
-Domain, diagnostics, metrics, and API documentation endpoints have no application authentication. Apply the consuming service's network/authentication boundary. CORS currently allows all origins with credentials and is not a trust boundary. The rate limiter is process-local; workers/replicas do not share state.
+Domain routes and any enabled operational endpoints have no application authentication. Documentation, diagnostics, and metrics default off in production; see [exposure controls](operational-exposure.md). Apply the consuming service's network/authentication boundary. CORS uses configured exact origins and is not an authentication boundary. The rate limiter is process-local; workers/replicas do not share state.
 
 ## Production container validation
 
@@ -42,7 +42,9 @@ FastAPI's lifespan starts registered services before the app becomes ready. The
 database service creates/checks its schema, readiness requires startup completion
 and healthy registered services, and shutdown stops only successfully started
 services in reverse order. Partial startup failure rolls back already-started
-services. The unversioned operational surface is:
+services. The unversioned operational surface is shown below. `/info` and `/system` require
+`DIAGNOSTICS_ENABLED`; `/metrics` requires `METRICS_ENABLED`. Both flags default off
+in production, and enabling them supplies no authentication.
 
 | Route          | Purpose                                                                 |
 | -------------- | ----------------------------------------------------------------------- |
@@ -55,10 +57,10 @@ services. The unversioned operational surface is:
 
 Liveness and readiness are intentionally different. A failed liveness probe means
 the process should be restarted. A failed readiness probe returns HTTP 503 and
-means the running process should temporarily receive no application traffic. The
-`database` entry in `ready.checks` is the registered database service's bounded
-health check; it reports `up` only after startup and a successful database probe.
-It is also summarized as `db` by `/system`.
+means the running process should temporarily receive no application traffic. Readiness still performs bounded dependency checks internally, but its public
+response omits dependency names/timings in every environment. `/system` retains its
+existing `db` summary when diagnostics are enabled. See the
+[readiness compatibility change](operational-exposure.md#public-probes-and-readiness-compatibility-change).
 
 Representative, contract-complete JSON responses are shown below (timestamps,
 host values, timings, and resource measurements naturally vary):
@@ -86,8 +88,7 @@ host values, timings, and resource measurements naturally vary):
 {
   "ready": true,
   "status": "ready",
-  "timestamp": "2026-09-01T12:00:00Z",
-  "checks": [{ "name": "database", "status": "up", "response_time_ms": 1.2 }]
+  "timestamp": "2026-09-01T12:00:00Z"
 }
 ```
 

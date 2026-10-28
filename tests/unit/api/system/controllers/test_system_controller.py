@@ -43,8 +43,7 @@ async def test_ready_probe_returns_the_contract_when_ready() -> None:
     assert response.status_code == status.HTTP_200_OK
     assert body["ready"] is True
     assert body["status"] == "ready"
-    assert body["checks"][0]["name"] == "dependency"
-    assert body["checks"][0]["status"] == "up"
+    assert set(body) == {"ready", "status", "timestamp"}
     assert body["timestamp"].endswith("Z")
 
 
@@ -64,4 +63,4 @@ async def test_ready_probe_returns_same_contract_during_incomplete_startup_or_sh
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert body["ready"] is False
     assert body["status"] == "not_ready"
-    assert body["checks"][0]["status"] == "up"
+    assert set(body) == {"ready", "status", "timestamp"}

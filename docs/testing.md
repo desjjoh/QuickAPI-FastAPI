@@ -106,3 +106,15 @@ raw-header and body/method rejection, and six real Uvicorn socket cases across h
 and httptools for trusted/untrusted identity and configured response deadlines.
 The socket harness disables Uvicorn proxy rewriting to exercise app-owned trust.
 Deployment-specific slow-header protection remains unverified and open.
+
+
+## Operational exposure regression coverage
+
+[Operational integration tests](../tests/integration/middleware/test_operational_exposure.py)
+exercise environment defaults, all eight independent flag combinations, disabled route
+families/methods/assets/redirects, mounted paths, forwarding behavior, handler non-execution,
+per-app route isolation, registered OpenAPI paths, continued metric collection, and
+minimal public probes with dependencies up/down. Two real-server cases cover production
+defaults across h11/httptools. Environment tests also reject ambiguous flag values and
+verify explicit overrides. Existing controller/model/E2E/OpenAPI checks now require the
+minimal readiness contract rather than accepting a diagnostic `checks` array.

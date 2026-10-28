@@ -126,3 +126,12 @@ Uvicorn keep-alive timing is also not a header-receive timeout. No ineffective
 True header/whole-upload receive protection requires a supported server or the
 selected ingress. Configuration and real slow-client verification remain open in
 the deployment backlog; application settings alone do not complete that guarantee.
+
+
+## Operational availability
+
+[Operational exposure](operational-exposure.md) adds `DOCS_ENABLED`,
+`DIAGNOSTICS_ENABLED`, and `METRICS_ENABLED`. These optional strict booleans default
+on in development/test and off in production; commented env examples show production
+values. They control availability, not authentication. Public probes remain minimal
+and independent. All three use the same process/dotenv precedence described above.

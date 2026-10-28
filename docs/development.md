@@ -115,7 +115,7 @@ systems should inject secrets and configuration instead of baking them into imag
 
 ## Runtime behavior and troubleshooting
 
-The example uses port 5000 and `ENV=development`, which enables Uvicorn reload. Test/production modes disable reload. Open `http://localhost:5000/docs`, `/redoc`, or `/openapi.json` for the API schema. The versioned collection is `/api/v1/items/`.
+The example uses port 8000 and `ENV=development`, which enables Uvicorn reload. Test/production modes disable reload. Open `http://localhost:8000/docs`, `/redoc`, or `/openapi.json` when `DOCS_ENABLED` is enabled. The versioned collection is `/api/v1/items/`.
 
 `DEBUG`, `WORKERS`, and `METRICS_API_KEY` are not consumed settings. Setting a metrics key does not protect `/metrics`. [Settings validation](../app/config/environment.py) is the source of truth.
 
@@ -125,3 +125,14 @@ The example uses port 5000 and `ENV=development`, which enables Uvicorn reload. 
 - Container configuration differs from local startup: `.env` is excluded from the image. Follow [Deployment](deployment.md).
 
 Startup creates missing tables but does not migrate existing schemas; see [Architecture](architecture.md#persistence-and-migrations). Quality commands and fixture isolation are documented in [Testing](testing.md).
+
+
+## Operational endpoint overrides
+
+[Exposure controls](operational-exposure.md) default docs/diagnostics/metrics on in
+development/test and off in production. Commented `DOCS_ENABLED=false`,
+`DIAGNOSTICS_ENABLED=false`, and `METRICS_ENABLED=false` examples show production
+defaults; leave them commented to retain environment-dependent defaults. Compose
+runs the API in production mode, so explicit local overrides are needed for container
+docs/diagnostics/metrics. Keep these variables/comments synchronized with `.env.example`.
+Public liveness/readiness remain available; readiness never includes dependency details.

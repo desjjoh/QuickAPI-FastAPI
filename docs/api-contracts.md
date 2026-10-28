@@ -4,7 +4,7 @@
 
 ## Scope and source of truth
 
-The running app exposes `/docs`, `/redoc`, and `/openapi.json`. Contracts live in the [item controller](../app/api/v1/items/controllers/item_controller.py), [item models](../app/api/v1/items/models), and [shared models](../app/common/models). No account, authentication, or article routes are implemented.
+When `DOCS_ENABLED=true`, the app exposes `/docs`, `/redoc`, and `/openapi.json`; documentation defaults off in production. The schema reflects the registered endpoint surface. See [operational exposure](operational-exposure.md). Contracts live in the [item controller](../app/api/v1/items/controllers/item_controller.py), [item models](../app/api/v1/items/models), and [shared models](../app/common/models). No account, authentication, or article routes are implemented.
 
 ## Items
 
@@ -64,3 +64,12 @@ The process-local limiter allows a burst of 10 per 5 seconds and a sustained tok
 Repository mutations commit before returning. No optimistic concurrency token, idempotency-key contract, or replay protection exists. Avoid automatic mutation retries unless the caller can reconcile an uncertain result. Implement and test guarantees before documenting them.
 
 Operational payloads and access boundaries are documented in [Deployment](deployment.md#application-lifespan-and-operational-endpoints).
+
+
+## Public readiness
+
+`GET /ready` returns only `ready`, `status`, and UTC `timestamp`, with HTTP 200 or
+503 according to startup/dependency health. The previous public `checks` array is
+removed in phase 2B; dependency names and timings are not part of the public probe
+contract. `/health` remains a separate dependency-free liveness check. Operational
+exposure flags do not disable either probe.

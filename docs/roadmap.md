@@ -52,6 +52,16 @@ changes, and external-server requirements. True slow-header/whole-upload receive
 protection remains an explicit deployment task; phase 2A does not claim that the
 application deadlines provide it. See [Verification](verification.md).
 
+## 2B. Operational endpoint exposure
+
+Complete locally. Optional docs/diagnostics/metrics flags follow Express defaults:
+on in development/test, off in production, with independent strict boolean overrides.
+Disabled handlers are unregistered and their path families return normal 404s. Public
+probes remain available; readiness no longer exposes dependency names/timings. Metric
+collection continues when HTTP exposition is disabled. See [operational exposure](operational-exposure.md)
+for the readiness compatibility change and required deployed access restrictions,
+and [Verification](verification.md) for local evidence.
+
 ## Working decisions
 
 - Use Express and NestJS as references for behavior and quality. Prefer native FastAPI/Pydantic/SQLAlchemy/Uvicorn mechanisms where they satisfy the same requirements.

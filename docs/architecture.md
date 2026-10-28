@@ -43,7 +43,7 @@ inbound order is:
 request outcome → server error handler → cleanup → trusted proxy → request context
 → request logging → metrics → header limits → CORS → security headers
 → body limit → content type → header sanitization
-→ method allowlist → rate limit → timeout → routing/controller
+→ method allowlist → rate limit → timeout → operational exposure → routing/controller
 ```
 
 Responses unwind through the same layers in reverse. This is intentional:
@@ -75,6 +75,10 @@ unchanged, with `ABORTED` in the status position for incomplete responses.
 
 [HTTP configuration](http-policy.md) defines defaults, environment overrides,
 validation, proxy ownership, and the separate server receive-protection boundary.
+
+[Operational exposure](operational-exposure.md) controls per-app route registration
+and reserves disabled path families. Native docs are installed only when enabled.
+Public readiness serializes no dependency details; internal service checking remains.
 
 ## Persistence and migrations
 

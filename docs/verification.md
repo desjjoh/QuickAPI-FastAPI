@@ -293,3 +293,81 @@ Broader logging/privacy and endpoint-exposure work remain in their scheduled pha
 | `tests/unit/config/test_environment.py` | `b59d16c26ebd3493169c45b037290ccc7e0aab7adfaa5e82584297e410e84b00` |
 | `tests/unit/middleware/test_trusted_proxy.py` | `4db073b4bc3229ba887df662e105e051cf77bed4b12d2b9272e548e4f8faff15` |
 | `tests/integration/middleware/test_http_policy.py` | `9ac2209fbf963a456e155a6099eaee280896e1fe098110c1cb6158e758a6eebe` |
+
+
+## Phase 2B - Operational endpoint exposure
+
+Verified on 2026-10-27 against the working tree based on commit
+`ccef70096aabc31a9022409d7b25b591a89e3395`, including the uncommitted inputs
+fingerprinted below. Express's flags/defaults, exposure gates, metrics behavior,
+and minimal readiness contract were inspected as references.
+
+### Implemented behavior
+
+`DOCS_ENABLED`, `DIAGNOSTICS_ENABLED`, and `METRICS_ENABLED` independently default on
+in development/test and off in production, with strict optional boolean overrides.
+Native FastAPI docs/schema/OAuth routes are installed only when enabled. Diagnostics
+and metrics handlers are registered per app only when enabled; a guard additionally
+reserves disabled path families across methods, casing, trailing slashes, nested
+paths/assets, and mounts. Existing HTTP validation/preflight still runs first. Hidden
+routes cannot execute collectors, produce a redirect bypass, or inherit docs-specific
+security-header exemptions. Forwarded client identity cannot enable a disabled route.
+
+Public root/liveness/readiness remain independent of these flags. Readiness still
+checks startup/dependency health and returns 200/503, but now serializes only `ready`,
+`status`, and `timestamp` in every environment. Removing public `checks` is an explicit
+response-contract change; internal service checks remain. Published OpenAPI reflects
+registered routes and the minimal readiness model. Metric collection and polling
+exclusions continue when exposition is disabled. Favicon behavior is unchanged.
+
+Both env files received matching comments showing production defaults; existing
+local effective values were preserved. No API-key/authentication scheme, dependency,
+database schema, CI job, or deployed access restriction was introduced. See
+[operational exposure](operational-exposure.md) for compatibility and deployment notes.
+
+### Passed
+
+| Check | Result |
+| --- | --- |
+| Windows Python 3.12.10 complete suite | 672 passed; 95.99% overall branch-measured coverage |
+| Linux Python 3.12.16 complete suite | 672 passed; overall branch-measured coverage floor passed |
+| Formatting, lint, application types on both platforms | Black: 120 files unchanged; Ruff passed; mypy: 50 source files |
+| Strict Pyright | All 15 affected Python source/test files; zero diagnostics |
+| Linux critical coverage gates | Middleware 96% against 90%; lifecycle 99%, database 100%, API 99% against 95% |
+| Exposure guard and route factory coverage | 100% statements/branches |
+| Exposure contract | Three environment defaults, all eight flag combinations, strict input rejection, handler non-execution, mounted paths, forwarding, and per-app isolation |
+| Public probe contract | Dependency-free health; readiness up/down/startup/shutdown behavior with minimal JSON; controller/model/E2E/OpenAPI assertions updated |
+| Real-server checks | Two production-default cases across h11/httptools; all existing socket cases retained |
+| Final runtime image smoke | Production defaults and explicit enablement both passed; healthy minimal readiness, public health, expected endpoint statuses, and pip check |
+| Env synchronization | Shared comments match; existing local effective values preserved |
+| Documentation | 131 relative links/anchors verified |
+
+Local image: `sha256:bd6e898e5412675caf75323d3581b45e14f025051ed5a3c453bc11ff02655924`
+(`quickapi-fastapi:phase-2b`). The two runtime-smoke containers used disposable SQLite
+and loopback-only ephemeral ports, then were removed. Linux development requirements
+were installed only inside a disposable verification container; the saved runtime
+image retains runtime requirements only. Source was mounted read-only and test output
+went to `/tmp`.
+
+### Not run / remaining
+
+Hosted CI for this working tree was not run. SQLite persistence/smoke evidence does
+not qualify MySQL or a release pipeline. Enabling operational endpoints still supplies
+no authentication; selected-hosting proxy/private-network restrictions and direct-port
+denial require deployed verification. Rate-limit/probe policy remains phase 2C,
+logging/privacy phase 2D, and server receive protection remains the explicit 2A
+transport boundary. Existing remote required-check administration is not claimed here.
+
+| Verified phase 2B input | SHA-256 |
+| --- | --- |
+| `.env.example` | `e845da7a0d01635ca6f73e8770d2aacc99dff2c410ea13753363cc7d04fd7b73` |
+| `app/config/environment.py` | `4970c48bd8d3c957dfe7acc145615032c8b61f0430be54e0ce09994363e84f9c` |
+| `app/config/application.py` | `c739654488adece701949426a0bcca8391b27b14eeb4953b679e3a5960f64f73` |
+| `app/api/api_routes.py` | `117b9c1e02028b927834296bdc69ec7e328f5a82ba525c8b3ac9993e697e03d0` |
+| `app/api/system/controllers/system_controller.py` | `72768fe6b4a1b2e7257ed8b88f25c4eada06f9ac8b33ee7c57f7c467cd8ae8bb` |
+| `app/api/system/models/ready_model.py` | `9ecfb46adea3c8cb4e3318fa917da26ddadf9d378a7fd24226f0fdee5f8c4f01` |
+| `app/common/middleware/operational_exposure.py` | `28939fbcb3b09d073aba0cf04cd6a9ec629b29cc4e0a98154b804cd7be1ea6df` |
+| `app/common/middleware/security_headers.py` | `b47fd90e1ea0e677aaee3a27db39915bcfa9a09e189d351289cc1df07a2ba83d` |
+| `tests/integration/middleware/test_operational_exposure.py` | `4b13e3ebf3368e91f9ff1b5445626da85308bf13b1cf470f7830d19e8ed00472` |
+| `tests/unit/config/test_environment.py` | `e98308a4f9b0c640aa5249750a8ba3ae9eb3c5214c80870859c63a0e24753335` |
+| `tests/integration/errors/test_open_api.py` | `ae20d42d48f5cb5e9b5d55203e5e9f5177bbf8ec422f9b66c925b9e4236dc4a2` |

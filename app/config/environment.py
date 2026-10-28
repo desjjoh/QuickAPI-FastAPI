@@ -23,6 +23,10 @@ DEFAULT_API_PUBLISHED_PORT = 8000
 DEFAULT_MYSQL_PUBLISHED_PORT = 3308
 
 
+def operational_default(data: dict[str, object]) -> bool:
+    return data.get("ENV") != "production"
+
+
 class Settings(BaseSettings):
     APP_NAME: str = Field(..., min_length=1, max_length=120)
     APP_VERSION: str = Field(..., pattern=SEMVER_REGEX)
@@ -37,6 +41,11 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = Field(..., min_length=5)
     TIMEZONE: str = "Etc/UTC"
+
+    # Operational routes default on in development/test, off in production.
+    DOCS_ENABLED: bool = Field(default_factory=operational_default)
+    DIAGNOSTICS_ENABLED: bool = Field(default_factory=operational_default)
+    METRICS_ENABLED: bool = Field(default_factory=operational_default)
 
     # Defaults live here; .env and process environment optionally override them.
     CORS_ORIGINS: StringList = Field(
@@ -176,7 +185,13 @@ class Settings(BaseSettings):
     def validate_proxies(cls, values: list[str]) -> list[str]:
         return list(dict.fromkeys(str(proxy_network(value)) for value in values))
 
-    @field_validator("CORS_CREDENTIALS", mode="before")
+    @field_validator(
+        "CORS_CREDENTIALS",
+        "DOCS_ENABLED",
+        "DIAGNOSTICS_ENABLED",
+        "METRICS_ENABLED",
+        mode="before",
+    )
     @classmethod
     def strict_boolean(cls, value: object) -> bool:
         if isinstance(value, bool):

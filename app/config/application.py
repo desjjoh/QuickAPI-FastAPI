@@ -9,7 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp
 
-from app.api.api_routes import router as api_router
+from app.api.api_routes import create_router
 from app.api.system.services.system_service import (
     SystemDiagnosticsService,
     SystemInfoService,
@@ -26,6 +26,7 @@ from app.common.middleware.content_type_enforcement import (
 )
 from app.common.middleware.cors import CustomCORSASGIMiddleware
 from app.common.middleware.method_whitelist import MethodWhitelistASGIMiddleware
+from app.common.middleware.operational_exposure import OperationalExposureASGIMiddleware
 from app.common.middleware.prometheus_metrics import PrometheusASGIMiddleware
 from app.common.middleware.rate_limit import RateLimitASGIMiddleware
 from app.common.middleware.request_body_limit import (
@@ -98,6 +99,9 @@ def create_app() -> FastAPI:
 
     started_at = datetime.now(UTC)
     app: FastAPI = ObservedFastAPI(
+        docs_url="/docs" if settings.DOCS_ENABLED else None,
+        redoc_url="/redoc" if settings.DOCS_ENABLED else None,
+        openapi_url="/openapi.json" if settings.DOCS_ENABLED else None,
         title=name,
         version=version,
         description="A production-oriented example API built with FastAPI.",
@@ -118,6 +122,12 @@ def create_app() -> FastAPI:
         started_at=app.state.monotonic_start,
     )
 
+    app.add_middleware(
+        OperationalExposureASGIMiddleware,
+        docs_enabled=settings.DOCS_ENABLED,
+        diagnostics_enabled=settings.DIAGNOSTICS_ENABLED,
+        metrics_enabled=settings.METRICS_ENABLED,
+    )
     app.add_middleware(
         RequestTimeoutASGIMiddleware,
         first_body_timeout=settings.REQUEST_FIRST_BODY_TIMEOUT_MS / 1000,
@@ -156,7 +166,7 @@ def create_app() -> FastAPI:
         route_overrides=[],
     )
 
-    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware, docs_enabled=settings.DOCS_ENABLED)
     app.add_middleware(
         CustomCORSASGIMiddleware,
         origin=settings.CORS_ORIGINS,
@@ -193,7 +203,12 @@ def create_app() -> FastAPI:
     app.exception_handler(StarletteHTTPException)(http_exception_handler)
     app.exception_handler(Exception)(unhandled_exception_handler)
 
-    app.include_router(api_router)
+    app.include_router(
+        create_router(
+            diagnostics_enabled=settings.DIAGNOSTICS_ENABLED,
+            metrics_enabled=settings.METRICS_ENABLED,
+        )
+    )
 
     configure_custom_validation_openapi(app)
 

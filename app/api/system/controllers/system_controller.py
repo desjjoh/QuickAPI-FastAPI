@@ -8,7 +8,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.system.models.info_model import InfoResponse
 from app.api.system.models.live_model import HealthResponse
-from app.api.system.models.ready_model import ReadyCheck, ReadyResponse
+from app.api.system.models.ready_model import ReadyResponse
 from app.api.system.models.root_model import RootResponse
 from app.api.system.models.system_model import SystemResponse
 from app.api.system.services.system_service import (
@@ -18,6 +18,8 @@ from app.api.system.services.system_service import (
 from app.common.handlers.lifecycle_handler import LifecycleHandler
 
 router: APIRouter = APIRouter(tags=["System"])
+diagnostics_router: APIRouter = APIRouter(tags=["System"])
+metrics_router: APIRouter = APIRouter(tags=["System"])
 _start_time: float = time.perf_counter()
 _favicon_path: Path = Path(__file__).resolve().parents[3] / "public" / "favicon.ico"
 
@@ -84,16 +86,8 @@ async def ready_probe(request: Request) -> JSONResponse:
     lifecycle: LifecycleHandler = request.app.state.lifecycle
     app_ready: bool = lifecycle.is_ready()
     results = await lifecycle.check_services()
-    checks = [
-        ReadyCheck(
-            name=result.name,
-            status=result.status,
-            response_time_ms=result.response_time_ms,
-        )
-        for result in results
-    ]
     ready = app_ready and all(result.is_up for result in results)
-    payload = ReadyResponse.from_state(ready=ready, checks=checks)
+    payload = ReadyResponse.from_state(ready=ready)
     return JSONResponse(
         status_code=(
             status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE
@@ -103,10 +97,10 @@ async def ready_probe(request: Request) -> JSONResponse:
 
 
 ## GET /info
-@router.get(
+@diagnostics_router.get(
     "/info",
     summary="Return application and runtime metadata.",
-    description="Returns public application identity and Python runtime metadata.",
+    description="Requires DIAGNOSTICS_ENABLED; returns unauthenticated application/runtime metadata.",
     response_model=InfoResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -116,10 +110,10 @@ async def info(request: Request) -> InfoResponse:
 
 
 ## GET /system
-@router.get(
+@diagnostics_router.get(
     "/system",
     summary="Return system-level diagnostics.",
-    description="Returns bounded host, process, event-loop, and database diagnostics.",
+    description="Requires DIAGNOSTICS_ENABLED and deployment-level access restrictions; returns bounded diagnostics.",
     response_model=SystemResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -129,10 +123,11 @@ async def system(request: Request) -> SystemResponse:
 
 
 ## GET /metrics
-@router.get(
+@metrics_router.get(
     "/metrics",
     summary="Return Prometheus metrics.",
     description=(
+        "Requires METRICS_ENABLED and deployment-level access restrictions. "
         "Returns Prometheus plaintext exposition data with media type "
         f"`{CONTENT_TYPE_LATEST}`; this response has no JSON schema."
     ),

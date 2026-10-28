@@ -345,3 +345,50 @@ def test_example_optional_http_values_match_code_defaults(
     }
     assert keys <= overrides.keys()
     assert all(getattr(documented, key) == getattr(defaults, key) for key in keys)
+
+
+OPERATIONAL_FLAGS = ("DOCS_ENABLED", "DIAGNOSTICS_ENABLED", "METRICS_ENABLED")
+
+
+@pytest.mark.parametrize("environment", ["development", "test", "production"])
+def test_operational_defaults_follow_environment(
+    monkeypatch: pytest.MonkeyPatch, environment: str
+) -> None:
+    result = settings(monkeypatch, ENV=environment)
+    assert all(
+        getattr(result, key) is (environment != "production")
+        for key in OPERATIONAL_FLAGS
+    )
+
+
+@pytest.mark.parametrize("environment", ["development", "test", "production"])
+@pytest.mark.parametrize("key", OPERATIONAL_FLAGS)
+@pytest.mark.parametrize("value", ["true", "false"])
+def test_independent_operational_overrides(
+    monkeypatch: pytest.MonkeyPatch, environment: str, key: str, value: str
+) -> None:
+    result = settings(monkeypatch, ENV=environment, **{key: value})
+    assert getattr(result, key) is (value == "true")
+    assert all(
+        getattr(result, other) is (environment != "production")
+        for other in OPERATIONAL_FLAGS
+        if other != key
+    )
+
+
+@pytest.mark.parametrize("key", OPERATIONAL_FLAGS)
+@pytest.mark.parametrize("value", ["", "TRUE", "False", "1", "yes", " true "])
+def test_operational_overrides_reject_ambiguous_values(
+    monkeypatch: pytest.MonkeyPatch, key: str, value: str
+) -> None:
+    with pytest.raises(ValidationError):
+        settings(monkeypatch, **{key: value})
+
+
+@pytest.mark.parametrize("key", OPERATIONAL_FLAGS)
+def test_explicit_null_is_not_an_operational_default(
+    monkeypatch: pytest.MonkeyPatch, key: str
+) -> None:
+    values = settings(monkeypatch).model_dump()
+    with pytest.raises(ValidationError):
+        Settings.model_validate({**values, key: None})

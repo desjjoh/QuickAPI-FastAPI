@@ -12,7 +12,7 @@ def assert_unavailable(response: httpx.Response) -> None:
     payload = response.json()
     assert payload["ready"] is False
     assert payload["status"] == "not_ready"
-    assert isinstance(payload["checks"], list)
+    assert set(payload) == {"ready", "status", "timestamp"}
     assert payload["timestamp"].endswith("Z")
 
 
@@ -23,7 +23,7 @@ async def test_readiness_succeeds_when_started_and_healthy(
     assert response.status_code == 200
     assert response.json()["ready"] is True
     assert response.json()["status"] == "ready"
-    assert response.json()["checks"][0]["name"] == "database"
+    assert set(response.json()) == {"ready", "status", "timestamp"}
 
 
 async def test_readiness_rejects_an_application_that_has_not_started(
