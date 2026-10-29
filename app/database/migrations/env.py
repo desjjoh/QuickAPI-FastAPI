@@ -1,13 +1,11 @@
 """Alembic uses the application's async driver and DATABASE_URL."""
 
-import asyncio
-
 from alembic import context
-from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.config.database_transport import build_database_engine
 from app.config.environment import settings
+from app.config.event_loop import run_database
 from app.database.entities.item_orm import ItemORM
 
 config = context.config
@@ -26,12 +24,7 @@ def run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    engine = create_async_engine(
-        settings.DATABASE_URL,
-        poolclass=pool.NullPool,
-        echo=False,
-        hide_parameters=True,
-    )
+    engine = build_database_engine(settings.DATABASE_URL)
     try:
         async with engine.connect() as connection:
             await connection.run_sync(run_migrations)
@@ -51,4 +44,4 @@ if context.is_offline_mode():
 elif config.attributes.get("connection") is not None:
     run_migrations(config.attributes["connection"])
 else:
-    asyncio.run(run_async_migrations())
+    run_database(run_async_migrations())

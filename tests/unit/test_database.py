@@ -25,13 +25,11 @@ class CreateEngineTest(unittest.TestCase):
 
         with (
             patch.object(database.settings, "DATABASE_URL", configured_url),
-            patch.object(database, "create_async_engine") as create_async_engine,
+            patch.object(database, "build_database_engine") as create_async_engine,
         ):
             engine = database.create_engine()
 
-        create_async_engine.assert_called_once_with(
-            configured_url, echo=False, hide_parameters=True
-        )
+        create_async_engine.assert_called_once_with(configured_url)
         self.assertIs(engine, create_async_engine.return_value)
 
 

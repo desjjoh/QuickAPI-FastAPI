@@ -2,6 +2,13 @@
 
 [Documentation index](../README.md#documentation)
 
+[Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
+shared checks, startup cleanup, and runtime recovery behavior.
+
+## Database capacity and transport
+
+[Database settings](database-settings.md) defines per-engine connection and waiting limits, acquisition/connect deadlines, verified TLS, and safe capacity failures. Configure trusted CA paths in the container filesystem and budget each worker/replica independently. Deployment certificate rotation and fleet capacity still require hosting-specific qualification.
+
 ## Runtime configuration and access
 
 Use Python 3.12 and inject required settings from [Development](development.md#configuration). The image installs runtime-only [requirements.txt](../requirements.txt), checks dependency consistency, and copies application code; `.env` is excluded. Development tools are installed separately from `requirements-dev.txt` for local/CI checks. Use `ENV=production` to disable reload and align listening/published ports and probes.

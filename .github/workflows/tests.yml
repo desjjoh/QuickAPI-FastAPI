@@ -69,6 +69,9 @@ jobs:
       - run: python -m pip check
       - name: Run migrated disposable MySQL ${{ matrix.layer }} suite
         run: python -m scripts.test_db test --layer "${{ matrix.layer }}" --keep-db
+      - name: Verify MySQL TLS transport
+        if: matrix.layer == 'integration'
+        run: python -m scripts.test_db tls
       - name: Capture MySQL diagnostics on failure
         if: failure()
         run: |

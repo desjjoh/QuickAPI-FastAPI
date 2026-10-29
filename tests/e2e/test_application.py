@@ -45,8 +45,10 @@ async def test_shutdown_is_idempotent_and_releases_database(app: FastAPI) -> Non
     assert app.state.lifecycle.is_ready() is False
     assert app.state.lifecycle.is_alive() is False
 
-    # Backend-independent: disposal is idempotent and a fresh lease still works.
-    assert await database.db_test_query() is True
+    # Stopped readiness cannot reopen the disposed application pool.
+    assert await database.db_test_query() is False
+    async with database.engine.connect() as connection:
+        assert not connection.closed
     await database.close_db()
 
 

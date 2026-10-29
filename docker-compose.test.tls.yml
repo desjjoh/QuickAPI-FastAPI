@@ -1,0 +1,32 @@
+# Separate disposable TLS qualification server; certificates are generated per run.
+name: quickapi-fastapi-tls-test
+services:
+  mysql-tls-test:
+    image: mysql:8.4.6
+    environment:
+      MYSQL_DATABASE: ${TEST_DB_DATABASE:?Load .env.test}
+      MYSQL_USER: ${TEST_DB_USER:?Load .env.test}
+      MYSQL_PASSWORD: ${TEST_DB_PASSWORD:?Load .env.test}
+      MYSQL_ROOT_PASSWORD: ${TEST_DB_ROOT_PASSWORD:?Load .env.test}
+    command:
+      - --ssl-ca=/run/test-tls/ca.pem
+      - --ssl-cert=/run/test-tls/server-cert.pem
+      - --ssl-key=/run/test-tls/server-key.pem
+      - --require-secure-transport=ON
+    ports:
+      - "127.0.0.1:${TEST_TLS_PORT:-3312}:3306"
+    volumes:
+      - type: bind
+        source: ${TEST_TLS_DIR:?Generated certificate directory required}
+        target: /run/test-tls
+        read_only: true
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u"$$MYSQL_USER" "$$MYSQL_DATABASE" --silent --skip-column-names --execute="SELECT 1"'
+      interval: 2s
+      timeout: 3s
+      retries: 45
+      start_period: 20s

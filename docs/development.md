@@ -2,6 +2,9 @@
 
 [Documentation index](../README.md#documentation)
 
+[Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
+shared checks, startup cleanup, and runtime recovery behavior.
+
 ## Prerequisites and startup
 
 Use Python 3.12, matching CI and the container runtime. Run commands from the repository root. The checked-in Compose topology supplies local MySQL 8.4.6 and an optional API container. For native Python, start MySQL first with `docker compose up -d --wait mysql`, apply migrations with `python -m alembic upgrade head`, then use the example database URL at `127.0.0.1:3310`. An external MySQL instance or local SQLite remains an option.
@@ -77,6 +80,10 @@ docker compose down
 `down` removes this project's containers/network and preserves its database volume. Recreating the stack reuses the data. `docker compose down --volumes` also deletes this project's MySQL data; use it only for an intentional local reset. Restart/recreation is not a backup strategy. MySQL initialization credentials apply when a volume is first created; changing Compose values does not rotate users in an existing database.
 
 See [Database migrations](migrations.md) for the complete first-run guide, command reference, migration authoring, and intentional reset procedure. The FastAPI database is disposable and separate from shared local databases.
+
+## Database capacity and TLS
+
+[Database settings](database-settings.md) defines validated connection/queue/deadline overrides and verified TLS. The same transport factory serves native/container API startup and Alembic commands. Local MySQL remains plaintext by default.
 
 ## Disposable MySQL tests
 

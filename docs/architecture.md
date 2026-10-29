@@ -83,7 +83,17 @@ validation, proxy ownership, and the separate server receive-protection boundary
 and reserves disabled path families. Native docs are installed only when enabled.
 Public readiness serializes no dependency details; internal service checking remains.
 
+## Database capacity and transport
+
+The shared [engine policy](database-settings.md) uses SQLAlchemy connection records with bounded async admission for MySQL. It caps connections/waiters, separates acquisition and connection setup budgets, and verifies TLS before returning encrypted connections. SQLite retains its existing engine behavior. API startup, sessions, readiness, migrations, and disposable MySQL fixtures share transport configuration.
+
 ## Persistence and migrations
+
+[Database readiness and recovery](database-lifecycle.md) uses one shared,
+on-demand task per application database service, with monotonic result caching.
+Probe cancellation retires only its connection; caller cancellation is isolated
+from shared work. Startup revision verification has its own deadline and failure
+cleanup. Runtime outages leave the engine available for replacement connections.
 
 `get_session()` creates one async session per dependency invocation and closes it
 after the response dependency scope completes. Read queries do not commit. Each

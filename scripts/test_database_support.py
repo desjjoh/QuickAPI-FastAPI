@@ -77,7 +77,7 @@ def load_test_config(
         if value is not None
     }
     for key, value in source.items():
-        if key.startswith("TEST_") or key == "ENV":
+        if key.startswith(("TEST_", "DB_")) or key == "ENV":
             values[key] = value
     if values.get("ENV") != "test" or values.get("TEST_DB_ENABLED") != "true":
         raise ValueError(
@@ -107,7 +107,7 @@ def load_test_config(
         )
     except (ArgumentError, KeyError, TypeError, ValueError):
         raise ValueError("Invalid disposable MySQL connection configuration.") from None
-    allowed = {"127.0.0.1", "localhost", "::1", "mysql-test"}
+    allowed = {"127.0.0.1", "localhost", "::1", "mysql-test", "mysql-tls-test"}
     allowed.update(
         x.strip().lower()
         for x in values.get("TEST_DB_ALLOWED_HOSTS", "").split(",")

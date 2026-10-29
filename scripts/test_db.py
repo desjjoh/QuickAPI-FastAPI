@@ -1,13 +1,9 @@
 """Run with python -m scripts.test_db --help from the repository root."""
 
 import argparse
-import asyncio
 import os
 import subprocess
 import sys
-
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.pool import NullPool
 
 from scripts.test_database_support import (
     ROOT,
@@ -55,9 +51,10 @@ async def migration(
     os.environ.update(command_environment(config))
     from alembic import command
 
+    from app.config.database_transport import build_database_engine
     from app.config.migrations import migration_config
 
-    engine = create_async_engine(config.url, poolclass=NullPool, hide_parameters=True)
+    engine = build_database_engine(config.url)
     try:
         async with guarded_connection(engine, config) as connection:
 
@@ -85,6 +82,15 @@ async def migration(
         await engine.dispose()
 
 
+def run_migration(
+    config: TestDatabaseConfig, action: str, revision: str, message: str = ""
+) -> None:
+    os.environ.update(command_environment(config))
+    from app.config.event_loop import run_database
+
+    run_database(migration(config, action, revision, message))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Guarded disposable MySQL tests and migrations; never loads .env."
@@ -103,6 +109,7 @@ def main() -> int:
             "revision",
             "downgrade",
             "test",
+            "tls",
         ],
     )
     parser.add_argument("--layer", choices=["integration", "e2e", "all"], default="all")
@@ -130,12 +137,16 @@ def main() -> int:
 
 
 def dispatch(config: TestDatabaseConfig, args: argparse.Namespace) -> int:
+    if args.action == "tls":
+        from scripts.test_database_tls import run_tls
+
+        return run_tls(config)
     if args.action == "up":
         return compose(config, "up", "-d", "--wait", "mysql-test")
     if args.action == "down":
         return compose(config, "down", "--volumes")
     if args.action != "test":
-        asyncio.run(migration(config, args.action, args.revision, args.message or ""))
+        run_migration(config, args.action, args.revision, args.message or "")
         return 0
     result = 1
     try:
@@ -143,7 +154,7 @@ def dispatch(config: TestDatabaseConfig, args: argparse.Namespace) -> int:
         if result:
             return result
         result = 1
-        asyncio.run(migration(config, "migrate", "head"))
+        run_migration(config, "migrate", "head")
         selection: str = "integration or e2e" if args.layer == "all" else args.layer
         command: list[str] = [
             sys.executable,

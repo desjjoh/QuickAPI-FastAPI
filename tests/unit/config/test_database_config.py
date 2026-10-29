@@ -1,10 +1,14 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.common.handlers.database_readiness import DatabaseReadiness
 from app.config import database
 
 pytestmark = pytest.mark.unit
@@ -73,9 +77,45 @@ async def test_init_db_propagates_failure(monkeypatch: pytest.MonkeyPatch) -> No
         raise RuntimeError("unavailable")
         yield  # type: ignore[unreachable]
 
-    monkeypatch.setattr(database, "engine", SimpleNamespace(connect=begin))
+    dispose = AsyncMock()
+    monkeypatch.setattr(
+        database, "engine", SimpleNamespace(connect=begin, dispose=dispose)
+    )
     with pytest.raises(RuntimeError, match="unavailable"):
         await database.init_db()
+    dispose.assert_awaited_once()
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+async def test_startup_deadline_or_cancellation_cleans_pool(
+    monkeypatch: pytest.MonkeyPatch, cancel: bool
+) -> None:
+    entered = asyncio.Event()
+    cleaned = asyncio.Event()
+
+    @asynccontextmanager
+    async def connect() -> AsyncGenerator[None, None]:
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+            yield
+        finally:
+            cleaned.set()
+
+    dispose = AsyncMock()
+    monkeypatch.setattr(
+        database, "engine", SimpleNamespace(connect=connect, dispose=dispose)
+    )
+    monkeypatch.setattr(database.settings, "DB_MIGRATION_CHECK_TIMEOUT_MS", 30)
+    task = asyncio.create_task(database.init_db())
+    await entered.wait()
+    if cancel:
+        task.cancel()
+    with pytest.raises(asyncio.CancelledError if cancel else TimeoutError):
+        await task
+    assert cleaned.is_set()
+    dispose.assert_awaited_once()
+    assert await database.db_test_query() is False
 
 
 async def test_connectivity_success_and_failure(
@@ -87,7 +127,11 @@ async def test_connectivity_success_and_failure(
     async def connected() -> AsyncGenerator[Mock, None]:
         yield connection
 
-    monkeypatch.setattr(database, "engine", SimpleNamespace(connect=connected))
+    probe = DatabaseReadiness(
+        cast(AsyncEngine, SimpleNamespace(connect=connected)), cache_ms=0
+    )
+    probe.resume()
+    monkeypatch.setattr(database, "database_readiness", probe)
     assert await database.db_test_query() is True
     connection.execute.assert_awaited_once()
 
@@ -96,7 +140,11 @@ async def test_connectivity_success_and_failure(
         raise OSError("down")
         yield  # type: ignore[unreachable]
 
-    monkeypatch.setattr(database, "engine", SimpleNamespace(connect=failed))
+    probe = DatabaseReadiness(
+        cast(AsyncEngine, SimpleNamespace(connect=failed)), cache_ms=0
+    )
+    probe.resume()
+    monkeypatch.setattr(database, "database_readiness", probe)
     assert await database.db_test_query() is False
 
 

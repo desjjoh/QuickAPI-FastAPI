@@ -5,6 +5,8 @@ __pycache__/
 .env
 .env.test
 scripts/
+.cache/
+test-artifacts/
 .git
 .gitignore
 app.db

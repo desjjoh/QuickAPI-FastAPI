@@ -83,6 +83,22 @@ and shipping require hosting-specific controls.
 
 [MySQL testing](mysql-testing.md) defines the separate temporary test stack, explicit `.env.test` connection, guarded migrations/resets, real-commit persistence fixtures, serial execution, and integration/E2E CI jobs. SQLite remains a compatibility and coverage check. Hosted check execution/enforcement requires independent verification.
 
+## 3C. Upgrade and rollback evidence
+
+[Migration qualification](migrations.md#upgrade-and-rollback-qualification) covers the real baseline and an isolated test-only additive/backfill chain. Data preservation, defaults/indexes, reversible schema changes, partial MySQL DDL failure, history rejection, and defined drift cases have executable checks. Startup retains strict revision equality, so deployment ordering is stopped-application migration followed by the matching application. Future real migrations require their own data/compatibility evidence; historical image rollback and backup restoration are separate requirements.
+
+## 3D. Database capacity and transport
+
+[Database settings](database-settings.md) defines shared engine limits, bounded caller admission, separate acquisition/connection deadlines, and verified TLS. Tests cover saturation, cancellation, disposal/invalidation, socket cleanup, certificate rejection, and native TLS startup. Existing MySQL integration CI includes independent TLS qualification. [Readiness and recovery](database-lifecycle.md) defines bounded shared probes, startup cleanup, and runtime outage recovery. Hosting-specific CA/fleet behavior remains a separate acceptance criterion.
+
+## 3E. Readiness and recovery
+
+[Database lifecycle](database-lifecycle.md) defines bounded shared probes, short
+success/failure caching, independent liveness, startup verification cleanup, and
+connection retirement. MySQL socket tests exercise repeated outages, stalled
+responses, stale sessions, acquisition exhaustion, and recovery on the same API.
+Full traffic withdrawal and request draining remain shutdown requirements.
+
 ## Working decisions
 
 - Use Express and NestJS as references for behavior and quality. Prefer native FastAPI/Pydantic/SQLAlchemy/Uvicorn mechanisms where they satisfy the same requirements.

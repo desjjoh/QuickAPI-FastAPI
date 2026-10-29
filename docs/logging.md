@@ -18,6 +18,9 @@ and the standard logging bridge. There is no separate output-format setting.
 | Fatal initialization/runtime failure        | CRITICAL     |
 
 At INFO, successful request logs are hidden while lifecycle messages are visible.
+The boot banner is emitted at the start of application construction, before lifecycle
+service registration. The lifespan then starts the registered services and emits the
+HTTP startup message; construction alone does not start services.
 Metrics and request-outcome observation are independent of log filtering. There is
 one access record per settled response outcome; a rejection/failure can also have a
 separate fixed diagnostic event. An aborted response whose headers carry a server

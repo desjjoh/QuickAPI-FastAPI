@@ -2,6 +2,188 @@
 
 [Documentation index](../README.md#documentation)
 
+## Database readiness and recovery verification
+
+TLS infrastructure follow-up on 2026-10-29: the hosted TLS server failed before
+pytest because the Linux temporary certificate directory was not traversable by
+the container's MySQL user. Certificate generation now explicitly sets directory
+mode `0755` and file modes `0644` for these disposable credentials. A Linux
+cross-UID check reproduced rejection at `0700` and successful key access at `0755`;
+five TLS cases passed against MySQL reading the corrected files from a Linux
+Docker volume. The normal Windows TLS command also passed all five cases, and the
+new certificate-generation regression test passed locally. Ruff, Black and mypy
+checks passed. Temporary verification resources were removed. Hosted CI must be
+rerun; the following suite counts predate this additional regression test.
+
+Verified on 2026-10-29 against base commit `daf010aab02352f4468ef495fa4c3148a92f7c38`
+and the local inputs fingerprinted below. These results include uncommitted changes.
+
+| Check | Result |
+| --- | --- |
+| Windows compatibility | 899 passed; one MySQL-only socket case skipped; five dedicated TLS cases deselected; 95.99% branch-measured application coverage |
+| Linux compatibility | 899 passed; same skip/deselections; 96.09% branch-measured application coverage |
+| Windows MySQL | Integration 168 passed; E2E 113 passed |
+| Linux MySQL | Combined integration/E2E 281 passed; 143 shared database-backed cases |
+| Dedicated TLS regression | Five passed on Windows; independent server/certificates removed afterward |
+| Probe ownership | Concurrent callers share work; caller cancellation is isolated; healthy/failed cache expiry, stopped state, cancellation and owned-lease invalidation pass |
+| Startup | Revision failure, acquisition timeout and cancellation propagate after cleanup; existing missing/incompatible-history checks pass |
+| Real HTTP / MySQL | Same running API recovers from three outages, a killed idle session, a stalled response and repeated exhausted acquisitions; liveness and item reads verified |
+| Resource evidence | Probe connection disappearance checked through MySQL process list; admission counts/waiters and test relay resources return to baseline |
+| Coverage gates | Middleware 96%, lifecycle 99%, database package 100%, API 99%; configured gates passed on both platforms |
+| Static/editor checks | Black 150 files; Ruff passed; mypy 63 application/tool files; strict Pyright ten affected files, zero diagnostics |
+| Production-image smoke | Locally built image `sha256:a8e2efc5600a74d5d598b8e4e55a72597f17123b733e9100433461b16cd86cbc`; SQLite explicit migration, readiness, item read and pip check passed |
+| Hosted CI / release | Not run / not verified for this candidate |
+
+Linux verification used disposable dependencies with read-only source mounts.
+MySQL checks used the guarded disposable test database. The real socket case is
+explicitly skipped by SQLite compatibility runs and executed in the existing MySQL
+integration selection. Successful checks do not qualify deployed failover,
+backups, application-wide draining, arbitrary query cancellation, or MySQL
+release-image smoke behavior. Runtime probes do not retry business mutations.
+The local development database was not modified. Temporary image smoke resources
+were removed; the pre-existing regular test database was retained.
+
+| Input | SHA-256 |
+| --- | --- |
+| `.env.example` | `250e9f8dee256573a5b2be62ae268c727f193dbeb432df54e7d509bc0b1d53b3` |
+| `.env.test` | `4d4c869fb887c6bec49b4c17e365eac109f9ca524d79f96550f577eab42b3a93` |
+| `app/common/handlers/database_readiness.py` | `829a82ef2dea397829ee202599edfe336b3848461279ca0186e67ae7f221b96b` |
+| `app/config/database.py` | `b9543c2fec7fc4622181bccbbb2a4c66f117dd5bc57133ed85e5a1734004c52f` |
+| `app/config/environment.py` | `d76484ac12a564116358278d062c35dc1fac103f0da62f1eb5d97e5edcc8cd6b` |
+| `tests/conftest.py` | `81f021e9d941a3a5f15d300c6c3004c05e643ddd299d578f53d0c89226743774` |
+| `tests/e2e/conftest.py` | `d67e8e08726c9ccac36f031824f83c78366a49441805389b0c14624630448a1b` |
+| `tests/e2e/test_application.py` | `ee1d1c5ff6e3e20f338186d55485b7845e7f789dc00e6c9ddf6a20ca95358544` |
+| `tests/unit/config/test_database_config.py` | `7fe2f0bca40811f40610363ddf9029b79d97035fe09fe70a143871e5b3b1e2d1` |
+| `tests/unit/config/test_database_transport.py` | `f1657da84e5ec7c6cd18f35a804a0d85fadfea475132f1900f7ffb4c403b81e8` |
+| `tests/unit/common/handlers/test_database_readiness.py` | `06d937ed4067a0f8d14294c90aea4c0eba8b9da88223462c796bc7b86b54adf5` |
+| `tests/integration/database/test_database_recovery.py` | `095a768f4b13ad210dfdb065b8fa9cb355bc68c07d7de09d709849ab7968d95f` |
+
+## Database capacity and transport verification
+
+Verified on 2026-10-29 against base commit `0f005e437efeb04d639a7b5da6fcea807f1042d3` and the local input fingerprints
+below. The base commit alone does not identify these changes.
+
+| Check | Result |
+| --- | --- |
+| Windows complete compatibility suite | 872 passed, 5 dedicated TLS cases deselected; Python 3.12.10; 95.94% branch-measured coverage |
+| Linux complete compatibility suite | 872 passed, 5 dedicated TLS cases deselected; 96.05% branch-measured coverage |
+| Windows MySQL | Integration 166 passed; E2E 113 passed |
+| Linux MySQL | Combined integration/E2E 279 passed; 141 shared database-backed cases |
+| Dedicated TLS | Five cases passed on Windows and Linux, separately from compatibility suites |
+| Static checks | Black: 147 Python files unchanged; Ruff passed; mypy: 62 application/tool files passed |
+| Editor typing | Strict Pyright: 17 affected Python files; zero diagnostics |
+| Coverage gates | Middleware 96%, lifecycle 99%, database package 100%, API 99%; configured gates passed |
+| Configuration | Defaults, strict syntax/ranges, CA/SSL relationships, env examples, and invalid certificate configuration verified |
+| Pool behavior | Fixed cap/no overflow, bounded waiters, timeout/cancellation, slot-handoff cancellation, invalidation, queued disposal, late connection rejection, recreation and capacity recovery verified |
+| Socket behavior | Stalled greeting, external cancellation, TLS-negotiation stall: peer closure and admission recovery verified |
+| HTTP behavior | Real ORM pool exhaustion returns safe 503 envelope and fixed message |
+| TLS trust/identity | Trusted cipher accepted; wrong CA and wrong IP identity rejected; missing cipher fails closed |
+| Windows TLS | Pinned asyncmy upgrade fails on Proactor; supported entrypoints select compatible selector loop; native API and Alembic TLS checks pass |
+| Runtime image | `sha256:71594fba19fb1b6a690128c35ed75461e6920415149d602ee3ec877039a255cb` built locally |
+| Image smoke | Explicit SQLite migration, readiness, item read, and `pip check` passed |
+| CI definition | Existing MySQL integration matrix job includes dedicated TLS command; YAML parses |
+| Cleanup | Generated TLS certificates, TLS project, and image smoke resources removed; existing development/test MySQL services retained |
+| Hosted CI / release | Not run / not verified for these changes |
+
+SQLite keeps its existing driver/pool behavior. Compatibility tests additionally
+exercise the admission adapter with a test-only SQLite pool. MySQL fixtures and
+commands use the actual shared bounded transport factory. TLS qualification uses
+an independent MySQL 8.4.6 server, temporary CA/server certificate, and explicit
+marker selection; default deselection is not represented as a TLS pass.
+
+Linux runs use disposable tool installations and read-only source mounts. The
+typed test-double adjustment and TLS-context assertions were separately rerun after
+the complete suite. Both platforms reran the dedicated TLS cases with certificate
+rejections required to contain an actual certificate-verification failure.
+Application coverage is not an aggregate of the dedicated TLS subprocesses.
+Connection/acquisition deadlines do not establish SQL cancellation, transaction
+rollback, application draining, stale-session recovery, deployed CA rotation,
+fleet capacity, or MySQL release-image qualification. The image smoke remains
+SQLite-based. These boundaries retain their separate roadmap acceptance criteria.
+
+| Input | SHA-256 |
+| --- | --- |
+| `.dockerignore` | `a1eb3f4f1b565e7030327bf38771ba5fd85b412c323c2b94e802c13ddcc745b0` |
+| `.env.example` | `8a706620e36edb193d79668d8d77c1f24274d57f3e90f2087911206ae7920b9f` |
+| `.env.test` | `6e7ca8cbe642c570a87b9c7a39dc67a1e938fbb4ee229e504cc4b5ca1c036b44` |
+| `.github/workflows/tests.yml` | `0b7d7ed6029a9ba9657f1d01a6b71ac6bfcb4767729badaa9fa8e38111db5fb1` |
+| `app/common/handlers/database_pool.py` | `85f9758179a696d64e7544800d9194519f75eec759c0278d4e119ccc5fefc355` |
+| `app/common/helpers/error_diagnostics.py` | `83662f63fe10211406f0812101e592ba1ed1213034ec44995ffe7e83f6bf8dd0` |
+| `app/config/database.py` | `48fa0ca5ba35b5f9d2aa586e1ef236b8b304ff671a9fa9691f93614fad9f8537` |
+| `app/config/database_transport.py` | `3f502242a5c71c69c490caecc716c8f8260c690ce2fec0c49ac48efeaf9406d0` |
+| `app/config/environment.py` | `5186fb0e6a12b0d8f84c1c1a1dd8fdd99cf4e8894657527efbdf563443b5dac4` |
+| `app/config/event_loop.py` | `441c820fea66770a383bf065516db8cccbbfe9453b45778f09fa4ec7defc1758` |
+| `app/database/migrations/env.py` | `5d7bd0915bbaace8140636dee96e8f0e7155c468ff8043dd09f4d7d461f9e4d2` |
+| `app/main.py` | `5d335c15d166fe40eac5648792257bb9e26f045e55ce88ca88cb4272d1b23a15` |
+| `docker-compose.test.tls.yml` | `c7c06caea9cb7a7a2fbe08322c41423a85b72c3f5afdbaa54c0a198fbdf69ec1` |
+| `pyproject.toml` | `e553f7d09e9f62cd8a6fdecd00492e138ef75dc723eb01aed6793196824ebabe` |
+| `scripts/test_database_support.py` | `a6885c5ebbc3542dd1e2bf5a6999d02ddef809f16256036a42df670bb514ac09` |
+| `scripts/test_database_tls.py` | `c65ba07f20098156589671b044b6a9157efe2a289597583af22901a87c71e2fc` |
+| `scripts/test_db.py` | `92cb14350a49b44839f01b6bb21d933370993ffd116e40061162e6381bab924b` |
+| `tests/conftest.py` | `cb3dc7c13060517ae71deca6908757036cf0d69a759896bbd8feac5db65402c4` |
+| `tests/integration/database/test_database_capacity.py` | `83b1ae28057592d9d1e0b33a79dd88327ef27cb8270ec8fa6910bfba59fa948a` |
+| `tests/integration/database/test_database_tls.py` | `ca87f531645e6a203c3a4ed23390a31f332f20f90c48f0def91766a157953625` |
+| `tests/unit/config/test_database_transport.py` | `65c3bab9f38449e3c3979f025d266b6830613cf3c075b946658aae007ba65d81` |
+| `tests/unit/test_database.py` | `0df1db1de72a47244ce966ed766a53da1c38e338782568b0790e2ae61cc04e6f` |
+| `tests/unit/test_main.py` | `39a9acb29c36d095a58f8848cba29caf2ac412f2df666fb64d7f6cc150de48e0` |
+
+## Migration upgrade and rollback evidence
+
+Verified on 2026-10-29 against base commit `d258d6f20817600d9555bbc7e2533ff66285f378` and the local inputs below.
+
+| Check | Result |
+| --- | --- |
+| Windows / Linux complete compatibility suites | 828 passed each; coverage 96.22% / 96.33% with branch measurement |
+| Windows disposable MySQL | Integration 160 passed; E2E 113 passed |
+| Linux disposable MySQL | Combined integration/E2E 273 passed; 140 shared database-backed cases |
+| New evidence cases | Nine cases run against SQLite and MySQL |
+| Static checks | Black 140 files unchanged; Ruff passed; mypy 58 application/tool files passed on Windows |
+| Editor typing | Strict Pyright: evidence module and four fixture files, zero diagnostics |
+| Real baseline | Disposable downgrade deletes table/rows; fresh upgrade matches model metadata |
+| Additive evidence chain | Original IDs, names, prices, nullable descriptions, timestamps preserved; backfill, default, non-null metadata and index verified; downgrade/reapply pass |
+| Partial DDL failure | On MySQL, created artifact remains and evidence history does not advance; known artifact explicitly cleaned |
+| Drift / history | Missing index and extra column detected despite matching history; older/newer/unknown revisions and multiple source heads rejected |
+| Startup compatibility | Incompatible history prevents lifecycle readiness; restored expected revision permits startup |
+| Final test schema | Application history and schema comparison restored; existing disposable test service retained |
+| Hosted CI / image qualification | Not run / not repeated for this change |
+
+The evidence chain is test-only, with separate version history and temporary script
+directories. It does not add an application field or real revision. Both SQLite and
+MySQL execute it through the existing isolated fixtures; MySQL writes hold the
+disposable-target lock. No development/shared database is reset. Results establish
+the listed baseline/examples, not correctness of future migrations, historical
+application-image rollback, transactional MySQL DDL rollback, or backup restoration.
+The current strict-revision policy requires stopped-application migration ordering.
+Earlier verification sections retain their own scope.
+
+| Input | SHA-256 |
+| --- | --- |
+| `app/config/application.py` | `eb087d26c0dba86dff70e13fa76e1b4a973f7ba55aac452edd219301effa6ecc` |
+| `tests/e2e/test_startup_logging.py` | `3e5d190c8e5fd7a25bc4baad3205a0828e937667a4939d3f402405c93d1b5faa` |
+| `tests/fixtures/migrations/backfill.py` | `3b02759c1c03a3a4d44beb296d41892b35cf72c0227bb26c4ca957a33438b19d` |
+| `tests/fixtures/migrations/base.py` | `d41454f85acdb6854090d68a824c44f30296f1a5950b381769126e0e9e601721` |
+| `tests/fixtures/migrations/env.py` | `a75447ecb18aee06d9331158a34f6e2b07d42f38f8cb63d1492abeb08b80a52d` |
+| `tests/fixtures/migrations/failure.py` | `c4a6fb3274649e3f3233eaeb5c8140b00c81e2bd977616223e8a63782b8d9c55` |
+| `tests/integration/database/test_migration_evidence.py` | `db01649f233ebab80e2630bd36bad833f78a3cb59d353c7a3a3cec2b0e09f89f` |
+
+## Startup logging verification
+
+Verified on 2026-10-29 against base commit `d258d6f20817600d9555bbc7e2533ff66285f378` and the local inputs below.
+The boot banner precedes service registration during application construction;
+services start only when the lifespan begins. The regression test verifies one
+banner, ordered registration/startup/HTTP messages, and service shutdown.
+
+Windows Python 3.12 checks: 819 complete-suite tests passed with 96.22% overall
+branch-measured coverage; 18 focused application/lifecycle tests passed. Black,
+Ruff, mypy, and strict Pyright (two affected files, zero diagnostics) passed.
+Linux, MySQL suites, runtime-image smoke, and hosted CI were not repeated for this
+logging-order change. Earlier results retain their own source scopes.
+
+| Input | SHA-256 |
+| --- | --- |
+| `app/config/application.py` | `eb087d26c0dba86dff70e13fa76e1b4a973f7ba55aac452edd219301effa6ecc` |
+| `tests/e2e/test_startup_logging.py` | `3e5d190c8e5fd7a25bc4baad3205a0828e937667a4939d3f402405c93d1b5faa` |
+
 ## Required-check configuration confirmation
 
 On 2026-10-29, the maintainer confirmed completing the required-check update after
