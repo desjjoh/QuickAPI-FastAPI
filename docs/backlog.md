@@ -9,8 +9,9 @@ reference guides describe supported behavior.
 
 ## Branch-check enforcement
 
-Save and verify the eight intended GitHub checks according to
-[the configuration guide](branch-protection.md#required-check-configuration).
+The maintainer confirmed the required-check configuration on 2026-10-29.
+Candidate-specific hosted results and enforcement still require independent
+verification using [the configuration guide](branch-protection.md#required-check-configuration).
 Repository workflow definitions and local runtime checks do not establish that a
 remote ruleset enforces those contexts for a candidate pull request.
 
@@ -18,10 +19,10 @@ remote ruleset enforces those contexts for a candidate pull request.
 
 | Remaining work                                                                                                                                                | Roadmap phase                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| Save and verify required checks in GitHub, including the MySQL matrix contexts after a hosted run                                                             | 1B, 6E                           |
+| Independently verify configured required checks and candidate-specific enforcement in GitHub                                                                 | 1B, 6E                           |
 | True server/ingress header/whole-upload receive protection and deployed proxy/direct-port verification; application HTTP configuration is implemented locally | 2A deployment boundary, 8        |
 | Deeper schema drift/history checks beyond startup revision equality                                                                                           | 3C                               |
-| Hosted execution and required-check enforcement for disposable MySQL integration/E2E jobs                                                                     | 3B, 6E                           |
+| Confirm candidate-specific hosted MySQL integration/E2E results and required-check enforcement                                                                 | 6E                               |
 | Representative-data upgrades/backfills and supported migration/application rollback evidence                                                                  | 3C and every later schema change |
 | Pool/queue capacity, acquisition/connect budgets, TLS policy, readiness outage/recovery                                                                       | 3D, 3E                           |
 | Shutdown admission, drain, cleanup, and final deadline                                                                                                        | 4A                               |

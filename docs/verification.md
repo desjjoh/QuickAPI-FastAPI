@@ -2,6 +2,13 @@
 
 [Documentation index](../README.md#documentation)
 
+## Required-check configuration confirmation
+
+On 2026-10-29, the maintainer confirmed completing the required-check update after
+receiving the eight-context list, including both MySQL matrix checks. This is a
+maintainer-reported configuration result, not an independent ruleset inspection or
+a hosted CI pass. Historical observations below retain their original scope/date.
+
 ## Disposable MySQL verification
 
 Verified on 2026-10-28 against base commit `e3be0d0ce098e3ee2b1b1ee01950a87102ca15ab`
