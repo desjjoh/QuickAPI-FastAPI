@@ -144,8 +144,15 @@ def dispatch(config: TestDatabaseConfig, args: argparse.Namespace) -> int:
             return result
         result = 1
         asyncio.run(migration(config, "migrate", "head"))
-        selection = "integration or e2e" if args.layer == "all" else args.layer
-        command = [sys.executable, "-m", "pytest", "--no-cov", "-m", selection]
+        selection: str = "integration or e2e" if args.layer == "all" else args.layer
+        command: list[str] = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--no-cov",
+            "-m",
+            selection,
+        ]
         collected = subprocess.run(
             [*command, "--collect-only", "-q"],
             cwd=ROOT,
