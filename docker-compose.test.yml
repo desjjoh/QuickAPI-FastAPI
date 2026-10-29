@@ -1,0 +1,23 @@
+# Disposable tests only. Development uses docker-compose.yaml and its own volume.
+name: quickapi-fastapi-test
+
+services:
+  mysql-test:
+    image: mysql:8.4.6
+    environment:
+      MYSQL_DATABASE: ${TEST_DB_DATABASE:?Load .env.test}
+      MYSQL_USER: ${TEST_DB_USER:?Load .env.test}
+      MYSQL_PASSWORD: ${TEST_DB_PASSWORD:?Load .env.test}
+      MYSQL_ROOT_PASSWORD: ${TEST_DB_ROOT_PASSWORD:?Load .env.test}
+    ports:
+      - "127.0.0.1:${TEST_MYSQL_PORT:-3311}:3306"
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u"$$MYSQL_USER" "$$MYSQL_DATABASE" --silent --skip-column-names --execute="SELECT 1"'
+      interval: 2s
+      timeout: 3s
+      retries: 45
+      start_period: 20s

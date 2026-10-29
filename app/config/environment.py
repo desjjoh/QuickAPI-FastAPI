@@ -33,7 +33,7 @@ StringList = Annotated[list[str], NoDecode]
 
 SEMVER_REGEX = r"^\d+\.\d+\.\d+$"
 DEFAULT_API_PUBLISHED_PORT = 8000
-DEFAULT_MYSQL_PUBLISHED_PORT = 3308
+DEFAULT_MYSQL_PUBLISHED_PORT = 3310
 
 
 def operational_default(data: dict[str, object]) -> bool:
@@ -298,6 +298,13 @@ class Settings(BaseSettings):
 
 def load_settings() -> Settings:
     try:
+        # The explicit MySQL test wrapper supplies settings in the process env.
+        # Do not let a developer's .env affect this independently selected run.
+        if (
+            os.environ.get("QUICKAPI_TEST_DATABASE") == "mysql"
+            and os.environ.get("ENV") == "test"
+        ):
+            return Settings(_env_file=None)  # type: ignore
         return Settings()  # type: ignore
 
     except ValidationError as err:

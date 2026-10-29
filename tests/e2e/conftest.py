@@ -1,32 +1,31 @@
 from collections.abc import AsyncGenerator
-from pathlib import Path
 
 import httpx
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 
 @pytest_asyncio.fixture
 async def app(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    database_engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> AsyncGenerator[FastAPI, None]:
-    """Construct the real application with an isolated, file-backed database.
+    """Construct the real application with the selected, isolated database.
 
     Imports deliberately live inside the fixture: the database URL must be selected
     before the application is constructed and its lifecycle services are registered.
     The database module may already have been imported by a unit test during
     collection, so its process-wide engine and session factory are replaced too.
     """
-    database_url = f"sqlite+aiosqlite:///{tmp_path / 'e2e.db'}"
+    database_url = database_engine.url.render_as_string(hide_password=False)
     monkeypatch.setenv("DATABASE_URL", database_url)
 
     from app.config import database
     from app.config.environment import settings
 
     monkeypatch.setattr(settings, "DATABASE_URL", database_url)
-    test_engine = create_async_engine(database_url)
+    test_engine = database_engine
     monkeypatch.setattr(database, "engine", test_engine)
     monkeypatch.setattr(
         database,
@@ -37,9 +36,8 @@ async def app(
     from app.config.application import create_app
 
     application = create_app()
-    application.state.e2e_database_path = tmp_path / "e2e.db"
+    application.state.e2e_database_backend = test_engine.dialect.name
     yield application
-    await test_engine.dispose()
 
 
 @pytest_asyncio.fixture

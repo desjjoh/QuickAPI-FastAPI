@@ -8,11 +8,11 @@ The limiter enforces a bounded exact rolling window. Optional
 overrides in `.env.example` show code defaults; normal precedence remains process
 environment > `.env` > defaults. Restart to apply changes.
 
-| Setting | Default | Accepted integer range |
-| --- | --- | --- |
-| `RATE_LIMIT_WINDOW_MS` | 60000 | 1-86400000 |
-| `RATE_LIMIT_MAX` | 200 | 1-10000 |
-| `RATE_LIMIT_MAX_CLIENTS` | 10000 | 1-100000 |
+| Setting                  | Default | Accepted integer range |
+| ------------------------ | ------- | ---------------------- |
+| `RATE_LIMIT_WINDOW_MS`   | 60000   | 1-86400000             |
+| `RATE_LIMIT_MAX`         | 200     | 1-10000                |
+| `RATE_LIMIT_MAX_CLIENTS` | 10000   | 1-100000               |
 
 `RATE_LIMIT_MAX * RATE_LIMIT_MAX_CLIENTS` must not exceed **2000000 timestamp slots**.
 Missing values use defaults; blank/fractional/non-finite/boolean/out-of-range values
@@ -55,11 +55,11 @@ slots; it creates no additional HTTP endpoint.
 
 ## HTTP responses
 
-| Decision | HTTP behavior |
-| --- | --- |
-| Admitted | Request proceeds; wrapped responses include `X-RateLimit-Result: accepted` |
-| Existing client quota exhausted | 429, `X-RateLimit-Result: rejected`, positive integer `Retry-After` |
-| New identity at client-storage capacity | 503 with the same rejection/retry headers |
+| Decision                                | HTTP behavior                                                              |
+| --------------------------------------- | -------------------------------------------------------------------------- |
+| Admitted                                | Request proceeds; wrapped responses include `X-RateLimit-Result: accepted` |
+| Existing client quota exhausted         | 429, `X-RateLimit-Result: rejected`, positive integer `Retry-After`        |
+| New identity at client-storage capacity | 503 with the same rejection/retry headers                                  |
 
 429 uses `Too many requests — limit is N per Ws.`. 503 uses `Rate limiter capacity is exhausted.
 Try again later.` Both retain the existing error envelope. `Retry-After` is the

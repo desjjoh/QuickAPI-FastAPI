@@ -18,7 +18,7 @@ Use Python 3.12. Docker Engine is needed for container verification.
 
 1. Create a Python 3.12 virtual environment (`py -3.12 -m venv .venv` on Windows or `python3.12 -m venv .venv` on Linux/macOS), activate it, then run `python -m pip install -r requirements-dev.txt` and `python -m pip check`.
 2. Copy [.env.example](.env.example) to a gitignored `.env`.
-3. Start local MySQL with `docker compose up -d --wait mysql`. The example `DATABASE_URL` reaches it at `127.0.0.1:3308`; update an existing `.env` if it still points elsewhere. SQLite remains available through `sqlite+aiosqlite:///./app.db`.
+3. Start local MySQL with `docker compose up -d --wait mysql`. The example `DATABASE_URL` reaches the isolated `quickapi-fastapi-dev` database at `127.0.0.1:3310`. Run `python -m alembic upgrade head` before starting the API. See [Migrations](docs/migrations.md) for the command guide. SQLite remains available through `sqlite+aiosqlite:///./app.db` and also requires explicit migration.
 4. Run `python -m app.main`.
 
 For the complete local container stack, run `docker compose up --build -d --wait`; the container API is at `http://127.0.0.1:8000`. Compose overrides the native database URL, bind address, port, and mode for its internal topology. See [local Compose](docs/development.md#local-compose).
@@ -32,6 +32,8 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Development](docs/development.md) | Setup, configuration, database selection, and local commands |
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
+| [MySQL testing](docs/mysql-testing.md) | Disposable test infrastructure, .env.test, migrations, and CI |
+| [Migrations](docs/migrations.md) | Database setup, Alembic commands, schema checks, and disposable resets |
 | [Logging](docs/logging.md) | Console/JSON output, levels, request correlation, and safe diagnostics |
 | [Rate limiting](docs/rate-limiting.md) | Bounded rolling windows, storage capacity, retry timing, and probe policy |
 | [Operational exposure](docs/operational-exposure.md) | Docs/diagnostic/metrics flags, production defaults, and minimal probes |
@@ -60,13 +62,13 @@ Routes have no application authentication. This service does not implement the a
 ## Quality checks
 
 ```sh
-python -m black --check app tests
-python -m ruff check app tests
-python -m mypy app
+python -m black --check app tests scripts
+python -m ruff check app tests scripts
+python -m mypy app scripts
 python -m pytest -q
 ```
 
-Follow [Testing](docs/testing.md) for layer selection, critical coverage thresholds, and container checks. SQLite-backed tests and a container smoke test do not establish production MySQL or deployment readiness.
+Follow [Testing](docs/testing.md) for layer selection, critical coverage thresholds, and container checks. The disposable MySQL suites verify repository/API persistence; SQLite coverage and the current SQLite image smoke remain separate evidence. See [MySQL testing](docs/mysql-testing.md) for the test runner. These checks do not establish deployment readiness.
 
 ## License
 

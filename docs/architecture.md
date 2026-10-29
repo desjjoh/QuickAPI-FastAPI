@@ -90,18 +90,13 @@ after the response dependency scope completes. Read queries do not commit. Each
 repository mutation owns its transaction: it flushes and refreshes, commits on
 success, and rolls back on any failure so the session is safe to close or reuse.
 
-At startup, the application calls SQLAlchemy `metadata.create_all()`. That
-is deterministic for a fresh database but **is not a schema migration system** and
-does not alter existing columns. Before evolving a deployed schema:
-
-1. Add Alembic (or the migration system selected by the consuming service).
-2. Generate a revision from the ORM metadata, inspect it, and test both upgrade and
-   downgrade against the production database engine.
-3. Run `alembic upgrade head` as a one-shot release task before rolling out the app.
-4. Remove startup `create_all()` once migrations become authoritative.
-
-This limitation is explicit so the template does not promise migration safety it
-does not yet prove.
+[Alembic migrations](migrations.md) own schema creation and changes. The API checks
+that the connected database revision matches the single source head before startup
+completes; it does not apply migrations or call `metadata.create_all()`. Apply
+`python -m alembic upgrade head` explicitly before starting native Python. Compose
+uses a one-shot migration service before API startup. Revision equality does not
+establish that manually edited tables match the models; schema comparison and
+data/rollback compatibility need separate evidence.
 
 ## Lifecycle and extension rules
 
@@ -114,7 +109,6 @@ Update [API contracts](api-contracts.md) when routes/models change, [Development
 ## Request deadlines
 
 See [Request deadlines and streaming](request-timeouts.md) for the pure-ASGI response state boundary, bounded receive ownership, cancellation/cleanup limits, and Express-aligned HTTP outcomes. It does not implement TCP header deadlines or mutation rollback guarantees.
-
 
 ## Documentation conventions
 

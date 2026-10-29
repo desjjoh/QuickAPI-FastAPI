@@ -2,6 +2,140 @@
 
 [Documentation index](../README.md#documentation)
 
+## Required-check configuration confirmation
+
+On 2026-10-29, the maintainer confirmed completing the required-check update after
+receiving the eight-context list, including both MySQL matrix checks. This is a
+maintainer-reported configuration result, not an independent ruleset inspection or
+a hosted CI pass. Historical observations below retain their original scope/date.
+
+## Disposable MySQL verification
+
+Verified on 2026-10-28 against base commit `e3be0d0ce098e3ee2b1b1ee01950a87102ca15ab`
+and the local input fingerprints below. The base commit alone does not identify
+the locally tested changes.
+
+| Check                                 | Result                                                                                                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows compatibility suite           | 818 passed; Python 3.12.10; 96.22% overall coverage with branch measurement                                                                                   |
+| Linux compatibility suite             | 818 passed; 96.33% overall coverage with branch measurement                                                                                                   |
+| Windows MySQL integration             | 151 passed; 24 database-backed tests use shared MySQL fixtures                                                                                                |
+| Windows MySQL E2E                     | 112 passed; 107 database-backed tests use shared MySQL fixtures                                                                                               |
+| Linux MySQL integration               | 151 passed; 24 database-backed tests use shared MySQL fixtures                                                                                                |
+| Linux MySQL E2E                       | 112 passed; 107 database-backed tests use shared MySQL fixtures                                                                                               |
+| Target-safety/wrapper regressions     | 38 focused tests passed; also included in complete compatibility suites                                                                                       |
+| Formatting / lint                     | Black: 134 Python files unchanged; Ruff passed on Windows and Linux                                                                                           |
+| Application/tool typing               | mypy: 58 source files passed on Windows and Linux                                                                                                             |
+| Editor typing                         | Strict Pyright: 11 affected Python files; zero diagnostics                                                                                                    |
+| Coverage gates                        | Middleware 96%, lifecycle 99%, database package 100%, API 99%; configured gates passed                                                                        |
+| Dependencies                          | Native and disposable Linux environment `pip check` passed                                                                                                    |
+| Test infrastructure                   | MySQL 8.4.6; project `quickapi-fastapi-test`; host port 3311                                                                                                  |
+| Temporary storage                     | Docker `HostConfig.Tmpfs` confirms `/var/lib/mysql` is tmpfs                                                                                                  |
+| Migration commands                    | Fresh upgrade, current revision, comparison, downgrade/reapply, and test-target proposal generation passed                                                    |
+| Proposal cleanup                      | Generated verification-only revision removed without application; original chain/model comparison restored                                                    |
+| Isolation                             | Real commits/fresh-session visibility, clean rows, constraints, live identity, and competing MySQL lock checks passed                                         |
+| Failure behavior                      | Unsafe targets rejected; unavailable MySQL fails; no-database selection rejected; migration/collection/test failures retain failure exits and attempt cleanup |
+| Local concurrency                     | Cross-process wrapper exclusion/release verified on Windows and Linux                                                                                         |
+| Env separation                        | Explicit MySQL settings ignore a deliberately invalid development `.env`; development connection/comments retained                                            |
+| CI definition                         | YAML parses; separate MySQL layers gate combined coverage and downstream container qualification                                                              |
+| Cleanup                               | Temporary test containers/network removed; development MySQL remains healthy on port 3310                                                                     |
+| Hosted CI / branch enforcement        | Not run / not verified                                                                                                                                        |
+| Runtime-image smoke for these changes | Not repeated; production-image MySQL qualification remains separate                                                                                           |
+
+Complete compatibility suites default to SQLite. MySQL layer totals also contain
+database-free HTTP/lifecycle cases and intentionally isolated SQLite migration/file
+checks; the database-backed fixture counts identify the 131 cases using MySQL.
+Linux verification uses read-only source mounts, disposable tool installations,
+and temporary coverage/cache/test files. Application coverage gates do not measure
+the repository wrapper's coverage; its safety/failure tests are listed separately.
+
+Local orchestration exercises the documented Python wrapper. Linux MySQL tests use
+the same guarded fixtures against the isolated container's internal service address.
+No development/sibling database was migrated or reset by test helpers. This evidence
+does not qualify future representative data upgrades, pool/TLS capacity, outage
+recovery, a MySQL production image, or hosted deployment/release behavior.
+
+### Disposable test input fingerprints
+
+| Input                                                   | SHA-256                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------------ |
+| `.dockerignore`                                         | `20ec97ff95653f24c6ded6ef61542b0f49b36d1cb525acbcf9ea2a26707e31fe` |
+| `.env.example`                                          | `61376768420bded1cc8e3bda7368ab51511fc8d27744d53f2eb20b2a384c883c` |
+| `.env.test`                                             | `0d6167f86f9f423939bb25144bfeda31e55a57c48264683f851a8f77ee34123a` |
+| `.github/workflows/tests.yml`                           | `2a460302db035110b09d07b456c0906d72d8fc45fc8ff9c1e8af5fe261d49c9c` |
+| `app/config/environment.py`                             | `36bec2cf154827ac6eafa9717be072ddeb1cb13474184cbd695d720abcacc72f` |
+| `docker-compose.test.yml`                               | `5f81a3ed73a658efde8ccf752b042d538784920c9e9c2327bcb17244bf7173e1` |
+| `scripts/__init__.py`                                   | `55028c82422c38a3d6e0b12e2769bd09981168acd0597531204d1cfc7464c2a2` |
+| `scripts/test_database_support.py`                      | `9da474498f59d3590eaecba90660bdd0ee9255d1e599c4be3cc83a4917c5b20f` |
+| `scripts/test_db.py`                                    | `66affddc45d936b5fc2dd93c9a4660b066024c6e1f42240937c8308194179033` |
+| `tests/conftest.py`                                     | `7a41dd9e00364ae850b21424aecca7f40811d18ab95ff618c8bd009a687f9e0f` |
+| `tests/e2e/conftest.py`                                 | `94f851572ac04f1deba9348370159c15e2fecec7daebe489f04e992ad7e4ed8e` |
+| `tests/e2e/test_application.py`                         | `4a89bc4d7395cb7edf8641c2f79219bfa7130090190cdbabf8ed85b2f7479ba4` |
+| `tests/integration/conftest.py`                         | `90d964cab808b753f4ea43ce63a95bbf04f3ee3af9c8fe91d7cdcec2c67e8e75` |
+| `tests/integration/database/test_database_isolation.py` | `bf8cdadb0b33f10392c570b9f7f306296e3952f541cdcf2c74273a98a5c6bacd` |
+| `tests/integration/database/test_item_repository.py`    | `f282fa75160dbb1af3c3a709e0f92923bba38f0aad39ca91828ffb5cda123f47` |
+| `tests/unit/config/test_disposable_database.py`         | `134764fa243b1af92ac3cee341bcdc00f0fc583d1a4a64531b9a0bd5e3bf0ec4` |
+
+## Migration foundation verification
+
+Verified on 2026-10-28 against base commit
+`1e4f413096a4c9f53546c3aed2c601d2dac45f5f` and the local input fingerprints below.
+The base commit does not include these local changes.
+
+| Check                    | Result                                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------ |
+| Windows complete suite   | 776 passed; Python 3.12.10; 96.21% branch coverage                                               |
+| Linux complete suite     | 776 passed; 96.33% branch coverage; disposable container, read-only source mount                 |
+| Formatting / lint        | Black: 129 Python files unchanged; Ruff passed on Windows and Linux                              |
+| Application typing       | mypy: 55 source files passed on Windows and Linux                                                |
+| Editor typing            | Strict Pyright: 13 affected Python files; zero diagnostics                                       |
+| Dependency consistency   | Native environment and runtime image `pip check` passed                                          |
+| Coverage gates           | Middleware 96%, lifecycle 99%, database package 100%, API 99%; configured gates passed           |
+| Baseline                 | Fresh schema matches models; repeat upgrade preserves a representative row                       |
+| Startup rejection        | Empty/missing/incompatible history rejected; empty database tables remain uncreated              |
+| Migration commands       | Online async execution, offline SQL, downgrade/reapply tested on disposable SQLite               |
+| Docker MySQL             | Isolated `quickapi-fastapi-dev` project/database; MySQL 8.4.6; loopback port 3310                |
+| Native MySQL API smoke   | Readiness, item creation (201), and readback passed                                              |
+| Container MySQL smoke    | One-shot migration exited 0 before API became healthy; item read passed                          |
+| MySQL persistence        | Container recreation retained the sample row and revision; no volume reset performed             |
+| MySQL comparison         | Native and final-image `alembic check` report no new operations                                  |
+| Final runtime image      | `sha256:a41b9b8bb902cf7d7aab84b66d540f02c2491b85de26f1a57415529f20b87ccd`                        |
+| Final SQLite image smoke | Unmigrated startup fails with command guidance; explicit upgrade enables readiness and item read |
+| Cleanup                  | Temporary smoke volumes/containers removed; temporary API stopped; development MySQL retained    |
+| Hosted CI / release      | Not run / not verified                                                                           |
+
+Runtime migration helpers are included in the image; development analysis/test tools
+are installed only in the disposable Linux verification container. The automated
+persistence suites use SQLite. Local MySQL smoke does not establish a full MySQL CI
+suite, schema-drift detection, representative future backfills, deployment rollback,
+capacity/TLS qualification, or outage recovery. Startup checks revision equality,
+not every table/column. No shared Express/NestJS database was migrated or reset.
+
+### Migration input fingerprints
+
+| Input                                                   | SHA-256                                                            |
+| ------------------------------------------------------- | ------------------------------------------------------------------ |
+| `.env.example`                                          | `b44d09cb3da1557ebe7b3da7ee4f8a2eafc769617ebf3c7c96a16de188748356` |
+| `.github/workflows/tests.yml`                           | `2bf960a93058556d0319140b3822ff50fd637b00c7f6a0be44a811f5b5e635db` |
+| `Dockerfile`                                            | `71eedddc4f3e2d4e492eae66b7f4c7ab88aff73cced3c7a56bb7aad2b8297924` |
+| `alembic.ini`                                           | `3f61cffc8fabca9774d67e3dfd9516c858c4da98aaefec26f643e2610f654b2f` |
+| `app/config/database.py`                                | `b04853d6d6ee355a0b97d66776e6ed42d9b2d5f56bcfaefa9a24b138d7f5ba35` |
+| `app/config/environment.py`                             | `614ee4f67976c9b217838d29414d56b128d0370042efacfcaf7efbcf891f3200` |
+| `app/config/migrations.py`                              | `16decaf23eaeb9f9c4c70a66cf97bbfb60b0fde3fcf3a48ad1b9245835bf3539` |
+| `app/database/migrations/env.py`                        | `aa006a88455a144599689e614a5d9a43dd166b138287af43761edad5384c7589` |
+| `app/database/migrations/script.py.mako`                | `9c72f2b9aa664f849982dd50ae87f788bd81a5270898624dfd0a6b2703da561e` |
+| `app/database/migrations/versions/0001_create_items.py` | `518ecf75af75ef5faca34d4f43a59ef92f6f1a2e26932a23f7c4f9a4625f58cf` |
+| `docker-compose.yaml`                                   | `cdbf0944b3a07294fc5a32100b38009668c1937f15df977c4b583ece271baec5` |
+| `requirements.txt`                                      | `387fb4e096e60eba5fdd66fc582fbbf68677a6e44ecd6e26dd76310ec11a19e6` |
+| `tests/conftest.py`                                     | `3b71c4771f0c0149063cab3b444d378b46c2c54539cdbb3153035a32246589f7` |
+| `tests/e2e/conftest.py`                                 | `1f80afde2b94f388ebcdfd2e635bc7d33fc5a86252d2f85fb8ca7df114f7c05e` |
+| `tests/e2e/test_application.py`                         | `c1e590fe8892a47bc1e22994055c4488f30ca3913dc95067aed3ed127002e47b` |
+| `tests/integration/conftest.py`                         | `1006f49cc94cee1092a9fa88ea99bc7ea041bae105ae7d5030a80c294996c0c8` |
+| `tests/integration/database/test_item_repository.py`    | `daf763cf8ff7fa51e64e4435ef3e404764807affa527e367fbf71aad828dc16f` |
+| `tests/integration/database/test_migrations.py`         | `138c7be87a6a4777c926f15c988f1ce71240868b5f4ebc50427e72de270ef4f3` |
+| `tests/unit/config/test_database_config.py`             | `11b4ea5cd9c4794766ebc2fa05f8b55b25c1a7f2f626c73df0c95013afefe797` |
+| `tests/unit/config/test_environment.py`                 | `cc25bc245ee48171d4b211b75dd285940374d7c26c7bc21b87dd1c719e3202d7` |
+
 ## Dependency logging filter verification
 
 Verified on 2026-10-28 with the Windows Python 3.12 environment, against base commit
@@ -15,9 +149,9 @@ errors retain ERROR, and application DEBUG/lifecycle filtering remains independe
 Complete suites, Docker smoke, and hosted CI were not repeated for this filter change;
 the complete-suite results below belong to their recorded snapshot.
 
-| Input | SHA-256 |
-| --- | --- |
-| `app/config/logging.py` | `7cbfa7efd5338ffe0d0125ad18862dff4c2f7776d8825af6ba0bcfef6e02af9a` |
+| Input                                                  | SHA-256                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------ |
+| `app/config/logging.py`                                | `7cbfa7efd5338ffe0d0125ad18862dff4c2f7776d8825af6ba0bcfef6e02af9a` |
 | `tests/integration/middleware/test_logging_privacy.py` | `8de694af15ccff97554357fc1ef462193d74cac85dae2fb8ba9e2158d38da1a1` |
 
 ## Scope and source identity
@@ -72,7 +206,7 @@ databases use `/tmp`. The saved runtime image contains runtime requirements only
 | Limiter admission         | Atomic thread admission, independent clients/instances, active-quota retention, ordered expiry, and capacity recovery                                                                  |
 | Limiter HTTP policy       | Distinct 429/503 envelopes, positive remaining-delay retry headers, resolved proxy identity, probe/preflight accounting, early header protection, and favicon GET/HEAD exemption       |
 | Socket behavior           | Uvicorn h11/httptools tests for deadlines, streaming/disconnects, configured proxy identity, production exposure, concurrent bursts, capacity, and exact recovery                      |
-| Logging privacy           | Console/JSON modes, severity filters, safe diagnostics, ASCII-only streams, bootstrap/fatal/dependency output, and correlated h11/httptools failures |
+| Logging privacy           | Console/JSON modes, severity filters, safe diagnostics, ASCII-only streams, bootstrap/fatal/dependency output, and correlated h11/httptools failures                                   |
 | Environment documentation | Commented defaults agree with settings; shared env comments match and recorded local overrides are preserved                                                                           |
 
 Contracts and commands are documented in [Testing](testing.md),
@@ -82,18 +216,18 @@ Contracts and commands are documented in [Testing](testing.md),
 
 ## Runtime-image validation
 
-| Field | Result |
-| --- | --- |
-| Image identity | `sha256:b7273febd0cf39f7dcf5f3f03f60cf62831a451618e7ef42e189babf2dd7c1dc` |
-| Database | Disposable SQLite |
-| Network | Loopback-only test requests |
-| Dependency consistency | `pip check` passed |
-| Readiness and normal request | HTTP 200 |
-| Production output | Every record parses as JSON without ANSI styling |
-| INFO filtering | Successful access records hidden; lifecycle messages retained |
-| Rejection | HTTP 404 with one completed access record; raw path/query value absent |
-| Invalid configuration | Exit 1 with safe critical JSON and no supplied value or traceback |
-| Cleanup | Disposable containers removed |
+| Field                        | Result                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| Image identity               | `sha256:b7273febd0cf39f7dcf5f3f03f60cf62831a451618e7ef42e189babf2dd7c1dc` |
+| Database                     | Disposable SQLite                                                         |
+| Network                      | Loopback-only test requests                                               |
+| Dependency consistency       | `pip check` passed                                                        |
+| Readiness and normal request | HTTP 200                                                                  |
+| Production output            | Every record parses as JSON without ANSI styling                          |
+| INFO filtering               | Successful access records hidden; lifecycle messages retained             |
+| Rejection                    | HTTP 404 with one completed access record; raw path/query value absent    |
+| Invalid configuration        | Exit 1 with safe critical JSON and no supplied value or traceback         |
+| Cleanup                      | Disposable containers removed                                             |
 
 Image identity is local artifact evidence, not a publication or release attestation.
 Operational default/override smoke evidence belongs to V7; quota/capacity smoke
@@ -199,40 +333,40 @@ identities alone proves publication or a hosted CI pass.
 
 ### V9 verified inputs
 
-| Input | SHA-256 |
-| --- | --- |
-| `.env.example` | `d0c840c0f1ba67b429434f7757cc68761012da836c1aa6e32bdeaacf05b8a913` |
-| `app/api/system/controllers/system_controller.py` | `972a0e6487abe219d3f7d39332ed11cc197fe420359e280f2147dca9cf4f73a3` |
-| `app/common/handlers/exception_handler.py` | `f3f55ecf2a651159ec6fd92acc9718e1db622dff36dcebd47555d893546eef7d` |
-| `app/common/handlers/lifecycle_handler.py` | `c419887795bc470935b78429f9e18fa7b04e51cd6b1ce9af997e27449e32474e` |
-| `app/common/helpers/error_diagnostics.py` | `44a2c79a829ea29a9316ca398278424f4226941e165b2fa9a5bc396635ce97c6` |
-| `app/common/middleware/rate_limit.py` | `a4771f95f9be2ca72e2486d468422e8e77b03a8c3c1355e62ee3da2ddc360852` |
-| `app/common/middleware/request_context.py` | `4cf802aaf15a4f9c3f71f80fa5dbc8931a3a9e105f7e544b420230c182a250f7` |
-| `app/common/middleware/request_logger.py` | `e2c9f4eb7cfae7f2da367675498e02f7bcdb7125a7fd18bfd7ae672010d63c31` |
-| `app/common/middleware/request_timeout.py` | `d4df146e26debbdf08a96043ad0bd0e681013d45ae62c87bb777448c16088e9c` |
-| `app/common/store/rate_limit.py` | `b07775fd32b716c78355f28e27cd3bc7d23cc4a8e13eec76e84d5cd135fe2b3c` |
-| `app/config/application.py` | `ef7a0e319cefd764ef3b7339128fe7febf595e4c33e0b96487c60564525163a8` |
-| `app/config/database.py` | `4a06dfc1cd8c8de099223f3483728979ea118144e3b6a7ff7fdd02fad683a62f` |
-| `app/config/environment.py` | `9b48ed0c0ded2612e8307a2c25a323c06fc3c0164222c7a5a00ee00b51689b78` |
-| `app/config/logging.py` | `f31a2203c81e1c900f2c7ba9716e518db50f26786ae700c007d7d574bfd21759` |
-| `app/config/rate_limit_policy.py` | `fc7233c555344f47c43875fe7f75f98d9e33c6149f9748ec9993b78f7d3c7f22` |
-| `app/config/rate_limiter.py` | `c141614ff344a804d8a2900f7e4b49aa0674caf3907c75c7fc79dc01f7964820` |
-| `app/main.py` | `7bb4d8ed68f8d02f449d7b0838d74a28bf5b2189e8091ae9124038f9c0e65134` |
-| `tests/conftest.py` | `584a0e9a414d735e097a781e3272f4dc2f081a0f125b249dd3e2be206bfa870e` |
-| `tests/integration/errors/test_middleware_rejections.py` | `ee944571570318d8ad4e5e91ff624cf038aba1b52d52a1b15b37f48c0991f192` |
-| `tests/integration/middleware/test_application_stack.py` | `a4e21748b5b794cb00309a89c9c64dddfa86eb2fb3c1e14b9a066d5ba96b5468` |
-| `tests/integration/middleware/test_http_policy.py` | `c8034ac1bb23c54f863c063e3fac3653fb1f40130fbc2f4cd769a7c500de1199` |
-| `tests/integration/middleware/test_logging_privacy.py` | `4e0b89bdd5d67b7662795d281d2765b4e126c91a053e7ad8ca27a5ab41206878` |
+| Input                                                       | SHA-256                                                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| `.env.example`                                              | `d0c840c0f1ba67b429434f7757cc68761012da836c1aa6e32bdeaacf05b8a913` |
+| `app/api/system/controllers/system_controller.py`           | `972a0e6487abe219d3f7d39332ed11cc197fe420359e280f2147dca9cf4f73a3` |
+| `app/common/handlers/exception_handler.py`                  | `f3f55ecf2a651159ec6fd92acc9718e1db622dff36dcebd47555d893546eef7d` |
+| `app/common/handlers/lifecycle_handler.py`                  | `c419887795bc470935b78429f9e18fa7b04e51cd6b1ce9af997e27449e32474e` |
+| `app/common/helpers/error_diagnostics.py`                   | `44a2c79a829ea29a9316ca398278424f4226941e165b2fa9a5bc396635ce97c6` |
+| `app/common/middleware/rate_limit.py`                       | `a4771f95f9be2ca72e2486d468422e8e77b03a8c3c1355e62ee3da2ddc360852` |
+| `app/common/middleware/request_context.py`                  | `4cf802aaf15a4f9c3f71f80fa5dbc8931a3a9e105f7e544b420230c182a250f7` |
+| `app/common/middleware/request_logger.py`                   | `e2c9f4eb7cfae7f2da367675498e02f7bcdb7125a7fd18bfd7ae672010d63c31` |
+| `app/common/middleware/request_timeout.py`                  | `d4df146e26debbdf08a96043ad0bd0e681013d45ae62c87bb777448c16088e9c` |
+| `app/common/store/rate_limit.py`                            | `b07775fd32b716c78355f28e27cd3bc7d23cc4a8e13eec76e84d5cd135fe2b3c` |
+| `app/config/application.py`                                 | `ef7a0e319cefd764ef3b7339128fe7febf595e4c33e0b96487c60564525163a8` |
+| `app/config/database.py`                                    | `4a06dfc1cd8c8de099223f3483728979ea118144e3b6a7ff7fdd02fad683a62f` |
+| `app/config/environment.py`                                 | `9b48ed0c0ded2612e8307a2c25a323c06fc3c0164222c7a5a00ee00b51689b78` |
+| `app/config/logging.py`                                     | `f31a2203c81e1c900f2c7ba9716e518db50f26786ae700c007d7d574bfd21759` |
+| `app/config/rate_limit_policy.py`                           | `fc7233c555344f47c43875fe7f75f98d9e33c6149f9748ec9993b78f7d3c7f22` |
+| `app/config/rate_limiter.py`                                | `c141614ff344a804d8a2900f7e4b49aa0674caf3907c75c7fc79dc01f7964820` |
+| `app/main.py`                                               | `7bb4d8ed68f8d02f449d7b0838d74a28bf5b2189e8091ae9124038f9c0e65134` |
+| `tests/conftest.py`                                         | `584a0e9a414d735e097a781e3272f4dc2f081a0f125b249dd3e2be206bfa870e` |
+| `tests/integration/errors/test_middleware_rejections.py`    | `ee944571570318d8ad4e5e91ff624cf038aba1b52d52a1b15b37f48c0991f192` |
+| `tests/integration/middleware/test_application_stack.py`    | `a4e21748b5b794cb00309a89c9c64dddfa86eb2fb3c1e14b9a066d5ba96b5468` |
+| `tests/integration/middleware/test_http_policy.py`          | `c8034ac1bb23c54f863c063e3fac3653fb1f40130fbc2f4cd769a7c500de1199` |
+| `tests/integration/middleware/test_logging_privacy.py`      | `4e0b89bdd5d67b7662795d281d2765b4e126c91a053e7ad8ca27a5ab41206878` |
 | `tests/integration/middleware/test_operational_exposure.py` | `5d22831ec839569ff63ccc124653dda5853ff1280609b7196f5798a8a60ea827` |
-| `tests/integration/middleware/test_rate_limiting.py` | `117d7ec1a4afe2cd7b6f09c343a422e8a95da278d509a2d0623776e652d12ea8` |
-| `tests/integration/middleware/test_request_outcomes.py` | `dfc736adca320f2f97dc04409e9a638aa9e86f62ae3e5f1c625c4b29df110bb6` |
-| `tests/unit/config/test_environment.py` | `ce8412866d3774972629baba4bf7b17121c0ff3f59e294832fda80ea2f886302` |
-| `tests/unit/config/test_logging_privacy.py` | `57c6cd42b83585ddf5c0b6b3bb994a53fb5c4036f003a4d324e55640c0b99db5` |
-| `tests/unit/config/test_rate_limiter.py` | `981fe303f9dfc0f314760b1a0cb01f8165f8116eefb63fd7dbd24d5c700030e0` |
-| `tests/unit/middleware/test_rate_limit.py` | `00a0abf556bbffd177072aec313afc6657ab1cecc300a74ac4b75cb7e698d79f` |
-| `tests/unit/middleware/test_request_logger.py` | `a5c83450a47c4835132a85a9585968865efb0b6b2ae2ec6b92d72cddff0e6bc0` |
-| `tests/unit/middleware/test_request_timeout.py` | `c334be85f790332bbdc6b973830a058151c65b4ce5d2ec34741147726d9d65a0` |
-| `tests/unit/test_database.py` | `cd300cae5dd13113102546543016132a42d77656b30794723f86de61b3bde639` |
+| `tests/integration/middleware/test_rate_limiting.py`        | `117d7ec1a4afe2cd7b6f09c343a422e8a95da278d509a2d0623776e652d12ea8` |
+| `tests/integration/middleware/test_request_outcomes.py`     | `dfc736adca320f2f97dc04409e9a638aa9e86f62ae3e5f1c625c4b29df110bb6` |
+| `tests/unit/config/test_environment.py`                     | `ce8412866d3774972629baba4bf7b17121c0ff3f59e294832fda80ea2f886302` |
+| `tests/unit/config/test_logging_privacy.py`                 | `57c6cd42b83585ddf5c0b6b3bb994a53fb5c4036f003a4d324e55640c0b99db5` |
+| `tests/unit/config/test_rate_limiter.py`                    | `981fe303f9dfc0f314760b1a0cb01f8165f8116eefb63fd7dbd24d5c700030e0` |
+| `tests/unit/middleware/test_rate_limit.py`                  | `00a0abf556bbffd177072aec313afc6657ab1cecc300a74ac4b75cb7e698d79f` |
+| `tests/unit/middleware/test_request_logger.py`              | `a5c83450a47c4835132a85a9585968865efb0b6b2ae2ec6b92d72cddff0e6bc0` |
+| `tests/unit/middleware/test_request_timeout.py`             | `c334be85f790332bbdc6b973830a058151c65b4ce5d2ec34741147726d9d65a0` |
+| `tests/unit/test_database.py`                               | `cd300cae5dd13113102546543016132a42d77656b30794723f86de61b3bde639` |
 
 ### Supporting source identities
 
@@ -344,6 +478,5 @@ identities alone proves publication or a hosted CI pass.
 | `tests/unit/config/test_environment.py`              | `ce8412866d3774972629baba4bf7b17121c0ff3f59e294832fda80ea2f886302` |
 | `tests/unit/middleware/test_rate_limit.py`           | `00a0abf556bbffd177072aec313afc6657ab1cecc300a74ac4b75cb7e698d79f` |
 | `tests/integration/middleware/test_rate_limiting.py` | `117d7ec1a4afe2cd7b6f09c343a422e8a95da278d509a2d0623776e652d12ea8` |
-
 
 </details>

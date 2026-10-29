@@ -8,14 +8,14 @@ When `DOCS_ENABLED=true`, the app exposes `/docs`, `/redoc`, and `/openapi.json`
 
 ## Items
 
-| Method | Route | Success | Behavior |
-| --- | --- | --- | --- |
-| POST | `/api/v1/items/` | 201 | Create and return an item |
-| GET | `/api/v1/items/` | 200 | Return a filtered, paginated collection |
-| GET | `/api/v1/items/{id}` | 200 | Retrieve an item |
-| PATCH | `/api/v1/items/{id}` | 200 | Update supplied fields |
-| PUT | `/api/v1/items/{id}` | 200 | Replace using the full input model |
-| DELETE | `/api/v1/items/{id}` | 200 | Return the deleted item |
+| Method | Route                | Success | Behavior                                |
+| ------ | -------------------- | ------- | --------------------------------------- |
+| POST   | `/api/v1/items/`     | 201     | Create and return an item               |
+| GET    | `/api/v1/items/`     | 200     | Return a filtered, paginated collection |
+| GET    | `/api/v1/items/{id}` | 200     | Retrieve an item                        |
+| PATCH  | `/api/v1/items/{id}` | 200     | Update supplied fields                  |
+| PUT    | `/api/v1/items/{id}` | 200     | Replace using the full input model      |
+| DELETE | `/api/v1/items/{id}` | 200     | Return the deleted item                 |
 
 IDs are exactly 16 lowercase hexadecimal characters. Invalid IDs/payloads return 422; missing items return 404. Responses include `id`, `name`, `price`, `description`, `created_at`, and `updated_at`.
 
@@ -25,15 +25,15 @@ Storage uses `Numeric(10, 2)`, but request models do not enforce matching precis
 
 ## Collection queries
 
-| Query | Default | Constraint |
-| --- | --- | --- |
-| `page` | 1 | Integer ≥ 1 |
-| `limit` | 20 | Integer 1–100 |
-| `sort` | `price` | `name`, `price`, or `created_at` |
-| `order` | `asc` | `asc` or `desc` |
-| `search` | Absent | Case-insensitive SQL LIKE over name or description |
-| `min_price` | Absent | Non-negative; cannot exceed `max_price` |
-| `max_price` | Absent | Non-negative |
+| Query       | Default | Constraint                                         |
+| ----------- | ------- | -------------------------------------------------- |
+| `page`      | 1       | Integer ≥ 1                                        |
+| `limit`     | 20      | Integer 1–100                                      |
+| `sort`      | `price` | `name`, `price`, or `created_at`                   |
+| `order`     | `asc`   | `asc` or `desc`                                    |
+| `search`    | Absent  | Case-insensitive SQL LIKE over name or description |
+| `min_price` | Absent  | Non-negative; cannot exceed `max_price`            |
+| `max_price` | Absent  | Non-negative                                       |
 
 The JSON envelope contains `data`, `total`, `page`, and `limit`. `total_pages` is a Python property, not a serialized field. Search includes SQL LIKE `%` and `_` wildcard semantics. Sorting has no unique tie-breaker, so equal values do not guarantee stable page ordering.
 
@@ -64,7 +64,6 @@ The process-local limiter defaults to 200 admitted requests in the preceding 60 
 Repository mutations commit before returning. No optimistic concurrency token, idempotency-key contract, or replay protection exists. Avoid automatic mutation retries unless the caller can reconcile an uncertain result. Implement and test guarantees before documenting them.
 
 Operational payloads and access boundaries are documented in [Deployment](deployment.md#application-lifespan-and-operational-endpoints).
-
 
 ## Public readiness
 

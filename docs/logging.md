@@ -9,13 +9,13 @@ production uses JSON records with UTC ISO timestamps. `LOG_LEVEL` accepts `DEBUG
 `INFO`, `WARN`, or `ERROR`, defaults to `INFO`, and filters both application output
 and the standard logging bridge. There is no separate output-format setting.
 
-| Event | Python level |
-| --- | --- |
-| Successful request access record | DEBUG |
-| Normal application lifecycle | INFO |
-| Expected client rejection / aborted request | WARNING |
-| Server error / unexpected failure | ERROR |
-| Fatal initialization/runtime failure | CRITICAL |
+| Event                                       | Python level |
+| ------------------------------------------- | ------------ |
+| Successful request access record            | DEBUG        |
+| Normal application lifecycle                | INFO         |
+| Expected client rejection / aborted request | WARNING      |
+| Server error / unexpected failure           | ERROR        |
+| Fatal initialization/runtime failure        | CRITICAL     |
 
 At INFO, successful request logs are hidden while lifecycle messages are visible.
 Metrics and request-outcome observation are independent of log filtering. There is

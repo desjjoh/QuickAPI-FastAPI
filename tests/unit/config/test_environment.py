@@ -36,7 +36,7 @@ def test_valid_settings_and_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.HOST == "0.0.0.0"
     assert result.TIMEZONE == "Etc/UTC"
     assert result.API_PUBLISHED_PORT == 8000
-    assert result.MYSQL_PUBLISHED_PORT == 3308
+    assert result.MYSQL_PUBLISHED_PORT == 3310
 
 
 def test_published_port_overrides_do_not_change_listener(
@@ -55,7 +55,7 @@ def test_empty_published_ports_use_compose_defaults(
 ) -> None:
     result = settings(monkeypatch, API_PUBLISHED_PORT="", MYSQL_PUBLISHED_PORT="")
     assert result.API_PUBLISHED_PORT == 8000
-    assert result.MYSQL_PUBLISHED_PORT == 3308
+    assert result.MYSQL_PUBLISHED_PORT == 3310
 
 
 @pytest.mark.parametrize("key", ["API_PUBLISHED_PORT", "MYSQL_PUBLISHED_PORT"])
