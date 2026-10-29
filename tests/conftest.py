@@ -53,6 +53,8 @@ os.environ.update(
         "RATE_LIMIT_MAX": "200",
         "RATE_LIMIT_MAX_CLIENTS": "10000",
         "REQUEST_TIMEOUT_MS": "10000",
+        "HTTP_DRAIN_TIMEOUT_MS": "25000",
+        "SHUTDOWN_TIMEOUT_MS": "30000",
         "REQUEST_FIRST_BODY_TIMEOUT_MS": "5000",
         "REQUEST_CHUNK_TIMEOUT_MS": "2000",
         "HTTP_MAX_BODY_BYTES": "1048576",
@@ -73,6 +75,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from app.common.handlers.lifecycle_handler import LifecycleHandler
+from app.common.handlers.request_work import RequestWork
 from app.common.store.request_context import RequestContext
 from app.config.database_transport import build_database_engine
 from app.config.metrics import REQUEST_ABORTED, REQUEST_COUNT, REQUEST_DURATION
@@ -174,4 +177,5 @@ def lightweight_app() -> FastAPI:
     """Provide a lifecycle-free app for unit tests that replace dependencies."""
     application = FastAPI()
     application.state.lifecycle = LifecycleHandler()
+    application.state.request_work = RequestWork(25)
     return application

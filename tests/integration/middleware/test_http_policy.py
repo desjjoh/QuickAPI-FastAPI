@@ -200,6 +200,7 @@ async def test_real_response_deadline_uses_configured_milliseconds(
         "first_body_timeout": 0.08,
         "chunk_timeout": 0.04,
         "total_timeout": 0.12,
+        "work": app.state.request_work,
     }
 
     @app.get("/slow")

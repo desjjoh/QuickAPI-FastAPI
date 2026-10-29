@@ -2,6 +2,9 @@
 
 [Documentation index](../README.md#documentation)
 
+[Graceful shutdown](shutdown.md) defines request admission, draining, deadlines,
+entrypoint ownership, and process verification.
+
 [Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
 shared checks, startup cleanup, and runtime recovery behavior.
 

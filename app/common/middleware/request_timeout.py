@@ -5,6 +5,7 @@ import math
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.common.handlers.request_work import RequestWork
 from app.common.middleware.request_outcome import abort_request
 from app.common.models.error_model import error_response
 from app.config.logging import log
@@ -21,6 +22,7 @@ class RequestTimeoutASGIMiddleware:
         first_body_timeout: float = 5.0,
         chunk_timeout: float = 2.0,
         total_timeout: float = 10.0,
+        work: RequestWork | None = None,
     ) -> None:
         for name, value in (
             ("first_body_timeout", first_body_timeout),
@@ -33,11 +35,14 @@ class RequestTimeoutASGIMiddleware:
         self.first_body_timeout = first_body_timeout
         self.chunk_timeout = chunk_timeout
         self.total_timeout = total_timeout
+        self.work = work
         # Cancellation is cooperative. Retain work until it settles even when the
         # transport must finish first; retrieve late failures in its done callback.
         self._pending: set[asyncio.Task[None]] = set()
 
     def track_work(self, task: asyncio.Task[None]) -> None:
+        if self.work is not None:
+            self.work.track(task)
         self._pending.add(task)
         task.add_done_callback(self._pending.discard)
 

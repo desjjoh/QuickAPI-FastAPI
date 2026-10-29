@@ -2,6 +2,9 @@
 
 [Documentation index](../README.md#documentation)
 
+[Graceful shutdown](shutdown.md) defines request admission, draining, deadlines,
+entrypoint ownership, and process verification.
+
 ## Architecture
 
 ```text

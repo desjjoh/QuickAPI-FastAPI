@@ -101,6 +101,12 @@ Full traffic withdrawal and request draining remain shutdown requirements.
 
 ## Working decisions
 
+[Graceful shutdown](shutdown.md) defines early readiness withdrawal, closed HTTP
+admission, accepted-work draining, reverse dependency cleanup, and final process
+termination. The supported entrypoint coordinates Uvicorn and development reload;
+transaction ownership and expiry/commit uncertainty retain separate acceptance
+criteria in the milestone list.
+
 - Use Express and NestJS as references for behavior and quality. Prefer native FastAPI/Pydantic/SQLAlchemy/Uvicorn mechanisms where they satisfy the same requirements.
 - Use pip with manually maintained requirements; no uv adoption or generated lockfile is planned.
 - Review concrete public-contract changes before milestone 5: IDs, names, defaults, price acceptance, required revisions, deletion route, and replay headers.

@@ -23,7 +23,6 @@ remote ruleset enforces those contexts for a candidate pull request.
 | True server/ingress header/whole-upload receive protection and deployed proxy/direct-port verification; application HTTP configuration is implemented locally | 2A deployment boundary, 8        |
 | Confirm candidate-specific hosted MySQL integration/E2E results and required-check enforcement                                                                 | 6E                               |
 | Representative-data and supported compatibility/rollback evidence for every future real schema change                                                                  | Every later schema change |
-| Shutdown admission, drain, cleanup, and final deadline                                                                                                        | 4A                               |
 
 ## Item contracts and persistence
 

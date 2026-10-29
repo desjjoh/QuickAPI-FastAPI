@@ -147,6 +147,12 @@ jobs:
           done
           docker logs quickapi-fastapi
           exit 1
+      - name: Verify graceful container shutdown
+        run: |
+          docker stop --time 35 quickapi-fastapi
+          exit_code=$(docker inspect --format '{{.State.ExitCode}}' quickapi-fastapi)
+          test "$exit_code" -eq 0
+          docker logs quickapi-fastapi 2>&1 | python -c 'import sys; assert "Application exited cleanly" in sys.stdin.read()'
       - name: Print container logs on failure
         if: failure()
         run: docker logs quickapi-fastapi

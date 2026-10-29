@@ -2,6 +2,64 @@
 
 [Documentation index](../README.md#documentation)
 
+## Graceful shutdown verification
+
+Verified on 2026-10-29 against base commit `856fadbd09873fa394988770b299a32a1a848258`
+and the local fingerprints below. These results include uncommitted changes.
+
+| Check | Result |
+| --- | --- |
+| Windows compatibility | 918 passed; three skips (MySQL socket case and two POSIX entrypoint cases); five TLS cases deselected; 95.35% branch-measured application coverage |
+| Linux compatibility | 920 passed; MySQL socket case skipped; five TLS cases deselected; 95.45% branch-measured application coverage |
+| Windows MySQL integration/E2E | 291 passed; two POSIX cases skipped |
+| Linux MySQL integration/E2E | 293 passed; no platform skips |
+| Final MySQL process qualification | After the startup-interruption guard, focused shutdown cases passed: Windows 10 passed/two POSIX skips; Linux 12 passed |
+| Process scenarios | Idle stop, accepted mutation, streaming, disconnect, late timed-out work, uncooperative work, blocked loop, failed/stuck cleanup, and repeated stop verified |
+| Native Linux entrypoints | Real SIGTERM, production and development reload; listener closure and clean logs verified |
+| Windows signal scope | File-triggered graceful programmatic stop; no claim of POSIX or Windows console-event qualification |
+| TLS regression | Five dedicated cases passed on Windows; temporary infrastructure removed |
+| Coverage gates | Middleware 96%, lifecycle 99%, database package 100%, API 99%; configured gates passed on both platforms |
+| Startup interruption | Unit regression verifies cleanup when startup finishes after a stop; admission is reset before startup rather than after it |
+| Configuration | Defaults, malformed/boolean/range rejection, drain/overall budget relationship, and Compose syntax verified |
+| Container | Image `sha256:74d29ce1674207d82ac85b77590e76d2b367b0daef77629adfd58f4232c03bda`; explicit SQLite migration, readiness/item reads, pip check, graceful Docker SIGTERM and exit zero passed |
+| Static/editor checks | Black 157 files; Ruff passed; mypy 65 application/tool files; strict Pyright 12 affected files, zero diagnostics |
+| CI definition | Existing production-container job now checks graceful Docker stop, exit zero, and the final success record; workflow YAML parses |
+| Hosted CI / release | Not run / not verified for this candidate |
+
+Full suites include refusal of new connections and complete successful mutation/stream
+responses. The Windows harness constructs its second HTTP client before initiating
+shutdown and checks refusal concurrently with accepted work finishing; connection
+refusal latency does not consume the intentionally short graceful-work budget.
+Linux uses disposable dependency
+installations and read-only source mounts. MySQL uses only the guarded disposable
+test database; the development database is unchanged. Temporary containers/volumes
+are removed and pre-existing development/test services retained.
+
+These results establish supported local shutdown ordering and process behavior.
+They do not establish rollback for interrupted commits, a guarantee of response
+delivery after commit, hosted ingress withdrawal, multi-worker orchestration, or
+termination of native code that prevents Python watchdog threads from running.
+
+| Input | SHA-256 |
+| --- | --- |
+| `.github/workflows/tests.yml` | `bc07a179e2cde77bdc77e7f20d2d3f6591e54f058eb9d75723d8f4ae53a57726` |
+| `app/common/handlers/http_server.py` | `690cd74a2f5cbab252402e3132acbdb8846d328f5c913b150b092d589920d8d0` |
+| `app/common/handlers/request_work.py` | `6339999b954dc20d8e25b79ba6b431b79ccca127400f26a5871b2c15732c6fb0` |
+| `app/common/handlers/lifecycle_handler.py` | `9da3d7111ff446952ef3e673dc439ec809335aa03145e5192385703a9c16e8da` |
+| `app/common/middleware/request_timeout.py` | `4dd4824c81ce9dc360240d753372c96d8874a61a56422e7d30d2a2d4215b83c9` |
+| `app/config/application.py` | `f6de8ea82ac35db7e5e05144e59eadd7de4d3a0d899d550c59a041e86325aaa4` |
+| `app/config/environment.py` | `bce9af1388327337d04e7e027e8a26ca9229a42c2fdac8d61bbd98fac16adda1` |
+| `app/main.py` | `eec43c265da7c08662bffb492c287460d086c4fba16ddc79454981aee8f6ff9a` |
+| `docker-compose.yaml` | `e9a1139be2b42b52fdadc42231300d855b9960d5149ed55ba2d531cfad5fc7d0` |
+| `.env.example` | `3e40b1064ab1f3573af8f691d8f40ae627adb35916fc9d114304269c7cb248f5` |
+| `.env.test` | `8046b2cd0a27e38c63c33a00db5cc03d11f28fe344069ba80052ae82a3202271` |
+| `tests/conftest.py` | `e185ee2b3aab191e1eb36bdded211ef29e9be931aab0bd00fd8355f64e093a77` |
+| `tests/fixtures/shutdown_server.py` | `574c34ffac4add8d1978e093d2dac3a6d15419ac6944807fc5f64092debf8e30` |
+| `tests/integration/test_shutdown_process.py` | `936cb2caebb7d4b57ace3ffdf4ee06b7119afff952e5fb3bd9e17313bd7893b3` |
+| `tests/unit/common/handlers/test_http_server.py` | `0170dee1c45c945d16a3d9877b1f1cf2d8ebaacf452f3d6642c07cb96182005f` |
+| `tests/unit/common/handlers/test_request_work.py` | `05ff87f0da6a3aa61d2a9d279ccf05b52cdb1f783eb864920c1ad717aaface77` |
+| `tests/unit/test_main.py` | `de35391a56d69dfece6f5ef60310d69bfc503a327d122876571edec3d27bd1af` |
+
 ## Database readiness and recovery verification
 
 TLS infrastructure follow-up on 2026-10-29: the hosted TLS server failed before

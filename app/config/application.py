@@ -21,6 +21,7 @@ from app.common.handlers.exception_handler import (
     validation_exception_handler,
 )
 from app.common.handlers.lifecycle_handler import LifecycleHandler
+from app.common.handlers.request_work import RequestAdmission, RequestWork
 from app.common.middleware.content_type_enforcement import (
     ContentTypeEnforcementASGIMiddleware,
 )
@@ -55,7 +56,9 @@ from app.config.rate_limiter import RateLimiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    runtime_failed = False
     try:
+        app.state.request_work.resume()
         await app.state.lifecycle.startup()
 
         port: int = settings.PORT
@@ -64,6 +67,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         yield
 
     except Exception as exc:
+        runtime_failed = True
+        app.state.lifecycle.shutdown_failed = True
         log.error("Application runtime failed.", error=exc)
 
         log.critical('Unhandled fatal error during server runtime — forcing exit')
@@ -73,9 +78,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     finally:
         log.warning("Shutdown signal received — initiating shutdown")
 
+        app.state.lifecycle.quiesce()
+        await app.state.request_work.drain()
         await app.state.lifecycle.shutdown()
-
-        log.info("Application exited cleanly")
+        if (
+            runtime_failed
+            or app.state.request_work.failed
+            or app.state.lifecycle.shutdown_failed
+        ):
+            log.error("Application shutdown did not complete cleanly.")
+        else:
+            log.debug("Application services stopped")
 
 
 class ObservedFastAPI(FastAPI):
@@ -108,6 +121,7 @@ def create_app() -> FastAPI:
     )
 
     app.state.lifecycle = LifecycleHandler()
+    app.state.request_work = RequestWork(settings.HTTP_DRAIN_TIMEOUT_MS / 1000)
     app.state.lifecycle.register([DatabaseService()])
     app.state.initialization_timestamp = started_at
     app.state.system_info = SystemInfoService(started_at=started_at)
@@ -128,6 +142,7 @@ def create_app() -> FastAPI:
         first_body_timeout=settings.REQUEST_FIRST_BODY_TIMEOUT_MS / 1000,
         chunk_timeout=settings.REQUEST_CHUNK_TIMEOUT_MS / 1000,
         total_timeout=settings.REQUEST_TIMEOUT_MS / 1000,
+        work=app.state.request_work,
     )
 
     app.add_middleware(
@@ -193,6 +208,7 @@ def create_app() -> FastAPI:
         max_total_header_bytes=settings.HTTP_MAX_TOTAL_HEADER_BYTES,
     )
     app.add_middleware(RequestCleanupASGIMiddleware)
+    app.add_middleware(RequestAdmission, work=app.state.request_work)
 
     app.exception_handler(RequestValidationError)(validation_exception_handler)
     app.exception_handler(StarletteHTTPException)(http_exception_handler)

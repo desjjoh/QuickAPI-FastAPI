@@ -123,7 +123,7 @@ from app import main
 
 def fail(*args, **kwargs):
     raise RuntimeError('private-value-never-log')
-main.uvicorn.run=fail
+main.ApplicationServer=fail
 main.run()
 """
     result = subprocess.run(
