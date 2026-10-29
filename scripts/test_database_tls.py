@@ -83,6 +83,12 @@ def certificates(path: Path) -> None:
     (path / "untrusted-ca.pem").write_bytes(
         untrusted.public_bytes(serialization.Encoding.PEM)
     )
+    # This directory is bind-mounted into MySQL, which drops root privileges.
+    # Linux TemporaryDirectory defaults to 0700; Docker Desktop masks that issue.
+    # These disposable test credentials must be readable across host/container UIDs.
+    for name in ("ca.pem", "server-cert.pem", "server-key.pem", "untrusted-ca.pem"):
+        (path / name).chmod(0o644)
+    path.chmod(0o755)
 
 
 def run_tls(config: TestDatabaseConfig) -> int:

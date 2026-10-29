@@ -4,6 +4,17 @@
 
 ## Database readiness and recovery verification
 
+TLS infrastructure follow-up on 2026-10-29: the hosted TLS server failed before
+pytest because the Linux temporary certificate directory was not traversable by
+the container's MySQL user. Certificate generation now explicitly sets directory
+mode `0755` and file modes `0644` for these disposable credentials. A Linux
+cross-UID check reproduced rejection at `0700` and successful key access at `0755`;
+five TLS cases passed against MySQL reading the corrected files from a Linux
+Docker volume. The normal Windows TLS command also passed all five cases, and the
+new certificate-generation regression test passed locally. Ruff, Black and mypy
+checks passed. Temporary verification resources were removed. Hosted CI must be
+rerun; the following suite counts predate this additional regression test.
+
 Verified on 2026-10-29 against base commit `daf010aab02352f4468ef495fa4c3148a92f7c38`
 and the local inputs fingerprinted below. These results include uncommitted changes.
 

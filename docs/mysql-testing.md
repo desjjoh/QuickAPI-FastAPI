@@ -144,6 +144,12 @@ python -m scripts.test_db migrate
 
 ## TLS qualification
 
+Generated certificate directories use mode `0755` and their files use `0644` so
+the container's MySQL user can read the read-only mount on native Linux, regardless
+of the host user's UID. This includes the disposable test key; these permissions
+are for ephemeral test credentials, not deployment private keys. The command
+removes the generated directory after stopping the TLS container.
+
 `python -m scripts.test_db tls` creates an independent temporary CA/server and MySQL project on loopback port 3312. It verifies encryption, trust/identity rejection, stalled TLS setup cleanup, and the native API entrypoint, then removes those resources. These cases are explicitly deselected from ordinary runs and executed by the MySQL integration CI job. See [Database capacity and transport](database-settings.md) for policy and Windows loop requirements.
 
 ## Configuration and safeguards
