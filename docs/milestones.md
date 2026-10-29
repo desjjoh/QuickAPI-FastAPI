@@ -21,12 +21,12 @@ and verification requirements.
 
 ### Milestone 2 — HTTP policies and operational behavior
 
-| Phase                                                                                           | Scope                                                                                                    | Completion check                                                                         |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **2A — Validated HTTP configuration (application complete locally; transport protection open)** | CORS, proxy trust, request budgets, and production defaults                                              | Invalid configuration fails startup; forwarding and browser preflight tests pass         |
-| **2B — Operational endpoint exposure (complete locally)**                                       | Configure documentation, diagnostics, and metrics availability; document unauthenticated access          | Enabled/disabled behavior matches policy; no implied protection from CORS or unused keys |
-| **2C — Bounded rate limiting (complete locally)**                                               | Client-storage limits, quota/capacity responses, retry timing, expiry, and probe policy                  | Exhaustion and recovery tests pass; process-local limits are explicit                    |
-| **2D — Logging and diagnostics (complete locally)**                                             | Safe error detail, consistent request outcomes, readable console output, deliberate production structure | Privacy, formatting, failure, timeout, and disconnect regression checks pass             |
+| Phase                                                     | Scope                                                                                                    | Completion check                                                                         |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **2A — Validated HTTP configuration (complete locally)**  | CORS, proxy trust, request budgets, and production defaults                                              | Invalid configuration fails startup; forwarding and browser preflight tests pass         |
+| **2B — Operational endpoint exposure (complete locally)** | Configure documentation, diagnostics, and metrics availability; document unauthenticated access          | Enabled/disabled behavior matches policy; no implied protection from CORS or unused keys |
+| **2C — Bounded rate limiting (complete locally)**         | Client-storage limits, quota/capacity responses, retry timing, expiry, and probe policy                  | Exhaustion and recovery tests pass; process-local limits are explicit                    |
+| **2D — Logging and diagnostics (complete locally)**       | Safe error detail, consistent request outcomes, readable console output, deliberate production structure | Privacy, formatting, failure, timeout, and disconnect regression checks pass             |
 
 ### Milestone 3 — Migrations and production-like persistence
 
