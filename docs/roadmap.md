@@ -83,6 +83,10 @@ and shipping require hosting-specific controls.
 
 [MySQL testing](mysql-testing.md) defines the separate temporary test stack, explicit `.env.test` connection, guarded migrations/resets, real-commit persistence fixtures, serial execution, and integration/E2E CI jobs. SQLite remains a compatibility and coverage check. Hosted check execution/enforcement requires independent verification.
 
+## 3C. Upgrade and rollback evidence
+
+[Migration qualification](migrations.md#upgrade-and-rollback-qualification) covers the real baseline and an isolated test-only additive/backfill chain. Data preservation, defaults/indexes, reversible schema changes, partial MySQL DDL failure, history rejection, and defined drift cases have executable checks. Startup retains strict revision equality, so deployment ordering is stopped-application migration followed by the matching application. Future real migrations require their own data/compatibility evidence; historical image rollback and backup restoration are separate requirements.
+
 ## Working decisions
 
 - Use Express and NestJS as references for behavior and quality. Prefer native FastAPI/Pydantic/SQLAlchemy/Uvicorn mechanisms where they satisfy the same requirements.

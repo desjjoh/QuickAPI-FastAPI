@@ -2,6 +2,63 @@
 
 [Documentation index](../README.md#documentation)
 
+## Migration upgrade and rollback evidence
+
+Verified on 2026-10-29 against base commit `d258d6f20817600d9555bbc7e2533ff66285f378` and the local inputs below.
+
+| Check | Result |
+| --- | --- |
+| Windows / Linux complete compatibility suites | 828 passed each; coverage 96.22% / 96.33% with branch measurement |
+| Windows disposable MySQL | Integration 160 passed; E2E 113 passed |
+| Linux disposable MySQL | Combined integration/E2E 273 passed; 140 shared database-backed cases |
+| New evidence cases | Nine cases run against SQLite and MySQL |
+| Static checks | Black 140 files unchanged; Ruff passed; mypy 58 application/tool files passed on Windows |
+| Editor typing | Strict Pyright: evidence module and four fixture files, zero diagnostics |
+| Real baseline | Disposable downgrade deletes table/rows; fresh upgrade matches model metadata |
+| Additive evidence chain | Original IDs, names, prices, nullable descriptions, timestamps preserved; backfill, default, non-null metadata and index verified; downgrade/reapply pass |
+| Partial DDL failure | On MySQL, created artifact remains and evidence history does not advance; known artifact explicitly cleaned |
+| Drift / history | Missing index and extra column detected despite matching history; older/newer/unknown revisions and multiple source heads rejected |
+| Startup compatibility | Incompatible history prevents lifecycle readiness; restored expected revision permits startup |
+| Final test schema | Application history and schema comparison restored; existing disposable test service retained |
+| Hosted CI / image qualification | Not run / not repeated for this change |
+
+The evidence chain is test-only, with separate version history and temporary script
+directories. It does not add an application field or real revision. Both SQLite and
+MySQL execute it through the existing isolated fixtures; MySQL writes hold the
+disposable-target lock. No development/shared database is reset. Results establish
+the listed baseline/examples, not correctness of future migrations, historical
+application-image rollback, transactional MySQL DDL rollback, or backup restoration.
+The current strict-revision policy requires stopped-application migration ordering.
+Earlier verification sections retain their own scope.
+
+| Input | SHA-256 |
+| --- | --- |
+| `app/config/application.py` | `eb087d26c0dba86dff70e13fa76e1b4a973f7ba55aac452edd219301effa6ecc` |
+| `tests/e2e/test_startup_logging.py` | `3e5d190c8e5fd7a25bc4baad3205a0828e937667a4939d3f402405c93d1b5faa` |
+| `tests/fixtures/migrations/backfill.py` | `3b02759c1c03a3a4d44beb296d41892b35cf72c0227bb26c4ca957a33438b19d` |
+| `tests/fixtures/migrations/base.py` | `d41454f85acdb6854090d68a824c44f30296f1a5950b381769126e0e9e601721` |
+| `tests/fixtures/migrations/env.py` | `a75447ecb18aee06d9331158a34f6e2b07d42f38f8cb63d1492abeb08b80a52d` |
+| `tests/fixtures/migrations/failure.py` | `c4a6fb3274649e3f3233eaeb5c8140b00c81e2bd977616223e8a63782b8d9c55` |
+| `tests/integration/database/test_migration_evidence.py` | `db01649f233ebab80e2630bd36bad833f78a3cb59d353c7a3a3cec2b0e09f89f` |
+
+## Startup logging verification
+
+Verified on 2026-10-29 against base commit `d258d6f20817600d9555bbc7e2533ff66285f378` and the local inputs below.
+The boot banner precedes service registration during application construction;
+services start only when the lifespan begins. The regression test verifies one
+banner, ordered registration/startup/HTTP messages, and service shutdown.
+
+Windows Python 3.12 checks: 819 complete-suite tests passed with 96.22% overall
+branch-measured coverage; 18 focused application/lifecycle tests passed. Black,
+Ruff, mypy, and strict Pyright (two affected files, zero diagnostics) passed.
+Linux, MySQL suites, runtime-image smoke, and hosted CI were not repeated for this
+logging-order change. Earlier results retain their own source scopes.
+
+| Input | SHA-256 |
+| --- | --- |
+| `app/config/application.py` | `eb087d26c0dba86dff70e13fa76e1b4a973f7ba55aac452edd219301effa6ecc` |
+| `tests/e2e/test_startup_logging.py` | `3e5d190c8e5fd7a25bc4baad3205a0828e937667a4939d3f402405c93d1b5faa` |
+
 ## Required-check configuration confirmation
 
 On 2026-10-29, the maintainer confirmed completing the required-check update after

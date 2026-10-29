@@ -55,12 +55,7 @@ from app.config.rate_limiter import RateLimiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    name, version, mode = settings.APP_NAME, settings.APP_VERSION, settings.ENV
-    pyv: str = sys.version.split()[0]
-
     try:
-        log.info(f"Booting {name} v{version} ({mode}) — Python v{pyv}")
-
         await app.state.lifecycle.startup()
 
         port: int = settings.PORT
@@ -93,6 +88,9 @@ class ObservedFastAPI(FastAPI):
 def create_app() -> FastAPI:
     name: str = settings.APP_NAME
     version: str = settings.APP_VERSION
+    log.info(
+        f"Booting {name} v{version} ({settings.ENV}) — Python v{sys.version.split()[0]}"
+    )
 
     started_at = datetime.now(UTC)
     app: FastAPI = ObservedFastAPI(

@@ -131,6 +131,58 @@ Development commands above use `.env`. For the independent Docker test database,
 
 ## Verification boundaries
 
+### Upgrade and rollback qualification
+
+The migration evidence suite runs through the selected, guarded database fixture:
+
+```powershell
+python -m pytest -q tests/integration/database/test_migration_evidence.py --no-cov
+python -m scripts.test_db test --layer integration
+```
+
+The first command uses disposable SQLite by default; the second includes the same
+evidence against disposable MySQL. The real baseline is downgraded and recreated:
+its downgrade drops `items` and destroys rows, rather than restoring old data.
+
+Test-only revisions under `tests/fixtures/migrations/` add a column to disposable
+`items`, backfill existing rows, set a default/non-null constraint, create an index,
+and reverse the change. Their separate `migration_evidence_version` table keeps
+application revision history independent. They are not shipped as application
+migrations or included in the runtime image. Tests compare original IDs, names,
+prices, nullable descriptions, and timestamps through upgrade/downgrade, and exercise
+fresh insertion defaults and reapplication. The additive change is schema-only;
+reversing it loses any values held exclusively in that new column.
+
+History checks reject incompatible revisions before lifecycle readiness and permit
+startup after restoring the expected revision. Multiple source heads are rejected.
+Schema comparison detects the tested missing-index and unexpected-column changes
+even when revision history matches. This is not exhaustive drift detection, and
+startup deliberately remains a revision check rather than a schema repair operation.
+
+### Application ordering and recovery
+
+The current application requires exact revision equality. Use a stopped-application
+sequence: stop the API, apply the intended migrations, inspect `current` and `check`,
+then start the matching application and verify readiness. This policy does not
+support mixed application revisions during a rolling schema deployment.
+
+To revert application/schema versions, first establish that the target application's
+expected revision and data requirements are supported by the proposed downgrade.
+Stop the API, execute the reviewed downgrade, inspect the resulting schema/data, and
+start that matching application. The current repository has only its initial real
+revision; no historical application image rollback is claimed. Every future real
+migration needs its own representative-data and compatibility tests. Retained-image
+release rollback and backup restoration remain separate verification work.
+
+A deliberately failing test revision creates a table and then raises. On MySQL,
+the table remains while the evidence revision stays at its predecessor. A failed
+migration therefore requires inspection of both history and physical schema; do
+not assume a transaction undid earlier DDL or retry/stamp blindly. The test removes
+its known partial artifact explicitly. For an ordinary disposable test-environment
+reset, use `python -m scripts.test_db down`, `up`, and `migrate`. For any database
+whose data must be retained, recovery needs a reviewed repair/restore procedure;
+these disposable tests do not establish one.
+
 Migration integration tests cover the fresh baseline, model comparison, repeated
 upgrade with retained data, missing/incompatible history, offline SQL, and a
 disposable downgrade/reapply cycle. SQLite tests remain fast local/CI checks;
