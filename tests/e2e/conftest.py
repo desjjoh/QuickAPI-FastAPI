@@ -24,6 +24,7 @@ async def app(
 
     from app.config import database
     from app.config.environment import settings
+    from app.config.migrations import upgrade_connection
 
     monkeypatch.setattr(settings, "DATABASE_URL", database_url)
     test_engine = create_async_engine(database_url)
@@ -33,6 +34,9 @@ async def app(
         "SessionLocal",
         async_sessionmaker(test_engine, expire_on_commit=False, autoflush=False),
     )
+
+    async with test_engine.begin() as connection:
+        await connection.run_sync(upgrade_connection)
 
     from app.config.application import create_app
 

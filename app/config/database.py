@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config.environment import settings
+from app.config.migrations import check_revision
 
 
 class Base(DeclarativeBase):
@@ -37,14 +38,8 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    from app.database.entities.item_orm import ItemORM  # type: ignore # noqa: F401
-
-    try:
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
-    except:
-        raise
+    async with engine.connect() as conn:
+        await conn.run_sync(check_revision)
 
 
 async def close_db() -> None:

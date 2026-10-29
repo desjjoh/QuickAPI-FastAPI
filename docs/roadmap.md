@@ -75,6 +75,10 @@ standard/dependency logging controls. [Verification](verification.md) identifies
 validated source snapshot and execution boundaries. Deployment log access, retention,
 and shipping require hosting-specific controls.
 
+## 3A. Migration foundation
+
+[Alembic migrations](migrations.md) define the fresh schema and explicit native/container commands. The isolated `quickapi-fastapi-dev` Compose project publishes MySQL on loopback port 3310. Startup checks revision compatibility without creating tables; deeper drift/data compatibility and MySQL CI qualification remain separate requirements. Development data is disposable, with an intentional project-scoped reset.
+
 ## Working decisions
 
 - Use Express and NestJS as references for behavior and quality. Prefer native FastAPI/Pydantic/SQLAlchemy/Uvicorn mechanisms where they satisfy the same requirements.

@@ -23,11 +23,11 @@ async def test_real_lifespan_reports_readiness_before_during_and_after(
 
 
 @pytest.mark.asyncio
-async def test_startup_creates_database_schema(app: FastAPI) -> None:
+async def test_startup_checks_explicitly_migrated_database_schema(app: FastAPI) -> None:
     from app.config import database
 
     database_path: Path = app.state.e2e_database_path
-    assert database_path.exists() is False
+    assert database_path.exists() is True
 
     async with app.router.lifespan_context(app):
         async with database.engine.connect() as connection:

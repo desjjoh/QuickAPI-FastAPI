@@ -14,7 +14,7 @@ os.environ.update(
         "HOST": "127.0.0.1",
         "PORT": "8000",
         "API_PUBLISHED_PORT": "8000",
-        "MYSQL_PUBLISHED_PORT": "3308",
+        "MYSQL_PUBLISHED_PORT": "3310",
         "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
         "CORS_ORIGINS": "http://localhost:3000,https://client.test,https://client.example",
         "CORS_METHODS": "GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS",

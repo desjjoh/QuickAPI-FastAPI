@@ -55,16 +55,16 @@ async def test_get_session_propagates_error_and_context_rolls_back(
     assert context.exited_with[0] is RuntimeError
 
 
-async def test_init_db_creates_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_init_db_checks_revision(monkeypatch: pytest.MonkeyPatch) -> None:
     connection = Mock(run_sync=AsyncMock())
 
     @asynccontextmanager
     async def begin() -> AsyncGenerator[Mock, None]:
         yield connection
 
-    monkeypatch.setattr(database, "engine", SimpleNamespace(begin=begin))
+    monkeypatch.setattr(database, "engine", SimpleNamespace(connect=begin))
     await database.init_db()
-    connection.run_sync.assert_awaited_once_with(database.Base.metadata.create_all)
+    connection.run_sync.assert_awaited_once_with(database.check_revision)
 
 
 async def test_init_db_propagates_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -73,7 +73,7 @@ async def test_init_db_propagates_failure(monkeypatch: pytest.MonkeyPatch) -> No
         raise RuntimeError("unavailable")
         yield  # type: ignore[unreachable]
 
-    monkeypatch.setattr(database, "engine", SimpleNamespace(begin=begin))
+    monkeypatch.setattr(database, "engine", SimpleNamespace(connect=begin))
     with pytest.raises(RuntimeError, match="unavailable"):
         await database.init_db()
 

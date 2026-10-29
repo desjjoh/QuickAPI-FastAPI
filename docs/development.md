@@ -4,7 +4,7 @@
 
 ## Prerequisites and startup
 
-Use Python 3.12, matching CI and the container runtime. Run commands from the repository root. The checked-in Compose topology supplies local MySQL 8.4.6 and an optional API container. For native Python, start MySQL first with `docker compose up -d --wait mysql`, then use the example database URL at `127.0.0.1:3308`. An external MySQL instance or local SQLite remains an option.
+Use Python 3.12, matching CI and the container runtime. Run commands from the repository root. The checked-in Compose topology supplies local MySQL 8.4.6 and an optional API container. For native Python, start MySQL first with `docker compose up -d --wait mysql`, apply migrations with `python -m alembic upgrade head`, then use the example database URL at `127.0.0.1:3310`. An external MySQL instance or local SQLite remains an option.
 
 PowerShell:
 
@@ -15,6 +15,7 @@ python -m pip install -r requirements-dev.txt
 python -m pip check
 Copy-Item .env.example .env
 # Edit .env before starting the app.
+python -m alembic upgrade head
 python -m app.main
 ```
 
@@ -56,16 +57,16 @@ docker compose up -d --wait mysql
 | --- | --- |
 | Container API from this machine | `http://127.0.0.1:8000` |
 | Native Python API with example settings | `http://localhost:8000` |
-| MySQL from native Python/database clients | `127.0.0.1:3308` |
+| MySQL from native Python/database clients | `127.0.0.1:3310` |
 | MySQL from the API container | `mysql:3306` |
 
-`API_PUBLISHED_PORT` and `MYSQL_PUBLISHED_PORT` are optional host-port overrides, commented out in `.env.example`. Omitted or empty values use ports 8000 and 3308 respectively; uncomment only when changing them. Settings validation accepts only whole-number ports from 1 through 65535; malformed, fractional, whitespace-only, zero, and out-of-range values fail. Compose forwards its resolved overrides into the API container for validation. Both bind to loopback. The API container explicitly uses `HOST=0.0.0.0`, `PORT=8000`, and `ENV=production` so its built-image process does not enable development reload. Its health check always probes internal port 8000. Native Python uses its configured `PORT` and `ENV` independently.
+`API_PUBLISHED_PORT` and `MYSQL_PUBLISHED_PORT` are optional host-port overrides, commented out in `.env.example`. Omitted or empty values use ports 8000 and 3310 respectively; uncomment only when changing them. Settings validation accepts only whole-number ports from 1 through 65535; malformed, fractional, whitespace-only, zero, and out-of-range values fail. Compose forwards its resolved overrides into the API container for validation. Both bind to loopback. The API container explicitly uses `HOST=0.0.0.0`, `PORT=8000`, and `ENV=production` so its built-image process does not enable development reload. Its health check always probes internal port 8000. Native Python uses its configured `PORT` and `ENV` independently.
 
-Compose loads application identity/logging/timezone from `.env`, then overrides `DATABASE_URL` to `mysql+asyncmy://quickapi:change-me@mysql:3306/quickapi`. A native `localhost` URL cannot address the separate database container from inside the API. Changing `MYSQL_PUBLISHED_PORT` requires updating the native `DATABASE_URL` too. To use a different external database for containers, deliberately replace the local Compose database configuration; changing only `.env`'s native URL does not override it.
+Compose loads application identity/logging/timezone from `.env`, then overrides `DATABASE_URL` to `mysql+asyncmy://quickapi:change-me@mysql:3306/quickapi-fastapi-dev`. A native `localhost` URL cannot address the separate database container from inside the API. Changing `MYSQL_PUBLISHED_PORT` requires updating the native `DATABASE_URL` too. To use a different external database for containers, deliberately replace the local Compose database configuration; changing only `.env`'s native URL does not override it.
 
-This file is **local development only**. It uses database `quickapi`, user `quickapi`, password `change-me`, and root password `local-root-password`. Those are matching, fixed local defaults, not deployment secrets. MySQL health checks authenticate as the application user and execute `SELECT 1` against that database. API startup waits for MySQL health. Schema creation uses `create_all()` and does not upgrade existing schemas.
+This file is **local development only**. It uses database `quickapi-fastapi-dev`, user `quickapi`, password `change-me`, and root password `local-root-password`. Those are matching, fixed local defaults, not deployment secrets. MySQL health checks authenticate as the application user and execute `SELECT 1` against that database. API startup waits for MySQL health. The one-shot migration service applies Alembic revisions before the API starts. Native Python requires `python -m alembic upgrade head` first.
 
-Compose project scoping names the containers, network, and `mysql_data` volume; there are no fixed container names that collide with Express/NestJS. The default MySQL host port differs from their usual 3307. Use another published port or `docker compose -p <project>` when needed; project isolation does not by itself change published ports.
+The default Compose project is `quickapi-fastapi-dev`. Compose project scoping names the containers, network, and `mysql_data` volume; there are no fixed container names that collide with Express/NestJS. The default MySQL host port is 3310, separate from sibling development/test services. Use another published port or `docker compose -p <project>` when needed; project isolation does not by itself change published ports.
 
 ```sh
 docker compose ps
@@ -74,6 +75,8 @@ docker compose down
 ```
 
 `down` removes this project's containers/network and preserves its database volume. Recreating the stack reuses the data. `docker compose down --volumes` also deletes this project's MySQL data; use it only for an intentional local reset. Restart/recreation is not a backup strategy. MySQL initialization credentials apply when a volume is first created; changing Compose values does not rotate users in an existing database.
+
+See [Database migrations](migrations.md) for the complete first-run guide, command reference, migration authoring, and intentional reset procedure. The FastAPI database is disposable and separate from shared local databases.
 
 ## Interpreter and dependency maintenance
 
@@ -104,7 +107,7 @@ cp .env.example .env
 | `HOST`         | Bind address; defaults to `0.0.0.0`.                    |
 | `PORT`         | Integer from 1 through 65535.                           |
 | `API_PUBLISHED_PORT` | Optional host API port, 1-65535; missing/empty defaults to 8000. |
-| `MYSQL_PUBLISHED_PORT` | Optional host MySQL port, 1-65535; missing/empty defaults to 3308. |
+| `MYSQL_PUBLISHED_PORT` | Optional host MySQL port, 1-65535; missing/empty defaults to 3310. |
 | `TIMEZONE`     | Valid IANA identifier; defaults to `Etc/UTC`.           |
 | `DATABASE_URL` | SQLAlchemy async URL; MySQL uses `mysql+asyncmy://...`. |
 
@@ -124,7 +127,7 @@ The example uses port 8000 and `ENV=development`, which enables Uvicorn reload. 
 - Pytest cannot create temporary directories: use a writable disposable path with `python -m pytest -q --basetemp=.pytest-local-tmp`. Pytest may clear that directory; never choose a path containing needed data.
 - Container configuration differs from local startup: `.env` is excluded from the image. Follow [Deployment](deployment.md).
 
-Startup creates missing tables but does not migrate existing schemas; see [Architecture](architecture.md#persistence-and-migrations). Quality commands and fixture isolation are documented in [Testing](testing.md).
+Startup checks the Alembic revision and does not create or migrate tables; apply revisions first using [Migrations](migrations.md). Quality commands and fixture isolation are documented in [Testing](testing.md).
 
 
 ## Operational endpoint overrides

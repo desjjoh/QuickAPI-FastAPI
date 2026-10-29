@@ -1,5 +1,6 @@
 # LOCAL DEVELOPMENT ONLY. Credentials and published ports are local defaults.
 # Do not use this topology as a hosted production deployment configuration.
+name: quickapi-fastapi-dev
 services:
   api:
     cpus: 0.5
@@ -13,14 +14,16 @@ services:
       HOST: 0.0.0.0
       PORT: "8000"
       API_PUBLISHED_PORT: ${API_PUBLISHED_PORT:-8000}
-      MYSQL_PUBLISHED_PORT: ${MYSQL_PUBLISHED_PORT:-3308}
+      MYSQL_PUBLISHED_PORT: ${MYSQL_PUBLISHED_PORT:-3310}
       ENV: production
-      DATABASE_URL: mysql+asyncmy://quickapi:change-me@mysql:3306/quickapi
+      DATABASE_URL: mysql+asyncmy://quickapi:change-me@mysql:3306/quickapi-fastapi-dev
     ports:
       - "127.0.0.1:${API_PUBLISHED_PORT:-8000}:8000"
     depends_on:
       mysql:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8000/ready"]
       interval: 5s
@@ -29,17 +32,31 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  migrate:
+    image: quickapi-fastapi:local
+    build: .
+    env_file:
+      - .env
+    environment:
+      ENV: production
+      DATABASE_URL: mysql+asyncmy://quickapi:change-me@mysql:3306/quickapi-fastapi-dev
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+
   mysql:
     image: mysql:8.4.6
     cpus: 1.0
     mem_limit: 1g
     environment:
       MYSQL_ROOT_PASSWORD: local-root-password
-      MYSQL_DATABASE: quickapi
+      MYSQL_DATABASE: quickapi-fastapi-dev
       MYSQL_USER: quickapi
       MYSQL_PASSWORD: change-me
     ports:
-      - "127.0.0.1:${MYSQL_PUBLISHED_PORT:-3308}:3306"
+      - "127.0.0.1:${MYSQL_PUBLISHED_PORT:-3310}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:

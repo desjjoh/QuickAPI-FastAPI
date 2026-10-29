@@ -72,7 +72,7 @@ is an execution limitation, not a passing or failing application test. Record th
 source identity, environment, and outcome in [Verification](verification.md).
 
 Automated persistence suites and the image smoke use SQLite. The workflow does not
-qualify MySQL, migration upgrades/downgrades, backup restoration, or candidate-bound
+qualify a complete MySQL suite, representative future data upgrades/rollback, backup restoration, or candidate-bound
 release publication. It has no aggregate fail-closed job. Required checks must be
 configured separately in GitHub; see [Branch protections](branch-protection.md).
 Additional verification requirements are tracked in [Backlog](backlog.md).
@@ -147,3 +147,7 @@ fresh processes and real server failures. They verify level filtering, single-li
 presentation, metadata exclusion, request correlation after context cleanup, diagnostic
 allowlists/fingerprints, safe bootstrap failures, and Windows-compatible output. The
 complete suite also protects request/timeout outcome semantics and public error contracts.
+
+## Migration checks
+
+`python -m pytest -q tests/integration/database/test_migrations.py --no-cov` exercises the baseline, read-only startup rejection, model comparison, repeat application, incompatible history, downgrade/reapply, and online/offline execution. Persistence fixtures apply the migration chain explicitly rather than creating ORM tables. See [Migrations](migrations.md) for commands and limitations.

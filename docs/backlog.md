@@ -20,7 +20,7 @@ remote ruleset enforces those contexts for a candidate pull request.
 | --- | --- |
 | Save and verify the six confirmed required checks in GitHub; structural rules/check inventory already verified | 1B, 6E |
 | True server/ingress header/whole-upload receive protection and deployed proxy/direct-port verification; application HTTP configuration is implemented locally | 2A deployment boundary, 8 |
-| Alembic baseline, explicit migrations, pending/history/drift checks | 3A, 3C |
+| Deeper schema drift/history checks beyond startup revision equality | 3C |
 | Guarded disposable MySQL integration/E2E infrastructure and required CI checks | 3B |
 | Representative-data upgrades/backfills and supported migration/application rollback evidence | 3C and every later schema change |
 | Pool/queue capacity, acquisition/connect budgets, TLS policy, readiness outage/recovery | 3D, 3E |

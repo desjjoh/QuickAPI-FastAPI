@@ -14,35 +14,43 @@ Build a local image using the same configuration pattern as CI. A local tag is n
 
 ```bash
 docker build -t quickapi-fastapi:local .
+docker volume create quickapi-fastapi-smoke
+docker run --rm --mount source=quickapi-fastapi-smoke,target=/data \
+  -e APP_NAME=QuickAPI -e APP_VERSION=1.0.0 -e ENV=production -e PORT=8000 \
+  -e DATABASE_URL=sqlite+aiosqlite:////data/quickapi.db \
+  quickapi-fastapi:local python -m alembic upgrade head
 docker run --rm -p 8000:8000 \
+  --mount source=quickapi-fastapi-smoke,target=/data \
   -e APP_NAME=QuickAPI -e APP_VERSION=1.0.0 \
   -e ENV=production -e LOG_LEVEL=INFO \
   -e HOST=0.0.0.0 -e PORT=8000 \
-  -e DATABASE_URL=sqlite+aiosqlite:////tmp/quickapi.db \
+  -e DATABASE_URL=sqlite+aiosqlite:////data/quickapi.db \
   quickapi-fastapi:local
 curl --fail http://localhost:8000/ready
 curl --fail http://localhost:8000/api/v1/items/
 ```
 
-SQLite makes the smoke test self-contained; `/tmp/quickapi.db` is disposable container storage. Deploy with the async database URL and durable storage required by your service. CI checks startup and an API read against the built image; it does not validate a production deployment or MySQL compatibility.
+SQLite makes the smoke test self-contained; `/data/quickapi.db` uses the disposable smoke volume shared by migration and API containers. Deploy with the async database URL and durable storage required by your service. CI checks startup and an API read against the built image; it does not validate a production deployment or MySQL compatibility.
+
+After stopping the container, remove the smoke volume with `docker volume rm quickapi-fastapi-smoke` when its data is no longer needed.
 
 Run the container in one terminal and curl checks in a second. The example uses Bash continuation; use a single line or PowerShell continuation syntax in PowerShell.
 
 ## Local Compose topology
 
-The checked-in [Compose file](../docker-compose.yaml) is a local development stack, not a hosted production deployment definition. It includes MySQL 8.4.6, a project-scoped persistent volume, an authenticated database health check, API startup ordering, and a health check on the API's fixed internal port 8000. Both API/database host ports are loopback-only and configurable. No fixed container names are shared with sibling apps.
+The checked-in [Compose file](../docker-compose.yaml) is a local development stack, not a hosted production deployment definition. Its default project is `quickapi-fastapi-dev`. It includes MySQL 8.4.6, a project-scoped persistent volume, an authenticated database health check, API startup ordering, and a health check on the API's fixed internal port 8000. Both API/database host ports are loopback-only and configurable. No fixed container names are shared with sibling apps.
 
 Compose reads `.env` and overrides container-specific settings: `HOST=0.0.0.0`, `PORT=8000`, `ENV=production`, and a local MySQL service URL. Native Python keeps its own port/mode/database URL. The unused `DEBUG`/`WORKERS` entries were removed. See [local setup, credentials, persistence, and reset commands](development.md#local-compose).
 
 Compose provides a local MySQL development topology. The CI runtime-image smoke
-uses SQLite and does not exercise Compose persistence, MySQL failure paths, or
-migration upgrades. See [Testing](testing.md) for verification boundaries and
+uses SQLite and explicitly applies the baseline before API startup. It does not
+qualify MySQL failure paths or representative future data upgrades. See [Testing](testing.md) for verification boundaries and
 [Verification](verification.md) for dated execution evidence.
 
 ## Application lifespan and operational endpoints
 
 FastAPI's lifespan starts registered services before the app becomes ready. The
-database service creates/checks its schema, readiness requires startup completion
+database service checks its Alembic revision, readiness requires startup completion
 and healthy registered services, and shutdown stops only successfully started
 services in reverse order. Partial startup failure rolls back already-started
 services. The unversioned operational surface is shown below. `/info` and `/system` require
@@ -184,9 +192,9 @@ pytest -q
 
 ## Releases, persistence, and recovery
 
-Startup uses `metadata.create_all()`, which does not upgrade existing schemas. Follow [the migration boundary](architecture.md#persistence-and-migrations) before changing deployed tables. Verify MySQL separately when it is the deployment target; current tests use SQLite.
+Apply `python -m alembic upgrade head` before starting the API; startup checks revision compatibility without changing the schema. See [Migrations](migrations.md) for native/container commands. Verify MySQL separately when it is the deployment target; automated persistence suites use SQLite.
 
-Retain the tested commit and image digest, inject production configuration, and verify readiness plus a disposable API workflow in the target environment. Configure durable storage, backups, retention, and restore for the selected database. No automated promotion, migration, backup/restore, or rollback workflow is supplied.
+Retain the tested commit and image digest, inject production configuration, and verify readiness plus a disposable API workflow in the target environment. Configure durable storage, backups, retention, and restore for the selected database. Compose supplies a one-shot local migration step. No hosted promotion, backup/restore, or application rollback workflow is supplied.
 
 During incidents inspect structured logs/request IDs, check `/health` separately from `/ready`, and investigate dependency reachability when readiness fails. Restrict diagnostics to the intended audience. Roll back to a retained image only after checking schema compatibility; restore data using the database operator's tested recovery procedure. Neither image rollback nor an available backup establishes recoverability on its own.
 

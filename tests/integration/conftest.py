@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config.database import Base
+from app.config.migrations import upgrade_connection
 
 
 @pytest_asyncio.fixture
@@ -12,7 +12,7 @@ async def session(tmp_path: Path) -> AsyncGenerator[AsyncSession, None]:
     """Provide an isolated real SQLite session for repository integration tests."""
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
     async with engine.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
+        await connection.run_sync(upgrade_connection)
 
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with factory() as value:

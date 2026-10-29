@@ -2,6 +2,66 @@
 
 [Documentation index](../README.md#documentation)
 
+## Migration foundation verification
+
+Verified on 2026-10-28 against base commit
+`1e4f413096a4c9f53546c3aed2c601d2dac45f5f` and the local input fingerprints below.
+The base commit does not include these local changes.
+
+| Check | Result |
+| --- | --- |
+| Windows complete suite | 776 passed; Python 3.12.10; 96.21% branch coverage |
+| Linux complete suite | 776 passed; 96.33% branch coverage; disposable container, read-only source mount |
+| Formatting / lint | Black: 129 Python files unchanged; Ruff passed on Windows and Linux |
+| Application typing | mypy: 55 source files passed on Windows and Linux |
+| Editor typing | Strict Pyright: 13 affected Python files; zero diagnostics |
+| Dependency consistency | Native environment and runtime image `pip check` passed |
+| Coverage gates | Middleware 96%, lifecycle 99%, database package 100%, API 99%; configured gates passed |
+| Baseline | Fresh schema matches models; repeat upgrade preserves a representative row |
+| Startup rejection | Empty/missing/incompatible history rejected; empty database tables remain uncreated |
+| Migration commands | Online async execution, offline SQL, downgrade/reapply tested on disposable SQLite |
+| Docker MySQL | Isolated `quickapi-fastapi-dev` project/database; MySQL 8.4.6; loopback port 3310 |
+| Native MySQL API smoke | Readiness, item creation (201), and readback passed |
+| Container MySQL smoke | One-shot migration exited 0 before API became healthy; item read passed |
+| MySQL persistence | Container recreation retained the sample row and revision; no volume reset performed |
+| MySQL comparison | Native and final-image `alembic check` report no new operations |
+| Final runtime image | `sha256:a41b9b8bb902cf7d7aab84b66d540f02c2491b85de26f1a57415529f20b87ccd` |
+| Final SQLite image smoke | Unmigrated startup fails with command guidance; explicit upgrade enables readiness and item read |
+| Cleanup | Temporary smoke volumes/containers removed; temporary API stopped; development MySQL retained |
+| Hosted CI / release | Not run / not verified |
+
+Runtime migration helpers are included in the image; development analysis/test tools
+are installed only in the disposable Linux verification container. The automated
+persistence suites use SQLite. Local MySQL smoke does not establish a full MySQL CI
+suite, schema-drift detection, representative future backfills, deployment rollback,
+capacity/TLS qualification, or outage recovery. Startup checks revision equality,
+not every table/column. No shared Express/NestJS database was migrated or reset.
+
+### Migration input fingerprints
+
+| Input | SHA-256 |
+| --- | --- |
+| `.env.example` | `b44d09cb3da1557ebe7b3da7ee4f8a2eafc769617ebf3c7c96a16de188748356` |
+| `.github/workflows/tests.yml` | `2bf960a93058556d0319140b3822ff50fd637b00c7f6a0be44a811f5b5e635db` |
+| `Dockerfile` | `71eedddc4f3e2d4e492eae66b7f4c7ab88aff73cced3c7a56bb7aad2b8297924` |
+| `alembic.ini` | `3f61cffc8fabca9774d67e3dfd9516c858c4da98aaefec26f643e2610f654b2f` |
+| `app/config/database.py` | `b04853d6d6ee355a0b97d66776e6ed42d9b2d5f56bcfaefa9a24b138d7f5ba35` |
+| `app/config/environment.py` | `614ee4f67976c9b217838d29414d56b128d0370042efacfcaf7efbcf891f3200` |
+| `app/config/migrations.py` | `16decaf23eaeb9f9c4c70a66cf97bbfb60b0fde3fcf3a48ad1b9245835bf3539` |
+| `app/database/migrations/env.py` | `aa006a88455a144599689e614a5d9a43dd166b138287af43761edad5384c7589` |
+| `app/database/migrations/script.py.mako` | `9c72f2b9aa664f849982dd50ae87f788bd81a5270898624dfd0a6b2703da561e` |
+| `app/database/migrations/versions/0001_create_items.py` | `518ecf75af75ef5faca34d4f43a59ef92f6f1a2e26932a23f7c4f9a4625f58cf` |
+| `docker-compose.yaml` | `cdbf0944b3a07294fc5a32100b38009668c1937f15df977c4b583ece271baec5` |
+| `requirements.txt` | `387fb4e096e60eba5fdd66fc582fbbf68677a6e44ecd6e26dd76310ec11a19e6` |
+| `tests/conftest.py` | `3b71c4771f0c0149063cab3b444d378b46c2c54539cdbb3153035a32246589f7` |
+| `tests/e2e/conftest.py` | `1f80afde2b94f388ebcdfd2e635bc7d33fc5a86252d2f85fb8ca7df114f7c05e` |
+| `tests/e2e/test_application.py` | `c1e590fe8892a47bc1e22994055c4488f30ca3913dc95067aed3ed127002e47b` |
+| `tests/integration/conftest.py` | `1006f49cc94cee1092a9fa88ea99bc7ea041bae105ae7d5030a80c294996c0c8` |
+| `tests/integration/database/test_item_repository.py` | `daf763cf8ff7fa51e64e4435ef3e404764807affa527e367fbf71aad828dc16f` |
+| `tests/integration/database/test_migrations.py` | `138c7be87a6a4777c926f15c988f1ce71240868b5f4ebc50427e72de270ef4f3` |
+| `tests/unit/config/test_database_config.py` | `11b4ea5cd9c4794766ebc2fa05f8b55b25c1a7f2f626c73df0c95013afefe797` |
+| `tests/unit/config/test_environment.py` | `cc25bc245ee48171d4b211b75dd285940374d7c26c7bc21b87dd1c719e3202d7` |
+
 ## Dependency logging filter verification
 
 Verified on 2026-10-28 with the Windows Python 3.12 environment, against base commit

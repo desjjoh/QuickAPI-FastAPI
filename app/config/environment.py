@@ -33,7 +33,7 @@ StringList = Annotated[list[str], NoDecode]
 
 SEMVER_REGEX = r"^\d+\.\d+\.\d+$"
 DEFAULT_API_PUBLISHED_PORT = 8000
-DEFAULT_MYSQL_PUBLISHED_PORT = 3308
+DEFAULT_MYSQL_PUBLISHED_PORT = 3310
 
 
 def operational_default(data: dict[str, object]) -> bool:
