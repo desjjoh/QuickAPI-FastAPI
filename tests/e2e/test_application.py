@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import httpx
 import pytest
 from fastapi import APIRouter, FastAPI
@@ -26,9 +24,6 @@ async def test_real_lifespan_reports_readiness_before_during_and_after(
 async def test_startup_checks_explicitly_migrated_database_schema(app: FastAPI) -> None:
     from app.config import database
 
-    database_path: Path = app.state.e2e_database_path
-    assert database_path.exists() is True
-
     async with app.router.lifespan_context(app):
         async with database.engine.connect() as connection:
             tables = await connection.run_sync(
@@ -36,14 +31,13 @@ async def test_startup_checks_explicitly_migrated_database_schema(app: FastAPI) 
             )
 
         assert "items" in tables
-        assert database_path.is_file()
+        assert "alembic_version" in tables
 
 
 @pytest.mark.asyncio
 async def test_shutdown_is_idempotent_and_releases_database(app: FastAPI) -> None:
     from app.config import database
 
-    database_path: Path = app.state.e2e_database_path
     async with app.router.lifespan_context(app):
         assert await database.db_test_query() is True
 
@@ -51,11 +45,9 @@ async def test_shutdown_is_idempotent_and_releases_database(app: FastAPI) -> Non
     assert app.state.lifecycle.is_ready() is False
     assert app.state.lifecycle.is_alive() is False
 
-    # Unlinking an open SQLite database fails on Windows.  This checks the
-    # lifecycle's observable resource cleanup without depending on SQLAlchemy's
-    # platform-specific pool implementation or diagnostic string.
-    database_path.unlink()
-    assert database_path.exists() is False
+    # Backend-independent: disposal is idempotent and a fresh lease still works.
+    assert await database.db_test_query() is True
+    await database.close_db()
 
 
 @pytest.mark.asyncio

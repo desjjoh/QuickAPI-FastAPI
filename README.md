@@ -32,6 +32,7 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Development](docs/development.md) | Setup, configuration, database selection, and local commands |
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
+| [MySQL testing](docs/mysql-testing.md) | Disposable test infrastructure, .env.test, migrations, and CI |
 | [Migrations](docs/migrations.md) | Database setup, Alembic commands, schema checks, and disposable resets |
 | [Logging](docs/logging.md) | Console/JSON output, levels, request correlation, and safe diagnostics |
 | [Rate limiting](docs/rate-limiting.md) | Bounded rolling windows, storage capacity, retry timing, and probe policy |
@@ -61,13 +62,13 @@ Routes have no application authentication. This service does not implement the a
 ## Quality checks
 
 ```sh
-python -m black --check app tests
-python -m ruff check app tests
-python -m mypy app
+python -m black --check app tests scripts
+python -m ruff check app tests scripts
+python -m mypy app scripts
 python -m pytest -q
 ```
 
-Follow [Testing](docs/testing.md) for layer selection, critical coverage thresholds, and container checks. SQLite-backed tests and a container smoke test do not establish production MySQL or deployment readiness.
+Follow [Testing](docs/testing.md) for layer selection, critical coverage thresholds, and container checks. The disposable MySQL suites verify repository/API persistence; SQLite coverage and the current SQLite image smoke remain separate evidence. See [MySQL testing](docs/mysql-testing.md) for the test runner. These checks do not establish deployment readiness.
 
 ## License
 

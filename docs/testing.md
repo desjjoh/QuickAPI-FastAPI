@@ -6,22 +6,22 @@
 
 Install [requirements-dev.txt](../requirements-dev.txt) in a fresh Python 3.12 virtual environment and run `python -m pip check`. Markers and coverage settings live in [pyproject.toml](../pyproject.toml); job dependencies and commands live in [the Quality workflow](../.github/workflows/tests.yml).
 
-| Layer | Location | Boundary |
-| --- | --- | --- |
-| Unit | `tests/unit/` | Isolated models, handlers, middleware, configuration, and utilities |
-| Integration | `tests/integration/` | Real SQLite sessions/repositories, application stack, and error/OpenAPI integration |
-| E2E | `tests/e2e/` | Complete app over HTTPX ASGI transport, lifespan, and isolated SQLite persistence |
+| Layer       | Location             | Boundary                                                                                  |
+| ----------- | -------------------- | ----------------------------------------------------------------------------------------- |
+| Unit        | `tests/unit/`        | Isolated models, handlers, middleware, configuration, and utilities                       |
+| Integration | `tests/integration/` | Real SQLite/MySQL sessions/repositories, application stack, and error/OpenAPI integration |
+| E2E         | `tests/e2e/`         | Complete app over HTTPX ASGI transport, lifespan, and isolated SQLite/MySQL persistence   |
 
-[Shared fixtures](../tests/conftest.py) force test configuration and clear logging/request/metrics state. [Integration fixtures](../tests/integration/conftest.py) and [E2E fixtures](../tests/e2e/conftest.py) use disposable file-backed SQLite databases under pytest temporary paths. HTTP E2E runs in-process; it does not start Uvicorn, open network sockets, or verify MySQL.
+[Shared fixtures](../tests/conftest.py) isolate configuration and logging/request/metrics state. Integration/E2E fixtures default to private SQLite files; the explicit [MySQL runner](mysql-testing.md) selects the guarded disposable MySQL target from `.env.test`. HTTP E2E uses in-process ASGI transport; socket behavior has separate Uvicorn tests.
 
 ## Quality gates and tests
 
 Run the same static checks used by CI:
 
 ```bash
-python -m black --check app tests
-python -m ruff check app tests
-python -m mypy app
+python -m black --check app tests scripts
+python -m ruff check app tests scripts
+python -m mypy app scripts
 ```
 
 Every test has an explicit layer marker. CI first verifies that each layer collects
@@ -53,9 +53,9 @@ The `shopt` and recursive glob commands require Bash, matching Ubuntu CI. PowerS
 
 ## CI sequence and verification limits
 
-Pull requests, pushes to `main`/`staging`/`dev`, merge groups, and manual dispatch run static analysis, then the unit/integration/E2E matrix, then combined coverage, then the production-container job. Layer runs disable coverage; combined coverage reruns all tests and applies overall and critical-package thresholds.
+Pull requests, pushes to `main`/`staging`/`dev`, merge groups, and manual dispatch run static analysis, then the SQLite unit/integration/E2E matrix and separate disposable MySQL integration/E2E jobs, then combined coverage, then the production-container job. Layer runs disable coverage; combined coverage reruns all tests and applies overall and critical-package thresholds.
 
-Container CI builds the image, starts it with explicit production settings and disposable SQLite, polls `/ready`, and reads `/api/v1/items/`. It does not test Compose, MySQL, container mutations, durable persistence, schema upgrades, restore, or rollback. See [Deployment](deployment.md).
+Container CI builds the image, starts it with explicit production settings and disposable SQLite, polls `/ready`, and reads `/api/v1/items/`. The image smoke remains SQLite-based; separate MySQL jobs test migrated repository/API persistence. The image smoke does not qualify MySQL container mutations, durable deployment storage, representative data upgrades, restore, or rollback. See [Deployment](deployment.md).
 
 Record the commit/environment and distinguish passed, failed, skipped/not run, and unavailable checks. A workflow definition is not evidence that a particular commit passed.
 
@@ -71,8 +71,8 @@ Use Python 3.12 for local checks. An unsupported interpreter or an unavailable s
 is an execution limitation, not a passing or failing application test. Record the
 source identity, environment, and outcome in [Verification](verification.md).
 
-Automated persistence suites and the image smoke use SQLite. The workflow does not
-qualify a complete MySQL suite, representative future data upgrades/rollback, backup restoration, or candidate-bound
+Automated persistence tests run against SQLite and disposable MySQL; the image smoke
+still uses SQLite. The workflow does not qualify representative future data upgrades/rollback, backup restoration, or candidate-bound
 release publication. It has no aggregate fail-closed job. Required checks must be
 configured separately in GitHub; see [Branch protections](branch-protection.md).
 Additional verification requirements are tracked in [Backlog](backlog.md).
@@ -80,7 +80,6 @@ Additional verification requirements are tracked in [Backlog](backlog.md).
 ## HTTP deadline and streaming checks
 
 The [timeout test guide](request-timeouts.md#verification) describes focused unit checks and real loopback Uvicorn integration checks on both h11 and httptools. The socket checks run in the existing integration layer; they are not production-only endpoints or MySQL verification.
-
 
 ## Request outcome regression coverage
 
@@ -97,7 +96,6 @@ unchanged after it. These supplement twelve socket deadline cases in
 [timeout tests](../tests/integration/middleware/test_timeout_server.py); HTTPX ASGI
 transport alone cannot prove socket disconnect or truncated-body behavior.
 
-
 ## HTTP policy regression coverage
 
 [Environment tests](../tests/unit/config/test_environment.py) cover defaults, exact
@@ -113,7 +111,6 @@ and httptools for trusted/untrusted identity and configured response deadlines.
 The socket harness disables Uvicorn proxy rewriting to exercise app-owned trust.
 Deployment-specific slow-header protection remains unverified and open.
 
-
 ## Operational exposure regression coverage
 
 [Operational integration tests](../tests/integration/middleware/test_operational_exposure.py)
@@ -124,7 +121,6 @@ minimal public probes with dependencies up/down. Two real-server cases cover pro
 defaults across h11/httptools. Environment tests also reject ambiguous flag values and
 verify explicit overrides. Controller/model/E2E/OpenAPI checks enforce the minimal
 public readiness contract.
-
 
 ## Bounded rate-limit regression coverage
 
@@ -139,7 +135,6 @@ exemption. Two real Uvicorn cases exercise concurrent bursts, isolation, capacit
 and exact recovery across h11/httptools. Environment tests cover all three settings,
 strict types/ranges, the combined slot ceiling, and env-example/default consistency.
 
-
 ## Logging privacy checks
 
 [Logging tests](logging.md#verification) capture actual console/JSON output, including
@@ -151,3 +146,7 @@ complete suite also protects request/timeout outcome semantics and public error 
 ## Migration checks
 
 `python -m pytest -q tests/integration/database/test_migrations.py --no-cov` exercises the baseline, read-only startup rejection, model comparison, repeat application, incompatible history, downgrade/reapply, and online/offline execution. Persistence fixtures apply the migration chain explicitly rather than creating ORM tables. See [Migrations](migrations.md) for commands and limitations.
+
+## Disposable MySQL commands
+
+`python -m scripts.test_db test` starts and migrates isolated MySQL, runs integration/E2E tests, and cleans up. Use `--layer integration` or `--layer e2e` for the separate CI selections. [Disposable MySQL testing](mysql-testing.md) documents `.env.test`, migration generation/application, safety checks, and inspection/reset commands.

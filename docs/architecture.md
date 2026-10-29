@@ -110,7 +110,6 @@ Update [API contracts](api-contracts.md) when routes/models change, [Development
 
 See [Request deadlines and streaming](request-timeouts.md) for the pure-ASGI response state boundary, bounded receive ownership, cancellation/cleanup limits, and Express-aligned HTTP outcomes. It does not implement TCP header deadlines or mutation rollback guarantees.
 
-
 ## Documentation conventions
 
 Reference guides describe the current supported behavior in the present tense.

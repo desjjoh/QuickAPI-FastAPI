@@ -1,13 +1,11 @@
 from collections.abc import AsyncIterator
-from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.config.migrations import upgrade_connection
 from app.database.entities.item_orm import ItemORM
 from app.database.repositories.item_repo import (
     ItemListQuery,
@@ -22,14 +20,10 @@ SessionFactory = async_sessionmaker[AsyncSession]
 
 
 @pytest_asyncio.fixture
-async def sessions(tmp_path: Path) -> AsyncIterator[SessionFactory]:
+async def sessions(database_engine: AsyncEngine) -> AsyncIterator[SessionFactory]:
     """Give every test a private database and access to fresh sessions."""
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'items.db'}")
-    async with engine.begin() as connection:
-        await connection.run_sync(upgrade_connection)
-    factory = async_sessionmaker(engine, expire_on_commit=False)
+    factory = async_sessionmaker(database_engine, expire_on_commit=False)
     yield factory
-    await engine.dispose()
 
 
 async def seed(session: AsyncSession) -> list[ItemORM]:

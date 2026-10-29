@@ -7,16 +7,16 @@ acceptance criteria. [Backlog](backlog.md) tracks unresolved requirements, and
 [Verification](verification.md) records dated execution evidence. Reference guides
 describe the supported application contracts.
 
-| Milestone | Focus |
-| --- | --- |
-| 1 | Reproducible foundation and existing fixes |
-| 2 | HTTP policies and operational behavior |
-| 3 | Migrations and production-like MySQL persistence |
-| 4 | Shutdown and mutation safety |
-| 5 | Item API contract alignment |
-| 6 | Production container and CI enforcement |
-| 7 | Verified release pipeline |
-| 8 | Hosting-dependent verification |
+| Milestone | Focus                                            |
+| --------- | ------------------------------------------------ |
+| 1         | Reproducible foundation and existing fixes       |
+| 2         | HTTP policies and operational behavior           |
+| 3         | Migrations and production-like MySQL persistence |
+| 4         | Shutdown and mutation safety                     |
+| 5         | Item API contract alignment                      |
+| 6         | Production container and CI enforcement          |
+| 7         | Verified release pipeline                        |
+| 8         | Hosting-dependent verification                   |
 
 ## 1A. Environment and dependencies
 
@@ -77,7 +77,11 @@ and shipping require hosting-specific controls.
 
 ## 3A. Migration foundation
 
-[Alembic migrations](migrations.md) define the fresh schema and explicit native/container commands. The isolated `quickapi-fastapi-dev` Compose project publishes MySQL on loopback port 3310. Startup checks revision compatibility without creating tables; deeper drift/data compatibility and MySQL CI qualification remain separate requirements. Development data is disposable, with an intentional project-scoped reset.
+[Alembic migrations](migrations.md) define the fresh schema and explicit native/container commands. The isolated `quickapi-fastapi-dev` Compose project publishes MySQL on loopback port 3310. Startup checks revision compatibility without creating tables; deeper drift/data compatibility and hosted CI qualification remain separate requirements. Development data is disposable, with an intentional project-scoped reset.
+
+## 3B. Disposable MySQL testing
+
+[MySQL testing](mysql-testing.md) defines the separate temporary test stack, explicit `.env.test` connection, guarded migrations/resets, real-commit persistence fixtures, serial execution, and integration/E2E CI jobs. SQLite remains a compatibility and coverage check. Hosted check execution/enforcement requires independent verification.
 
 ## Working decisions
 

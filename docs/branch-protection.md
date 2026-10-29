@@ -16,7 +16,7 @@ before editing it. The intended protection policy is:
 - Allow repository administrators to bypass the rules. This policy does not prevent
   administrator bypass.
 - Do not require branches to be up to date before merging.
-- Require all six Quality status checks listed below.
+- Require all eight Quality status checks listed below.
 
 A target rule can cover a branch that does not exist yet. Branch creation/deletion
 and changes to the protection policy require separate repository administration.
@@ -31,9 +31,15 @@ static-analysis
 test-layers (unit)
 test-layers (integration)
 test-layers (e2e)
+mysql-tests (integration)
+mysql-tests (e2e)
 combined-coverage
 production-container
 ```
+
+The MySQL contexts above are defined by the workflow. Run it on GitHub and confirm
+the actual check names before adding the new contexts; local runs do not establish
+that they are available or enforced remotely.
 
 The workflow runs on pull requests, pushes to `main`/`staging`/`dev`, merge groups,
 and manual dispatch. It uses read-only contents permissions and cancels superseded
@@ -43,7 +49,7 @@ candidate commit passed; inspect its actual check results.
 ## Required-check configuration
 
 1. Open [the existing ruleset settings](https://github.com/desjjoh/QuickAPI-FastAPI/settings/rules/25976668).
-2. Under **Require status checks to pass**, add all six exact contexts above. Select
+2. Under **Require status checks to pass**, add all eight exact contexts above. Select
    **GitHub Actions** as their source when offered. Preserve the intended branch,
    pull-request, merge, up-to-date, and bypass settings.
 3. Save and reopen the rule to verify the configured list.
@@ -54,7 +60,7 @@ Check names belong to this repository. Express's `Deployment gate` and NestJS's
 
 ## Enforcement boundary
 
-Require all six checks. The final job depends on earlier jobs, and an earlier failure
+Require all eight checks. The final job depends on earlier jobs, and an earlier failure
 can leave dependent jobs skipped. Requiring only the final dependent job does not
 provide a fail-closed aggregate gate. An aggregate check must run and be verified
 before it can replace this list; that requirement is tracked in [Backlog](backlog.md).

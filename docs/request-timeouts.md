@@ -6,11 +6,11 @@ The [pure-ASGI middleware](../app/common/middleware/request_timeout.py) sends on
 
 ## Deadline contract
 
-| Boundary | Default | Behavior |
-| --- | --- | --- |
-| `total_timeout` | 10 seconds | From timeout-middleware entry until the final response body is successfully sent |
-| `first_body_timeout` | 5 seconds | Maximum wait for the first requested body message |
-| `chunk_timeout` | 2 seconds | Maximum wait for each subsequent requested body message until the request body is complete |
+| Boundary             | Default    | Behavior                                                                                   |
+| -------------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| `total_timeout`      | 10 seconds | From timeout-middleware entry until the final response body is successfully sent           |
+| `first_body_timeout` | 5 seconds  | Maximum wait for the first requested body message                                          |
+| `chunk_timeout`      | 2 seconds  | Maximum wait for each subsequent requested body message until the request body is complete |
 
 Constructor budgets must be finite and greater than zero; invalid values fail
 middleware construction. The overall deadline applies when the handler never reads

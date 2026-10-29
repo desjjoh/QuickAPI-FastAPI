@@ -1,21 +1,12 @@
 from collections.abc import AsyncGenerator
-from pathlib import Path
 
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
-from app.config.migrations import upgrade_connection
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 
 @pytest_asyncio.fixture
-async def session(tmp_path: Path) -> AsyncGenerator[AsyncSession, None]:
-    """Provide an isolated real SQLite session for repository integration tests."""
-    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
-    async with engine.begin() as connection:
-        await connection.run_sync(upgrade_connection)
-
-    factory = async_sessionmaker(engine, expire_on_commit=False)
+async def session(database_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    """Use the selected backend with real commits and isolated application rows."""
+    factory = async_sessionmaker(database_engine, expire_on_commit=False)
     async with factory() as value:
         yield value
-
-    await engine.dispose()

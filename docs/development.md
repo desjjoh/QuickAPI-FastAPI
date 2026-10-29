@@ -53,12 +53,12 @@ docker compose up --build -d --wait
 docker compose up -d --wait mysql
 ```
 
-| Connection | Address |
-| --- | --- |
-| Container API from this machine | `http://127.0.0.1:8000` |
-| Native Python API with example settings | `http://localhost:8000` |
-| MySQL from native Python/database clients | `127.0.0.1:3310` |
-| MySQL from the API container | `mysql:3306` |
+| Connection                                | Address                 |
+| ----------------------------------------- | ----------------------- |
+| Container API from this machine           | `http://127.0.0.1:8000` |
+| Native Python API with example settings   | `http://localhost:8000` |
+| MySQL from native Python/database clients | `127.0.0.1:3310`        |
+| MySQL from the API container              | `mysql:3306`            |
 
 `API_PUBLISHED_PORT` and `MYSQL_PUBLISHED_PORT` are optional host-port overrides, commented out in `.env.example`. Omitted or empty values use ports 8000 and 3310 respectively; uncomment only when changing them. Settings validation accepts only whole-number ports from 1 through 65535; malformed, fractional, whitespace-only, zero, and out-of-range values fail. Compose forwards its resolved overrides into the API container for validation. Both bind to loopback. The API container explicitly uses `HOST=0.0.0.0`, `PORT=8000`, and `ENV=production` so its built-image process does not enable development reload. Its health check always probes internal port 8000. Native Python uses its configured `PORT` and `ENV` independently.
 
@@ -78,6 +78,10 @@ docker compose down
 
 See [Database migrations](migrations.md) for the complete first-run guide, command reference, migration authoring, and intentional reset procedure. The FastAPI database is disposable and separate from shared local databases.
 
+## Disposable MySQL tests
+
+Use `python -m scripts.test_db test` to start, migrate, test, and remove the isolated MySQL test instance on port 3311. Development MySQL on 3310 remains available. [MySQL testing](mysql-testing.md) includes the `.env.test` settings, per-layer commands, test migration generation/application, and intentional reset procedure.
+
 ## Interpreter and dependency maintenance
 
 Pip is the selected package installer. [requirements.txt](../requirements.txt) contains runtime dependencies and manually maintained transitive pins. [requirements-dev.txt](../requirements-dev.txt) includes it and adds formatting, typing, tests, HTTP test clients, and their supporting packages. Local development and CI install the development file; Docker installs only the runtime file. No uv or generated lockfile is required.
@@ -88,7 +92,7 @@ For production or a separate runtime-only verification environment, create anoth
 
 When updating dependencies, edit the appropriate exact pins, reconcile related transitive requirements, and verify fresh runtime and development installations. Run `python -m pip check`, static checks, tests, and the runtime-image checks. Avoid replacing these curated lists with an unreviewed `pip freeze` from a long-lived environment. These files pin application packages, not Python/pip or operating-system packages.
 
-SQLite is a supported local runtime option; `aiosqlite` is a runtime dependency. The automated persistence suites use SQLite; see [Testing](testing.md) for database verification boundaries.
+SQLite is a supported local runtime option; `aiosqlite` is a runtime dependency. The default suite uses SQLite; explicit MySQL integration/E2E runs use the separate `quickapi-fastapi-test` project and `.env.test`. See [MySQL testing](mysql-testing.md) for commands and database boundaries.
 
 ## Configuration
 
@@ -98,18 +102,18 @@ Copy the example, then change values for the target environment:
 cp .env.example .env
 ```
 
-| Variable       | Requirement                                             |
-| -------------- | ------------------------------------------------------- |
-| `APP_NAME`     | Non-empty, at most 120 characters.                      |
-| `APP_VERSION`  | Three-part semantic version such as `1.0.0`.            |
-| `ENV`          | `development`, `test`, or `production`.                 |
-| `LOG_LEVEL`    | `DEBUG`, `INFO`, `WARN`, or `ERROR`; default INFO hides successful requests. |
-| `HOST`         | Bind address; defaults to `0.0.0.0`.                    |
-| `PORT`         | Integer from 1 through 65535.                           |
-| `API_PUBLISHED_PORT` | Optional host API port, 1-65535; missing/empty defaults to 8000. |
-| `MYSQL_PUBLISHED_PORT` | Optional host MySQL port, 1-65535; missing/empty defaults to 3310. |
-| `TIMEZONE`     | Valid IANA identifier; defaults to `Etc/UTC`.           |
-| `DATABASE_URL` | SQLAlchemy async URL; MySQL uses `mysql+asyncmy://...`. |
+| Variable               | Requirement                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `APP_NAME`             | Non-empty, at most 120 characters.                                           |
+| `APP_VERSION`          | Three-part semantic version such as `1.0.0`.                                 |
+| `ENV`                  | `development`, `test`, or `production`.                                      |
+| `LOG_LEVEL`            | `DEBUG`, `INFO`, `WARN`, or `ERROR`; default INFO hides successful requests. |
+| `HOST`                 | Bind address; defaults to `0.0.0.0`.                                         |
+| `PORT`                 | Integer from 1 through 65535.                                                |
+| `API_PUBLISHED_PORT`   | Optional host API port, 1-65535; missing/empty defaults to 8000.             |
+| `MYSQL_PUBLISHED_PORT` | Optional host MySQL port, 1-65535; missing/empty defaults to 3310.           |
+| `TIMEZONE`             | Valid IANA identifier; defaults to `Etc/UTC`.                                |
+| `DATABASE_URL`         | SQLAlchemy async URL; MySQL uses `mysql+asyncmy://...`.                      |
 
 Pydantic validates configuration while importing the application. Missing or invalid
 required values produce a field-by-field diagnostic and a non-zero exit rather than
@@ -129,7 +133,6 @@ The example uses port 8000 and `ENV=development`, which enables Uvicorn reload. 
 
 Startup checks the Alembic revision and does not create or migrate tables; apply revisions first using [Migrations](migrations.md). Quality commands and fixture isolation are documented in [Testing](testing.md).
 
-
 ## Operational endpoint overrides
 
 [Exposure controls](operational-exposure.md) default docs/diagnostics/metrics on in
@@ -140,7 +143,6 @@ runs the API in production mode, so explicit local overrides are needed for cont
 docs/diagnostics/metrics. Keep these variables/comments synchronized with `.env.example`.
 Public liveness/readiness remain available; readiness never includes dependency details.
 
-
 ## Rate-limit overrides
 
 [Bounded rate limiting](rate-limiting.md) defaults to `RATE_LIMIT_WINDOW_MS=60000`,
@@ -150,7 +152,6 @@ client-capacity settings must also respect their combined two-million-slot bound
 Probes/preflights share quota, so reducing limits can affect local tools and health
 checks. Favicon GET/HEAD remains exempt. Stores reset on application restart and
 are independent across workers.
-
 
 ## Logging configuration
 

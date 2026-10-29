@@ -80,7 +80,7 @@ back transactionally after a failed migration.
 4. Review the new file under `app/database/migrations/versions/`. Confirm its
    predecessor, column definitions, constraints, indexes, and upgrade/downgrade effects.
    Autogeneration can propose destructive drop/create operations for a rename.
-5. Run `python -m black app tests` and `python -m ruff check app tests`; review any
+5. Run `python -m black app tests scripts` and `python -m ruff check app tests scripts`; review any
    formatting/import corrections in the generated file.
 6. Apply it with `python -m alembic upgrade head`, then run `current` and `check`.
 7. Add meaningful migration tests, run the relevant suites, and commit the model
@@ -125,13 +125,17 @@ another project or a shared database. No existing-database adoption or automatic
 reset is performed. Initial MySQL credentials and database names apply only when
 initializing a fresh volume.
 
+## Disposable test database commands
+
+Development commands above use `.env`. For the independent Docker test database, use `python -m scripts.test_db up`, then `python -m scripts.test_db migrate`. The wrapper explicitly loads `.env.test` and guards the target. [MySQL testing](mysql-testing.md#test-database-migration-commands) documents generation, upgrade, downgrade, and inspection commands; both environments use the same migration files.
+
 ## Verification boundaries
 
 Migration integration tests cover the fresh baseline, model comparison, repeated
 upgrade with retained data, missing/incompatible history, offline SQL, and a
 disposable downgrade/reapply cycle. SQLite tests remain fast local/CI checks;
 recorded Docker MySQL smoke evidence is separate from a complete MySQL test suite.
-Broader MySQL CI infrastructure, representative future data upgrades, capacity/TLS,
+MySQL integration/E2E infrastructure is documented separately. Representative future data upgrades, capacity/TLS,
 and outage/recovery qualification have their own acceptance criteria in
 [Milestones](milestones.md).
 

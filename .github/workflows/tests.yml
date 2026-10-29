@@ -26,11 +26,11 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pip check
       - name: Check formatting
-        run: python -m black --check app tests
+        run: python -m black --check app tests scripts
       - name: Lint
-        run: python -m ruff check app tests
+        run: python -m ruff check app tests scripts
       - name: Type check
-        run: python -m mypy app
+        run: python -m mypy app scripts
   test-layers:
     needs: static-analysis
     runs-on: ubuntu-latest
@@ -52,8 +52,39 @@ jobs:
       - name: Run ${{ matrix.layer }} tests
         run: python -m pytest -q --no-cov -m "${{ matrix.layer }}"
 
+  mysql-tests:
+    needs: static-analysis
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: [integration, e2e]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip check
+      - name: Run migrated disposable MySQL ${{ matrix.layer }} suite
+        run: python -m scripts.test_db test --layer "${{ matrix.layer }}" --keep-db
+      - name: Capture MySQL diagnostics on failure
+        if: failure()
+        run: |
+          mkdir -p test-artifacts
+          python -m scripts.test_db logs > test-artifacts/mysql.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: mysql-${{ matrix.layer }}-diagnostics
+          path: test-artifacts/
+      - name: Remove disposable MySQL resources
+        if: always()
+        run: python -m scripts.test_db down
+
   combined-coverage:
-    needs: test-layers
+    needs: [test-layers, mysql-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

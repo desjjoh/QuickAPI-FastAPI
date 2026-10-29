@@ -43,7 +43,7 @@ The checked-in [Compose file](../docker-compose.yaml) is a local development sta
 Compose reads `.env` and overrides container-specific settings: `HOST=0.0.0.0`, `PORT=8000`, `ENV=production`, and a local MySQL service URL. Native Python keeps its own port/mode/database URL. The unused `DEBUG`/`WORKERS` entries were removed. See [local setup, credentials, persistence, and reset commands](development.md#local-compose).
 
 Compose provides a local MySQL development topology. The CI runtime-image smoke
-uses SQLite and explicitly applies the baseline before API startup. It does not
+uses SQLite and explicitly applies the baseline before API startup. Separate disposable MySQL jobs exercise repository/API persistence; the image smoke does not
 qualify MySQL failure paths or representative future data upgrades. See [Testing](testing.md) for verification boundaries and
 [Verification](verification.md) for dated execution evidence.
 
@@ -192,23 +192,22 @@ pytest -q
 
 ## Releases, persistence, and recovery
 
-Apply `python -m alembic upgrade head` before starting the API; startup checks revision compatibility without changing the schema. See [Migrations](migrations.md) for native/container commands. Verify MySQL separately when it is the deployment target; automated persistence suites use SQLite.
+Apply `python -m alembic upgrade head` before starting the API; startup checks revision compatibility without changing the schema. See [Migrations](migrations.md) for native/container commands. Verify MySQL separately when it is the deployment target; automated persistence suites cover SQLite and disposable MySQL.
 
 Retain the tested commit and image digest, inject production configuration, and verify readiness plus a disposable API workflow in the target environment. Configure durable storage, backups, retention, and restore for the selected database. Compose supplies a one-shot local migration step. No hosted promotion, backup/restore, or application rollback workflow is supplied.
 
 During incidents inspect structured logs/request IDs, check `/health` separately from `/ready`, and investigate dependency reachability when readiness fails. Restrict diagnostics to the intended audience. Roll back to a retained image only after checking schema compatibility; restore data using the database operator's tested recovery procedure. Neither image rollback nor an available backup establishes recoverability on its own.
-
 
 ## Metrics and request outcomes
 
 The schema matches QuickAPI-Express and QuickAPI-NestJS, with Express's separate
 abort counter:
 
-| Metric | Labels | Meaning |
-| --- | --- | --- |
-| `http_requests_total` | `method`, `route`, `status` | Completed responses, including emitted 4xx/5xx and pre-header timeout 408 |
-| `http_request_duration_ms` | `method`, `route`, `status` | Completed-response duration in milliseconds; buckets 5, 15, 50, 100, 250, 500, 1000, and +Inf |
-| `http_requests_aborted_total` | `method`, `route` | Incomplete responses: disconnect, stream timeout, cancellation, or failure without a completed response |
+| Metric                        | Labels                      | Meaning                                                                                                 |
+| ----------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `http_requests_total`         | `method`, `route`, `status` | Completed responses, including emitted 4xx/5xx and pre-header timeout 408                               |
+| `http_request_duration_ms`    | `method`, `route`, `status` | Completed-response duration in milliseconds; buckets 5, 15, 50, 100, 250, 500, 1000, and +Inf           |
+| `http_requests_aborted_total` | `method`, `route`           | Incomplete responses: disconnect, stream timeout, cancellation, or failure without a completed response |
 
 `route` is the full declared template, for example `/api/v1/items/{id}`, including
 declared mount prefixes. Missing routes and rejections before routing use
@@ -233,7 +232,6 @@ Histogram grouping/filtering includes `status`; `_bucket`, `_sum`, and `_count`
 series derive from `http_request_duration_ms`. Completed-response histograms exclude
 aborted requests, which are measured by `http_requests_aborted_total`.
 
-
 ## HTTP policy configuration
 
 See [HTTP configuration](http-policy.md) for settings, defaults, validation, proxy
@@ -244,7 +242,6 @@ The application owns forwarding resolution; external Uvicorn commands must use
 `--no-proxy-headers`, as the normal entrypoint already does. Real ingress trust,
 direct-port denial, and slow-header/whole-upload protection still require deployed
 verification; application deadlines do not establish those transport guarantees.
-
 
 ## Limiter capacity and probe policy
 
@@ -257,7 +254,6 @@ the resolved client's quota. Configure proxy trust, probe frequency, and capacit
 the selected topology. Limiter failures precede CORS; see the documented browser
 response boundary. Multi-worker/replica enforcement is independent; distributed
 quotas and hosting-level behavior require separate qualification.
-
 
 ## Production logging
 

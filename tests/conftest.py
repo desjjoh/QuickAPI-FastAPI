@@ -1,5 +1,20 @@
+# ruff: noqa: E402
+# Test environment isolation must happen before application imports.
 import os
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
+
+from scripts.test_database_support import (
+    clear_application_rows,
+    guarded_connection,
+    load_test_config,
+)
+
+# Validate explicit MySQL selection before forcing ordinary collection settings.
+_backend = os.environ.get("QUICKAPI_TEST_DATABASE", "sqlite")
+if _backend not in {"sqlite", "mysql"}:
+    raise ValueError("QUICKAPI_TEST_DATABASE must be sqlite or mysql.")
+_mysql_config = load_test_config() if _backend == "mysql" else None
 
 # Do not allow a developer shell or CI runner to alter collection-time settings.
 os.environ.update(
@@ -39,12 +54,68 @@ os.environ.update(
 )
 
 import pytest
+import pytest_asyncio
 import structlog
+from _pytest.terminal import TerminalReporter
 from fastapi import FastAPI
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.common.handlers.lifecycle_handler import LifecycleHandler
 from app.common.store.request_context import RequestContext
 from app.config.metrics import REQUEST_ABORTED, REQUEST_COUNT, REQUEST_DURATION
+from app.config.migrations import check_revision, upgrade_connection
+
+_selected_database_tests = 0
+
+
+def pytest_report_header() -> str:
+    return f"Persistence fixture backend: {_backend}"
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    global _selected_database_tests
+    _selected_database_tests = sum(
+        1
+        for item in session.items
+        if isinstance(item, pytest.Function) and "database_engine" in item.fixturenames
+    )
+    if _mysql_config is not None and not _selected_database_tests:
+        raise pytest.UsageError("MySQL selection contains no database-backed tests.")
+
+
+def pytest_terminal_summary(terminalreporter: TerminalReporter) -> None:
+    terminalreporter.write_line(
+        f"Persistence backend: {_backend}; database-backed tests selected: {_selected_database_tests}"
+    )
+
+
+@pytest_asyncio.fixture
+async def database_engine(tmp_path: Path) -> AsyncIterator[AsyncEngine]:
+    """Real commits, isolated rows, guarded MySQL or a private SQLite file."""
+    if _mysql_config is None:
+        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
+        try:
+            async with engine.begin() as connection:
+                await connection.run_sync(upgrade_connection)
+            yield engine
+        finally:
+            await engine.dispose()
+    else:
+        engine = create_async_engine(
+            _mysql_config.url, poolclass=NullPool, hide_parameters=True
+        )
+        try:
+            async with guarded_connection(engine, _mysql_config) as connection:
+                await connection.run_sync(check_revision)
+                await connection.commit()
+                await clear_application_rows(connection, _mysql_config)
+                try:
+                    yield engine
+                finally:
+                    await clear_application_rows(connection, _mysql_config)
+        finally:
+            await engine.dispose()
 
 
 @pytest.fixture(autouse=True)

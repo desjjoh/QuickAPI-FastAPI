@@ -8,11 +8,11 @@ Documentation, diagnostics, and metrics are independently enabled by optional
 booleans. Omitted values default to `true` in
 `development`/`test` and `false` in `production`.
 
-| Setting | Controlled route families |
-| --- | --- |
-| `DOCS_ENABLED` | `/docs`, `/redoc`, `/openapi.json`, including Swagger OAuth redirect and nested documentation paths |
-| `DIAGNOSTICS_ENABLED` | `/info`, `/system` |
-| `METRICS_ENABLED` | `/metrics` |
+| Setting               | Controlled route families                                                                           |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| `DOCS_ENABLED`        | `/docs`, `/redoc`, `/openapi.json`, including Swagger OAuth redirect and nested documentation paths |
+| `DIAGNOSTICS_ENABLED` | `/info`, `/system`                                                                                  |
+| `METRICS_ENABLED`     | `/metrics`                                                                                          |
 
 Only literal `true`/`false` env values are accepted. Blank, numeric, mixed-case, and
 other ambiguous values fail startup. Each flag independently overrides the environment
@@ -62,7 +62,7 @@ health, returning 200 when ready and 503 otherwise. Its public response is minim
 in every environment, even when diagnostics are explicitly enabled:
 
 ```json
-{"ready":true,"status":"ready","timestamp":"2026-10-27T12:00:00Z"}
+{ "ready": true, "status": "ready", "timestamp": "2026-10-27T12:00:00Z" }
 ```
 
 The public response contains no dependency names, per-dependency statuses, or timings.

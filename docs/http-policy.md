@@ -23,14 +23,14 @@ The existing published-port settings separately accept empty values as defaults.
 
 ## Browser policy
 
-| Setting | Default | Validation |
-| --- | --- | --- |
-| `CORS_ORIGINS` | `http://localhost:3000` | 1-100 exact serialized HTTP(S) origins; no wildcard, credentials, path/trailing slash, query, fragment, or explicit default port |
-| `CORS_METHODS` | `GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS` | Non-empty subset of `HTTP_ALLOWED_METHODS` |
-| `CORS_ALLOWED_HEADERS` | `content-type,authorization,x-requested-with` | Up to 100 supported names; forwarding/hop-by-hop names are reserved |
-| `CORS_EXPOSED_HEADERS` | `authorization,set-cookie` | Same syntax/count rules; empty disables configured exposed headers |
-| `CORS_CREDENTIALS` | `true` | Boolean |
-| `CORS_MAX_AGE_SECONDS` | `86400` | Integer 0-86400; zero disables preflight caching |
+| Setting                | Default                                       | Validation                                                                                                                       |
+| ---------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `CORS_ORIGINS`         | `http://localhost:3000`                       | 1-100 exact serialized HTTP(S) origins; no wildcard, credentials, path/trailing slash, query, fragment, or explicit default port |
+| `CORS_METHODS`         | `GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS`      | Non-empty subset of `HTTP_ALLOWED_METHODS`                                                                                       |
+| `CORS_ALLOWED_HEADERS` | `content-type,authorization,x-requested-with` | Up to 100 supported names; forwarding/hop-by-hop names are reserved                                                              |
+| `CORS_EXPOSED_HEADERS` | `authorization,set-cookie`                    | Same syntax/count rules; empty disables configured exposed headers                                                               |
+| `CORS_CREDENTIALS`     | `true`                                        | Boolean                                                                                                                          |
+| `CORS_MAX_AGE_SECONDS` | `86400`                                       | Integer 0-86400; zero disables preflight caching                                                                                 |
 
 For example, to use both local frontend conventions:
 
@@ -83,15 +83,15 @@ checks prove repository behavior, not the eventual ingress topology.
 
 ## Request budgets and application policy
 
-| Setting | Default | Accepted integer range |
-| --- | --- | --- |
-| `REQUEST_TIMEOUT_MS` | 10000 | 1-2147483647 |
-| `REQUEST_FIRST_BODY_TIMEOUT_MS` | 5000 | 1-2147483647 |
-| `REQUEST_CHUNK_TIMEOUT_MS` | 2000 | 1-2147483647 |
-| `HTTP_MAX_BODY_BYTES` | 1048576 (1 MiB) | 1-1073741824 |
-| `HTTP_MAX_HEADER_COUNT` | 100 | 1-10000 |
-| `HTTP_MAX_SINGLE_HEADER_BYTES` | 4096 | 1-1048576 |
-| `HTTP_MAX_TOTAL_HEADER_BYTES` | 8192 | 1-16777216 |
+| Setting                         | Default         | Accepted integer range |
+| ------------------------------- | --------------- | ---------------------- |
+| `REQUEST_TIMEOUT_MS`            | 10000           | 1-2147483647           |
+| `REQUEST_FIRST_BODY_TIMEOUT_MS` | 5000            | 1-2147483647           |
+| `REQUEST_CHUNK_TIMEOUT_MS`      | 2000            | 1-2147483647           |
+| `HTTP_MAX_BODY_BYTES`           | 1048576 (1 MiB) | 1-1073741824           |
+| `HTTP_MAX_HEADER_COUNT`         | 100             | 1-10000                |
+| `HTTP_MAX_SINGLE_HEADER_BYTES`  | 4096            | 1-1048576              |
+| `HTTP_MAX_TOTAL_HEADER_BYTES`   | 8192            | 1-16777216             |
 
 Both body-wait deadlines must be no greater than the total response deadline.
 The single-header byte budget must not exceed the total budget. Fractions, booleans,
@@ -126,7 +126,6 @@ Uvicorn keep-alive timing is also not a header-receive timeout. No ineffective
 True header/whole-upload receive protection requires a supported server or the
 selected ingress. Configuration and real slow-client verification remain open in
 the deployment backlog; application settings alone do not complete that guarantee.
-
 
 ## Operational availability
 
