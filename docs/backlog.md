@@ -28,7 +28,7 @@ remote ruleset enforces those contexts for a candidate pull request.
 
 | Remaining work                                                                                               | Roadmap phase |
 | ------------------------------------------------------------------------------------------------------------ | ------------- |
-| Transaction ownership through response preparation; pre-commit expiry handling and uncertain commit outcomes | 4B, 4C        |
+| Pre-commit expiry handling, cancellation, and uncertain commit outcomes | 4C        |
 | Decimal price validation aligned with storage; matching filter rules                                         | 5A, 5B        |
 | Unique pagination tie-breaker, safe offsets, explicit defaults/naming/ID compatibility decisions             | 5A, 5C        |
 | Revision migration/backfill, required preconditions, stale-write protection, agreed deletion route           | 5D            |

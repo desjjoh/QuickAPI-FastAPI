@@ -2,6 +2,9 @@
 
 [Documentation index](../README.md#documentation)
 
+[Mutation transactions](transactions.md) defines the route decorator, shared session,
+repository caller obligations, and response-before-commit verification.
+
 [Graceful shutdown](shutdown.md) defines request admission, draining, deadlines,
 entrypoint ownership, and process verification.
 

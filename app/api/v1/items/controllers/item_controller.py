@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.items.models.item_model import ItemBase, ItemResponse
 from app.api.v1.items.models.item_update_model import UpdateItemRequest
 from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
+from app.common.handlers.application_route import ApplicationRoute, transactional
 from app.common.models.converter import model_to
 from app.common.models.error_model import ErrorResponse
 from app.common.models.pagination import PaginatedResult
@@ -19,7 +20,7 @@ from app.database.repositories.item_repo import (
     repo,
 )
 
-router: APIRouter = APIRouter()
+router: APIRouter = APIRouter(route_class=ApplicationRoute)
 
 
 ## POST /
@@ -30,6 +31,7 @@ router: APIRouter = APIRouter()
     response_model=ItemResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@transactional
 async def create(
     payload: ItemBase, db: AsyncSession = Depends(get_session)
 ) -> ItemResponse:
@@ -100,6 +102,7 @@ async def get(id: HexId, db: AsyncSession = Depends(get_session)) -> ItemRespons
         },
     },
 )
+@transactional
 async def update(
     id: HexId, payload: UpdateItemRequest, db: AsyncSession = Depends(get_session)
 ) -> ItemResponse:
@@ -132,6 +135,7 @@ async def update(
         },
     },
 )
+@transactional
 async def replace(
     id: HexId, payload: ItemBase, db: AsyncSession = Depends(get_session)
 ) -> ItemResponse:
@@ -164,6 +168,7 @@ async def replace(
         },
     },
 )
+@transactional
 async def delete(id: HexId, db: AsyncSession = Depends(get_session)) -> ItemResponse:
     obj: ItemORM | None = await repo.get_by_id(db, id)
 

@@ -40,11 +40,11 @@ and verification requirements.
 
 ### Milestone 4 — Shutdown and mutation safety
 
-| Phase                                         | Scope                                                                                                | Completion check                                                                                                             |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **4A — Graceful shutdown (complete locally)** | Withdraw readiness, close admission, drain accepted work, clean dependencies, enforce final deadline | Windows/Linux process checks, real MySQL outcomes, and Docker SIGTERM smoke pass; hosted results remain separate             |
-| **4B — Transaction ownership**                | One mutation transaction covering persistence and response preparation before commit                 | Write, validation, serialization, and commit failures produce the documented rollback behavior                               |
-| **4C — Expiry and uncertain outcomes**        | Pre-commit activity checks, cancellation handling, session reuse, lost-response behavior             | Tests distinguish rollback before commit from uncertain outcomes during/after commit; no unsupported SQL-cancellation claims |
+| Phase                                             | Scope                                                                                                | Completion check                                                                                                             |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **4A — Graceful shutdown (complete locally)**     | Withdraw readiness, close admission, drain accepted work, clean dependencies, enforce final deadline | Windows/Linux process checks, real MySQL outcomes, and Docker SIGTERM smoke pass; hosted results remain separate             |
+| **4B — Transaction ownership (complete locally)** | One route-owned mutation transaction through response preparation; services deferred                 | MySQL write/validation/rendering/pre-COMMIT failure, session ownership, and response-contract checks pass locally            |
+| **4C — Expiry and uncertain outcomes**            | Pre-commit activity checks, cancellation handling, session reuse, lost-response behavior             | Tests distinguish rollback before commit from uncertain outcomes during/after commit; no unsupported SQL-cancellation claims |
 
 ### Milestone 5 — Item API contract alignment
 

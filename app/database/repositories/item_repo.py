@@ -45,27 +45,22 @@ class ItemListQuery:
 
 
 class ItemRepository:
-    """Persist items using repository-owned transaction boundaries.
+    """Persist items within caller-owned transactions; never commit or roll back."""
 
-    Every mutating operation commits its own transaction.  Flushing and refreshing
-    before the commit keeps the complete write sequence atomic: if any database
-    operation fails, the repository rolls the transaction back and leaves the
-    supplied session ready for reuse.
-    """
+    @staticmethod
+    def require_transaction(session: AsyncSession) -> None:
+        if not session.in_transaction():
+            raise RuntimeError('Item mutations require a caller-owned transaction.')
 
     async def create(
         self, session: AsyncSession, *, item_in: ItemCreateData
     ) -> ItemORM:
+        self.require_transaction(session)
         item: ItemORM = ItemORM(**item_in)
         session.add(item)
 
-        try:
-            await session.flush()
-            await session.refresh(item)
-            await session.commit()
-        except BaseException:
-            await session.rollback()
-            raise
+        await session.flush()
+        await session.refresh(item)
 
         return item
 
@@ -127,16 +122,12 @@ class ItemRepository:
         obj: ItemORM,
         new_data: ItemUpdateData,
     ) -> ItemORM:
+        self.require_transaction(session)
         for field, value in new_data.items():
             setattr(obj, field, value)
 
-        try:
-            await session.flush()
-            await session.refresh(obj)
-            await session.commit()
-        except BaseException:
-            await session.rollback()
-            raise
+        await session.flush()
+        await session.refresh(obj)
 
         return obj
 
@@ -145,13 +136,9 @@ class ItemRepository:
         session: AsyncSession,
         obj: ItemORM,
     ) -> ItemORM:
-        try:
-            await session.delete(obj)
-            await session.flush()
-            await session.commit()
-        except BaseException:
-            await session.rollback()
-            raise
+        self.require_transaction(session)
+        await session.delete(obj)
+        await session.flush()
 
         return obj
 

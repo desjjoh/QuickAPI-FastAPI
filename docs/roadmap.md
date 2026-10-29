@@ -99,6 +99,14 @@ connection retirement. MySQL socket tests exercise repeated outages, stalled
 responses, stale sessions, acquisition exhaustion, and recovery on the same API.
 Full traffic withdrawal and request draining remain shutdown requirements.
 
+## 4B. Transaction ownership
+
+[Mutation transactions](transactions.md) keeps one request-owned transaction around
+controller/repository work and native FastAPI response preparation. Repositories
+participate through the supplied session, without independent commits. Controllers
+retain their logic; services are deferred. Expiry and commit uncertainty retain
+separate acceptance criteria.
+
 ## Working decisions
 
 [Graceful shutdown](shutdown.md) defines early readiness withdrawal, closed HTTP

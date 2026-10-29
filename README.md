@@ -7,7 +7,7 @@ The small domain keeps the focus on application boundaries, failure handling, an
 ## What's included
 
 - Pydantic request/response models and a shared JSON error envelope.
-- Request-owned database sessions and repository-owned mutations with rollback.
+- Request-owned mutation transactions covering persistence and response preparation.
 - Pure-ASGI middleware for request context, logging, CORS, security headers, limits, timeouts, rate limiting, and Prometheus metrics.
 - Managed startup/shutdown, separate liveness/readiness probes, and system diagnostics.
 - Unit, integration, and in-process HTTP E2E suites, plus CI checks of the built container.
@@ -33,6 +33,7 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
 | [Database settings](docs/database-settings.md) | Connection/queue limits, deadlines, TLS, and transport tests |
+| [Mutation transactions](docs/transactions.md) | Decorator, session ownership, response preparation, and rollback boundaries |
 | [Graceful shutdown](docs/shutdown.md) | Request draining, cleanup order, shutdown budgets, and process tests |
 | [Database readiness and recovery](docs/database-lifecycle.md) | Shared probes, startup verification, outages, and connection cleanup |
 | [MySQL testing](docs/mysql-testing.md) | Disposable test infrastructure, .env.test, migrations, and CI |

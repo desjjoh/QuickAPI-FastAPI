@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 
+from fastapi import Request
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -12,6 +13,8 @@ from app.common.handlers.database_readiness import DatabaseReadiness
 from app.config.database_transport import build_database_engine
 from app.config.environment import settings
 from app.config.migrations import check_revision
+
+TRANSACTION_SESSION_KEY = "quickapi.transaction_session"
 
 
 class Base(DeclarativeBase):
@@ -36,7 +39,13 @@ SessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
 )
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
+    owned = request.scope.get(TRANSACTION_SESSION_KEY)
+    if owned is not None:
+        if not isinstance(owned, AsyncSession):
+            raise RuntimeError('Invalid mutation transaction session.')
+        yield owned
+        return
     async with SessionLocal() as session:
         yield session
 

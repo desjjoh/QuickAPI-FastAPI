@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.database.entities.item_orm import ItemORM
@@ -49,7 +49,7 @@ async def test_create_get_all_get_by_id_update_and_delete(
     sessions: SessionFactory,
 ) -> None:
     repository = ItemRepository()
-    async with sessions() as session:
+    async with sessions() as session, session.begin():
         item = await repository.create(
             session, item_in={"name": "Original", "description": None, "price": 2.5}
         )
@@ -131,7 +131,7 @@ async def test_find_and_count_filters_and_pagination(
     expected: list[str],
     count: int,
 ) -> None:
-    async with sessions() as session:
+    async with sessions() as session, session.begin():
         await seed(session)
         items, total = await ItemRepository().find_and_count(session, query)
         assert [item.name for item in items] == expected
@@ -144,7 +144,7 @@ async def test_find_and_count_filters_and_pagination(
 async def test_find_and_count_supports_every_sort_direction(
     sessions: SessionFactory, sort: ItemSort, order: SortOrder
 ) -> None:
-    async with sessions() as session:
+    async with sessions() as session, session.begin():
         await seed(session)
         items, total = await ItemRepository().find_and_count(
             session, ItemListQuery(limit=10, offset=0, sort=sort, order=order)
@@ -154,66 +154,107 @@ async def test_find_and_count_supports_every_sort_direction(
         assert total == 3
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("operation", ["create", "update", "delete"])
-async def test_commit_failure_rolls_back_propagates_and_session_is_reusable(
+async def test_owner_commit_failure_rolls_back_and_session_is_reusable(
     sessions: SessionFactory, operation: str
 ) -> None:
     repository = ItemRepository()
     async with sessions() as session:
-        existing = await repository.create(
-            session, item_in={"name": "Before", "description": None, "price": 1}
-        )
-        real_commit, real_rollback = session.commit, session.rollback
-        session.commit = AsyncMock(side_effect=RuntimeError("commit failed"))
-        session.rollback = AsyncMock(wraps=real_rollback)
+        async with session.begin():
+            existing = await repository.create(
+                session, item_in={"name": "Before", "price": 1}
+            )
 
-        with pytest.raises(RuntimeError, match="commit failed"):
+        def fail_before_commit(*_: object) -> None:
+            raise RuntimeError("commit failed before COMMIT")
+
+        event.listen(session.sync_session, "before_commit", fail_before_commit)
+        try:
+            with pytest.raises(RuntimeError, match="commit failed"):
+                async with session.begin():
+                    if operation == "create":
+                        await repository.create(
+                            session, item_in={"name": "Partial", "price": 99}
+                        )
+                    elif operation == "update":
+                        await repository.update(session, existing, {"name": "Partial"})
+                    else:
+                        await repository.delete(session, existing)
+        finally:
+            event.remove(session.sync_session, "before_commit", fail_before_commit)
+        assert not session.in_transaction()
+        async with session.begin():
+            await repository.create(session, item_in={"name": "Reusable", "price": 2})
+    async with sessions() as fresh:
+        assert list(
+            await fresh.scalars(select(ItemORM.name).order_by(ItemORM.name))
+        ) == ["Before", "Reusable"]
+
+
+@pytest.mark.parametrize("operation", ["create", "update"])
+async def test_owner_refresh_failure_rolls_back_and_session_is_reusable(
+    sessions: SessionFactory, operation: str
+) -> None:
+    repository = ItemRepository()
+    async with sessions() as session:
+        async with session.begin():
+            existing = await repository.create(
+                session, item_in={"name": "Before", "price": 1}
+            )
+        real_refresh = session.refresh
+        session.refresh = AsyncMock(side_effect=RuntimeError("refresh failed"))
+        with pytest.raises(RuntimeError, match="refresh failed"):
+            async with session.begin():
+                if operation == "create":
+                    await repository.create(
+                        session, item_in={"name": "Partial", "price": 99}
+                    )
+                else:
+                    await repository.update(session, existing, {"name": "Partial"})
+        session.refresh = real_refresh
+        assert not session.in_transaction()
+        async with session.begin():
+            await repository.create(session, item_in={"name": "Reusable", "price": 2})
+    async with sessions() as fresh:
+        assert list(
+            await fresh.scalars(select(ItemORM.name).order_by(ItemORM.name))
+        ) == ["Before", "Reusable"]
+
+
+async def test_repositories_join_one_owner_and_never_commit_partially(
+    sessions: SessionFactory,
+) -> None:
+    repository = ItemRepository()
+    async with sessions() as session:
+        with pytest.raises(RuntimeError, match="owner failure"):
+            async with session.begin():
+                item = await repository.create(
+                    session, item_in={"name": "First", "price": 1}
+                )
+                await repository.update(session, item, {"name": "Changed"})
+                await repository.create(session, item_in={"name": "Second", "price": 2})
+                async with sessions() as observer:
+                    assert list(await observer.scalars(select(ItemORM.name))) == []
+                raise RuntimeError("owner failure")
+    async with sessions() as observer:
+        assert list(await observer.scalars(select(ItemORM.name))) == []
+
+
+@pytest.mark.parametrize("operation", ["create", "update", "delete"])
+async def test_mutation_requires_a_caller_transaction(
+    sessions: SessionFactory, operation: str
+) -> None:
+    repository = ItemRepository()
+    async with sessions() as session:
+        item = ItemORM(name="Untouched", price=1)
+        with pytest.raises(RuntimeError, match="caller-owned transaction"):
             if operation == "create":
                 await repository.create(
-                    session, item_in={"name": "Partial", "price": 99}
+                    session, item_in={"name": "Rejected", "price": 1}
                 )
             elif operation == "update":
-                await repository.update(session, existing, {"name": "Partial"})
+                await repository.update(session, item, {"name": "Changed"})
             else:
-                await repository.delete(session, existing)
-
-        session.rollback.assert_awaited_once()
-        session.commit = real_commit
-        await repository.create(session, item_in={"name": "Reusable", "price": 2})
-
-    async with sessions() as fresh:
-        names = list(await fresh.scalars(select(ItemORM.name).order_by(ItemORM.name)))
-        expected = ["Before", "Reusable"]
-        assert names == expected
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("operation", ["create", "update"])
-async def test_refresh_failure_rolls_back_propagates_and_session_is_reusable(
-    sessions: SessionFactory, operation: str
-) -> None:
-    repository = ItemRepository()
-    async with sessions() as session:
-        existing = await repository.create(
-            session, item_in={"name": "Before", "description": None, "price": 1}
-        )
-        real_refresh, real_rollback = session.refresh, session.rollback
-        session.refresh = AsyncMock(side_effect=RuntimeError("refresh failed"))
-        session.rollback = AsyncMock(wraps=real_rollback)
-
-        with pytest.raises(RuntimeError, match="refresh failed"):
-            if operation == "create":
-                await repository.create(
-                    session, item_in={"name": "Partial", "price": 99}
-                )
-            else:
-                await repository.update(session, existing, {"name": "Partial"})
-
-        session.rollback.assert_awaited_once()
-        session.refresh = real_refresh
-        await repository.create(session, item_in={"name": "Reusable", "price": 2})
-
-    async with sessions() as fresh:
-        names = list(await fresh.scalars(select(ItemORM.name).order_by(ItemORM.name)))
-        assert names == ["Before", "Reusable"]
+                await repository.delete(session, item)
+        assert item.name == "Untouched"
+        assert not session.in_transaction()

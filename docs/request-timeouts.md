@@ -48,7 +48,11 @@ The response deadline can finish the transport before cancellation-resistant wor
 
 Cancellation is cooperative. It cannot force a blocked event loop, stop synchronous thread work, prove SQL cancellation, or guarantee rollback. Async resource owners must make cleanup cancellation-safe. In Starlette's AnyIO streaming cancel scopes, cleanup awaits may require a shielded cancel scope; arbitrary unshielded async generator cleanup cannot be guaranteed to finish by this middleware.
 
-Retaining tasks does not implement application-wide shutdown admission, draining, or transaction guarantees. Successful delivery of a 408 does not establish whether a concurrent database mutation committed. See the [technical backlog](backlog.md) for shutdown and transaction requirements.
+Retained tasks participate in [graceful shutdown](shutdown.md). Marked mutation
+routes use the separate [transaction owner](transactions.md) through response
+preparation and commit. Successful delivery of a 408 does not establish whether a
+concurrent mutation committed; expiry checks and uncertain outcomes remain in the
+[technical backlog](backlog.md).
 
 ## Verification
 

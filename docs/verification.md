@@ -5,7 +5,7 @@
 ## Source and environment
 
 Verified on 2026-10-29 against base commit
-`b014519cf764a4d3d518339e6b20748d36778b99` and the local fingerprints below.
+`25d6be9c1565d3fafdc42a49676c0fa4430ed23d` and the local fingerprints below.
 The candidate includes uncommitted changes; the base commit alone does not identify
 it. This report describes the current MySQL-only application and tests. Earlier
 verification snapshots remain in Git history and do not define current support.
@@ -18,21 +18,24 @@ The development database is separate and was not modified.
 
 | Check | Result |
 | --- | --- |
-| Windows full MySQL suite | 922 passed; two POSIX-only cases skipped; five dedicated TLS cases deselected; 95.60% branch-measured application coverage |
-| Linux full MySQL suite | 924 passed; no skips; five dedicated TLS cases deselected; 95.69% branch-measured application coverage |
-| Database-independent units | 631 passed with an unreachable configured database target; no database-backed fixtures selected |
+| Windows full MySQL suite | 965 passed; two POSIX-only cases skipped; five dedicated TLS cases deselected; 95.67% branch-measured application coverage |
+| Linux full MySQL suite | 967 passed; no skips; five dedicated TLS cases deselected; 95.77% branch-measured application coverage |
+| Database-independent units | 638 passed with an unreachable configured database target; no database-backed fixtures selected |
 | Dedicated TLS | Five cases passed on Windows against the separate generated-certificate MySQL server |
-| Coverage gates | Middleware 97%, lifecycle 99%, database package 96%, API 99%; all configured gates passed on both platforms |
-| Formatting/linting | Black: 159 files unchanged; Ruff passed |
-| Type checking | mypy: 66 application/tool files passed; strict Pyright: 21 affected files, zero diagnostics |
+| Coverage gates | Middleware 97%, lifecycle 99%, database package 95%, API 99%; all configured gates passed on both platforms |
+| Formatting/linting | Black: 162 files unchanged; Ruff passed |
+| Type checking | mypy: 67 application/tool files passed; strict Pyright: 8 affected files, zero diagnostics |
 | Dependencies | Local and fresh-image pip checks passed; removed optional database driver absent from both; pytest absent from runtime image |
+| Transaction HTTP qualification | Final 32-case module passed on Windows and Linux, including MySQL error 1048 after preceding writes, refresh/model/response validation/render failures, pre-COMMIT failure, concurrent owners and response contracts |
+| Transaction ownership | Four marked item mutation routes share one explicit request session; repositories never commit/roll back independently; read routes remain unmarked |
+| Boundary guards | Existing owner/active factory session rejected; shared dependencies borrow without closing; completed owner cannot silently autobegin; streams/background tasks rejected and prepared error responses rolled back |
 | Configuration | Only mysql+asyncmy accepted; test configuration remains independent of development .env |
 | Migration behavior | Empty-schema rejection, baseline/model comparison, repeated upgrade, incompatible history, downgrade/reapply, offline SQL and real online commands pass against MySQL |
 | Pool/session cleanup | Real MySQL late-connection disposal, queue/cancellation/invalidation, and server-session disappearance checks pass |
 | Safety | Live identity checks, exclusive reset guards, destructive schema restoration, unavailable-target failure, and isolated command-lock tests pass |
 | CI definition | Unit job, MySQL integration/E2E, full MySQL coverage, dedicated TLS and independent MySQL image qualification; YAML parses |
 | Image-runner failures | Database startup, HTTP-check, and artifact-write failures all attempt disposable-project teardown |
-| Built runtime image | sha256:d8e10ed310816c72c7f2089f72fb1e5071a70f5c7b3101d5a3e0a66d24cf4b84 |
+| Built runtime image | sha256:2dc05611d47119e39fcccdfa7a1e3c52168afc6f5865fcec6a2378d36198a726 |
 | Built-image MySQL qualification | Explicit migration, CRUD, probes, favicon, production exposure defaults, pip check, Docker SIGTERM, exit zero and final success record passed |
 | Cleanup | Generated TLS material, independent smoke/TLS projects and verification containers removed; existing development/regular test services retained |
 | Hosted CI / branch enforcement | Not run / not independently verified for this candidate |
@@ -48,8 +51,13 @@ qualification with their own temporary server, rather than ordinary-suite passes
 Destructive migration cases hold the exclusive test guard and restore the baseline
 before releasing it. Both schema fixtures and row-reset fixtures verify the permitted
 live database/user. No migrations are applied automatically by application startup.
-The application schema and public item contracts are unchanged by this candidate.
+The application schema and public item contracts are unchanged. Repository callers
+now own their transaction explicitly, as described in [Mutation transactions](transactions.md).
+Controller logic remains in place; no item service layer is introduced.
 
+Full-suite runs and final focused fault qualification are separate observations.
+The final fault module strengthens write-failure cases with actual MySQL constraint
+rejection after an earlier write; application code is unchanged between those runs.
 Coverage describes application code executed in the parent test process; it is not
 an aggregate of native application or Alembic subprocess coverage. MySQL migration
 DDL is not claimed to be transactionally reversible. The database-package threshold
@@ -58,8 +66,9 @@ passes with online-command behavior verified separately through real subprocesse
 The image check uses the built artifact, production settings and its own ephemeral
 MySQL project without host ports or development volumes. It does not establish
 restart/storage durability, deployed failover, backups/restoration, historical-image
-rollback, release promotion, or real ingress behavior. Mutation transaction/response
-ownership and commit uncertainty retain their separate acceptance criteria.
+rollback, release promotion, or real ingress behavior. Request expiry, cancellation during commit, post-commit failure and uncertain
+outcomes retain their separate acceptance criteria. Before-COMMIT failure tests do
+not establish rollback for a lost commit acknowledgement.
 
 The obsolete required contexts `test-layers (integration)` and `test-layers (e2e)`
 are no longer emitted. Remove them from existing GitHub rulesets and retain the
@@ -70,29 +79,11 @@ workflow definitions do not establish hosted check execution or ruleset enforcem
 
 | Input | SHA-256 |
 | --- | --- |
-| `.env.example` | `5a61cf37523c709bc1f138fa087c97b4a0880f3a783ea89113786948c2ec3689` |
-| `.env.test` | `40b9e30608e524d56ab09d350a1024d5cba38ce643721eb60fe0460538d48802` |
-| `.github/workflows/tests.yml` | `1cdb0198dc97fc2830bd47dd20db2f268395c338e1a584d7d836459ea01ae284` |
-| `app/config/database_transport.py` | `3d764ace86c056037f9aba47c9cfe47cbeffaf16dce114a4ed8bb4ad5a63b80c` |
-| `app/config/environment.py` | `482aa4b1592c6c12584d1ac3497f328a1b1508a423e903c07d1fad7d0a4036f3` |
-| `app/config/logging.py` | `4320122b28888ab05bf1e2d901c9a8c2656d72c79dbac0bc525d0db1902e61ba` |
-| `app/database/migrations/env.py` | `da83f8cbaafc0f4db39dc6039c57045e5673ec82ccd4fe269f0529805281dc90` |
-| `docker-compose.smoke.yml` | `b19857fb64f7b62278a9253f43e6e7ec6d735fdd49fa80466840eddfd645f1af` |
-| `requirements.txt` | `10fc9509811475c290a469a1e004b729cdefa4ca233014f4cb1458f3d620725e` |
-| `scripts/test_database_tls.py` | `9fa10f9864a3e344b251f173178eaa4612d04c36d85ddb74c17e6ef58b8f3b4e` |
-| `scripts/test_db.py` | `a5008cbfa751b3926bb84c51783fbcccd9af7a54bf62f1f0fba18198d71c98f8` |
-| `scripts/test_image.py` | `e326c018c3836fbde04775a4eb8a0860094937d2753b601305654bae0fd0c386` |
-| `tests/conftest.py` | `f52c8bb7c8a8e89eff5552cb45a6ff101c60c3952767408428ec1e016ba79dac` |
-| `tests/fixtures/migrations/env.py` | `1194f6371854f82321dbc853e8b66f4d1f6287af6fc670b7c934d410ced803fd` |
-| `tests/integration/database/test_database_capacity.py` | `15cd326c1b89861e08958613d67912bd6c6c25e733f5b5ac2f6043497f05485d` |
-| `tests/integration/database/test_database_isolation.py` | `b695ae5717555d970e7106e34b266cb43428071061ead28a6353d98e7a673cf5` |
-| `tests/integration/database/test_database_recovery.py` | `ef013c2c016bf81b17c36323b4155d8f6e4279270227c3e688338430ae80bf29` |
-| `tests/integration/database/test_migration_evidence.py` | `5be9bedbbd3d4b046b9f4b1cbf4ed1ade6ab8dfd36f7eace23e09a164f148ff8` |
-| `tests/integration/database/test_migrations.py` | `1a985128d686457a9f3fdf079508c2fd0d1efc5a7def56dd56302c60debd207b` |
-| `tests/integration/errors/test_error_responses.py` | `1ff9b335a31bc12710ef4d59f21f149f84ebcb8331e6186ce7fbc38dd94553d9` |
-| `tests/integration/middleware/test_logging_privacy.py` | `9df2049b46f6f9cdaeb88fdcc868d56fd7275377e9558c8a0d16fc3215bc8336` |
-| `tests/unit/api/v1/items/models/test_pagination_query_model.py` | `3e492431a2e4bd477b3bf9e6df04a5fec5e9cfbc4b779006b21e4d090423d63d` |
-| `tests/unit/config/test_database_transport.py` | `9c743e607dbb39529761c7d5089f56ef9d1ffb747719361a4a41b3fce8501136` |
-| `tests/unit/config/test_disposable_database.py` | `e753f013d70159e7c16b2a3cfc449ae2b8596e65a58222cda10676f4f4fe7fa8` |
-| `tests/unit/config/test_environment.py` | `6e9d82bff2a3da773e4f316da950e992e41325efd15d0589a721421f6399e84b` |
-| `tests/unit/config/test_image_qualification.py` | `014c8fd87d42046efa3411306913ca829ca542224a468b7edc2ccd72e0668670` |
+| `app/common/handlers/application_route.py` | `6a510e5106246f1e8d2940a71e2ea0259f7ecbc44719355ef588b9d313467c1a` |
+| `app/config/database.py` | `4abf6ded309f6dc157f3422e1b2817476e2155df72f82dfa1f0b8e695faa7da1` |
+| `app/database/repositories/item_repo.py` | `5c1743e33cb5ad85f087f9f6cd28716fb0455da0cc4fd353690c9f519859948d` |
+| `app/api/v1/items/controllers/item_controller.py` | `7bc2bd4cfb8ab88af993c891e8129e57df00cfdbc549cb2f355113371d54eb5f` |
+| `tests/integration/database/test_item_repository.py` | `e9358b3118432c358cfe9edbec762bf2a47d25355028116164434d7c7e679924` |
+| `tests/integration/database/test_transaction_routes.py` | `3cb588c14f3b4e393f63d8337da488fe1a7b28269a92fee920a9ffa4ffd6875d` |
+| `tests/unit/config/test_database_config.py` | `e47c404dc75f87e0950f4e9559d41341e1ea45367fabc1d064b28cd81eada552` |
+| `tests/unit/common/handlers/test_application_route.py` | `c62b431d240e5c1926dcef8c113694964ff5075b4b1f597a5378052cae81055d` |
