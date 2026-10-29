@@ -2,6 +2,51 @@
 
 [Documentation index](../README.md#documentation)
 
+## Database readiness and recovery verification
+
+Verified on 2026-10-29 against base commit `daf010aab02352f4468ef495fa4c3148a92f7c38`
+and the local inputs fingerprinted below. These results include uncommitted changes.
+
+| Check | Result |
+| --- | --- |
+| Windows compatibility | 899 passed; one MySQL-only socket case skipped; five dedicated TLS cases deselected; 95.99% branch-measured application coverage |
+| Linux compatibility | 899 passed; same skip/deselections; 96.09% branch-measured application coverage |
+| Windows MySQL | Integration 168 passed; E2E 113 passed |
+| Linux MySQL | Combined integration/E2E 281 passed; 143 shared database-backed cases |
+| Dedicated TLS regression | Five passed on Windows; independent server/certificates removed afterward |
+| Probe ownership | Concurrent callers share work; caller cancellation is isolated; healthy/failed cache expiry, stopped state, cancellation and owned-lease invalidation pass |
+| Startup | Revision failure, acquisition timeout and cancellation propagate after cleanup; existing missing/incompatible-history checks pass |
+| Real HTTP / MySQL | Same running API recovers from three outages, a killed idle session, a stalled response and repeated exhausted acquisitions; liveness and item reads verified |
+| Resource evidence | Probe connection disappearance checked through MySQL process list; admission counts/waiters and test relay resources return to baseline |
+| Coverage gates | Middleware 96%, lifecycle 99%, database package 100%, API 99%; configured gates passed on both platforms |
+| Static/editor checks | Black 150 files; Ruff passed; mypy 63 application/tool files; strict Pyright ten affected files, zero diagnostics |
+| Production-image smoke | Locally built image `sha256:a8e2efc5600a74d5d598b8e4e55a72597f17123b733e9100433461b16cd86cbc`; SQLite explicit migration, readiness, item read and pip check passed |
+| Hosted CI / release | Not run / not verified for this candidate |
+
+Linux verification used disposable dependencies with read-only source mounts.
+MySQL checks used the guarded disposable test database. The real socket case is
+explicitly skipped by SQLite compatibility runs and executed in the existing MySQL
+integration selection. Successful checks do not qualify deployed failover,
+backups, application-wide draining, arbitrary query cancellation, or MySQL
+release-image smoke behavior. Runtime probes do not retry business mutations.
+The local development database was not modified. Temporary image smoke resources
+were removed; the pre-existing regular test database was retained.
+
+| Input | SHA-256 |
+| --- | --- |
+| `.env.example` | `250e9f8dee256573a5b2be62ae268c727f193dbeb432df54e7d509bc0b1d53b3` |
+| `.env.test` | `4d4c869fb887c6bec49b4c17e365eac109f9ca524d79f96550f577eab42b3a93` |
+| `app/common/handlers/database_readiness.py` | `829a82ef2dea397829ee202599edfe336b3848461279ca0186e67ae7f221b96b` |
+| `app/config/database.py` | `b9543c2fec7fc4622181bccbbb2a4c66f117dd5bc57133ed85e5a1734004c52f` |
+| `app/config/environment.py` | `d76484ac12a564116358278d062c35dc1fac103f0da62f1eb5d97e5edcc8cd6b` |
+| `tests/conftest.py` | `81f021e9d941a3a5f15d300c6c3004c05e643ddd299d578f53d0c89226743774` |
+| `tests/e2e/conftest.py` | `d67e8e08726c9ccac36f031824f83c78366a49441805389b0c14624630448a1b` |
+| `tests/e2e/test_application.py` | `ee1d1c5ff6e3e20f338186d55485b7845e7f789dc00e6c9ddf6a20ca95358544` |
+| `tests/unit/config/test_database_config.py` | `7fe2f0bca40811f40610363ddf9029b79d97035fe09fe70a143871e5b3b1e2d1` |
+| `tests/unit/config/test_database_transport.py` | `f1657da84e5ec7c6cd18f35a804a0d85fadfea475132f1900f7ffb4c403b81e8` |
+| `tests/unit/common/handlers/test_database_readiness.py` | `06d937ed4067a0f8d14294c90aea4c0eba8b9da88223462c796bc7b86b54adf5` |
+| `tests/integration/database/test_database_recovery.py` | `095a768f4b13ad210dfdb065b8fa9cb355bc68c07d7de09d709849ab7968d95f` |
+
 ## Database capacity and transport verification
 
 Verified on 2026-10-29 against base commit `0f005e437efeb04d639a7b5da6fcea807f1042d3` and the local input fingerprints

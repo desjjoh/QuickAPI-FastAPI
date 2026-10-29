@@ -2,6 +2,9 @@
 
 [Documentation index](../README.md#documentation)
 
+[Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
+shared checks, startup cleanup, and runtime recovery behavior.
+
 ## Setup and test boundaries
 
 Install [requirements-dev.txt](../requirements-dev.txt) in a fresh Python 3.12 virtual environment and run `python -m pip check`. Markers and coverage settings live in [pyproject.toml](../pyproject.toml); job dependencies and commands live in [the Quality workflow](../.github/workflows/tests.yml).

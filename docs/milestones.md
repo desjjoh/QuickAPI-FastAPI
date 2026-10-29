@@ -36,7 +36,7 @@ and verification requirements.
 | **3B — Disposable MySQL testing (complete locally)**        | Guarded infrastructure; MySQL integration/E2E checks; safe setup/teardown                                       | Local checks passed; required-check configuration confirmed by the maintainer; hosted results tracked separately  |
 | **3C — Upgrade and rollback evidence (complete locally)**   | Real-baseline and test-only data-bearing migration qualification; defined history/drift checks and ordering     | SQLite/MySQL evidence passes; future real migrations and historical image rollback require separate qualification |
 | **3D — Database capacity and transport (complete locally)** | Pool/queue bounds, acquisition/connect deadlines, TLS trust and identity                                        | Saturation, expiry/cancellation, socket cleanup, and verified TLS including native API/Alembic entrypoints pass   |
-| **3E — Readiness and recovery**                             | Bounded probes, outage/recovery behavior, stale connections, resource cleanup                                   | MySQL failure/recovery tests demonstrate correct readiness and connection lifecycle                               |
+| **3E — Readiness and recovery (complete locally)**          | Bounded probes, outage/recovery behavior, stale connections, resource cleanup                                   | Local MySQL socket/HTTP checks pass on Windows and Linux; candidate hosted results remain separate                |
 
 ### Milestone 4 — Shutdown and mutation safety
 

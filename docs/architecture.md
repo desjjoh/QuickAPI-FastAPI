@@ -89,6 +89,12 @@ The shared [engine policy](database-settings.md) uses SQLAlchemy connection reco
 
 ## Persistence and migrations
 
+[Database readiness and recovery](database-lifecycle.md) uses one shared,
+on-demand task per application database service, with monotonic result caching.
+Probe cancellation retires only its connection; caller cancellation is isolated
+from shared work. Startup revision verification has its own deadline and failure
+cleanup. Runtime outages leave the engine available for replacement connections.
+
 `get_session()` creates one async session per dependency invocation and closes it
 after the response dependency scope completes. Read queries do not commit. Each
 repository mutation owns its transaction: it flushes and refreshes, commits on

@@ -2,6 +2,9 @@
 
 [Documentation index](../README.md#documentation)
 
+[Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
+shared checks, startup cleanup, and runtime recovery behavior.
+
 ## Database capacity and transport
 
 [Database settings](database-settings.md) defines per-engine connection and waiting limits, acquisition/connect deadlines, verified TLS, and safe capacity failures. Configure trusted CA paths in the container filesystem and budget each worker/replica independently. Deployment certificate rotation and fleet capacity still require hosting-specific qualification.

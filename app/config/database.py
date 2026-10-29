@@ -1,6 +1,6 @@
+import asyncio
 from collections.abc import AsyncGenerator
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
+from app.common.handlers.database_readiness import DatabaseReadiness
 from app.config.database_transport import build_database_engine
 from app.config.environment import settings
 from app.config.migrations import check_revision
@@ -22,6 +23,9 @@ def create_engine() -> AsyncEngine:
 
 
 engine: AsyncEngine = create_engine()
+database_readiness = DatabaseReadiness(
+    engine, settings.DB_READINESS_TIMEOUT_MS, settings.DB_READINESS_CACHE_MS
+)
 
 
 SessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
@@ -38,23 +42,24 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    async with engine.connect() as conn:
-        await conn.run_sync(check_revision)
+    try:
+        async with asyncio.timeout(settings.DB_MIGRATION_CHECK_TIMEOUT_MS / 1000):
+            async with engine.connect() as conn:
+                await conn.run_sync(check_revision)
+        database_readiness.resume()
+    except BaseException:
+        await database_readiness.stop()
+        await engine.dispose()
+        raise
 
 
 async def close_db() -> None:
+    await database_readiness.stop()
     await engine.dispose()
 
 
 async def db_test_query() -> bool:
-    try:
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
-
-        return True
-
-    except Exception:
-        return False
+    return await database_readiness.check()
 
 
 class DatabaseService:

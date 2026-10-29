@@ -140,8 +140,9 @@ compatibility runs. They run through the dedicated command, including in the
 existing MySQL integration CI job; absent test infrastructure is a failure for
 that command, not a silent skip.
 
-Results and source identities are in [Verification](verification.md). Stale-session
-outage/recovery qualification belongs to readiness/recovery work. Deployment CA/DNS,
+Results and source identities are in [Verification](verification.md).
+[Readiness and recovery](database-lifecycle.md) defines probe ownership, caching,
+outage detection, and connection retirement. Deployment CA/DNS,
 certificate rotation, and fleet capacity require hosting-specific verification.
 
 Implementation references: [SQLAlchemy pooling](https://docs.sqlalchemy.org/en/20/core/pooling.html)

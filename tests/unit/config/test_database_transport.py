@@ -27,6 +27,9 @@ def settings(**overrides: object) -> Settings:
         "DB_POOL_QUEUE_LIMIT",
         "DB_POOL_ACQUIRE_TIMEOUT_MS",
         "DB_CONNECT_TIMEOUT_MS",
+        "DB_READINESS_TIMEOUT_MS",
+        "DB_READINESS_CACHE_MS",
+        "DB_MIGRATION_CHECK_TIMEOUT_MS",
     ],
 )
 @pytest.mark.parametrize("value", ["", " ", "1.5", "-1", True, "0x10"])

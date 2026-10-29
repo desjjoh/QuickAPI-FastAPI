@@ -89,7 +89,15 @@ and shipping require hosting-specific controls.
 
 ## 3D. Database capacity and transport
 
-[Database settings](database-settings.md) defines shared engine limits, bounded caller admission, separate acquisition/connection deadlines, and verified TLS. Tests cover saturation, cancellation, disposal/invalidation, socket cleanup, certificate rejection, and native TLS startup. Existing MySQL integration CI includes independent TLS qualification. Readiness/outage recovery and hosting-specific CA/fleet behavior remain separate acceptance criteria.
+[Database settings](database-settings.md) defines shared engine limits, bounded caller admission, separate acquisition/connection deadlines, and verified TLS. Tests cover saturation, cancellation, disposal/invalidation, socket cleanup, certificate rejection, and native TLS startup. Existing MySQL integration CI includes independent TLS qualification. [Readiness and recovery](database-lifecycle.md) defines bounded shared probes, startup cleanup, and runtime outage recovery. Hosting-specific CA/fleet behavior remains a separate acceptance criterion.
+
+## 3E. Readiness and recovery
+
+[Database lifecycle](database-lifecycle.md) defines bounded shared probes, short
+success/failure caching, independent liveness, startup verification cleanup, and
+connection retirement. MySQL socket tests exercise repeated outages, stalled
+responses, stale sessions, acquisition exhaustion, and recovery on the same API.
+Full traffic withdrawal and request draining remain shutdown requirements.
 
 ## Working decisions
 

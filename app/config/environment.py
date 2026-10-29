@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     DB_POOL_QUEUE_LIMIT: int = Field(50, ge=0, le=10000)
     DB_POOL_ACQUIRE_TIMEOUT_MS: int = Field(1000, ge=1, le=2147483647)
     DB_CONNECT_TIMEOUT_MS: int = Field(10000, ge=1, le=2147483647)
+    DB_READINESS_TIMEOUT_MS: int = Field(1000, ge=1, le=2147483647)
+    DB_READINESS_CACHE_MS: int = Field(1000, ge=0, le=2147483647)
+    DB_MIGRATION_CHECK_TIMEOUT_MS: int = Field(5000, ge=1, le=2147483647)
     DB_SSL: bool = False
     DB_SSL_CA_FILE: str | None = Field(None, min_length=1)
     TIMEZONE: str = "Etc/UTC"
@@ -242,6 +245,9 @@ class Settings(BaseSettings):
         "DB_POOL_QUEUE_LIMIT",
         "DB_POOL_ACQUIRE_TIMEOUT_MS",
         "DB_CONNECT_TIMEOUT_MS",
+        "DB_READINESS_TIMEOUT_MS",
+        "DB_READINESS_CACHE_MS",
+        "DB_MIGRATION_CHECK_TIMEOUT_MS",
         mode="before",
     )
     @classmethod

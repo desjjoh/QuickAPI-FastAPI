@@ -2,6 +2,9 @@
 
 [Documentation index](../README.md#documentation)
 
+[Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
+shared checks, startup cleanup, and runtime recovery behavior.
+
 ## Development and test databases
 
 | Purpose     | Compose project         | Host connection  | Storage                                                     |
