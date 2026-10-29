@@ -81,7 +81,7 @@ and shipping require hosting-specific controls.
 
 ## 3B. Disposable MySQL testing
 
-[MySQL testing](mysql-testing.md) defines the separate temporary test stack, explicit `.env.test` connection, guarded migrations/resets, real-commit persistence fixtures, serial execution, and integration/E2E CI jobs. SQLite remains a compatibility and coverage check. Hosted check execution/enforcement requires independent verification.
+[MySQL testing](mysql-testing.md) defines the separate temporary test stack, explicit `.env.test` connection, guarded migrations/resets, real-commit persistence fixtures, serial execution, and integration/E2E CI jobs. MySQL is the only persistence backend for tests and combined coverage. Hosted check execution/enforcement requires independent verification.
 
 ## 3C. Upgrade and rollback evidence
 
@@ -111,7 +111,7 @@ criteria in the milestone list.
 - Use pip with manually maintained requirements; no uv adoption or generated lockfile is planned.
 - Review concrete public-contract changes before milestone 5: IDs, names, defaults, price acceptance, required revisions, deletion route, and replay headers.
 - Tests and documentation land with each phase. Record passed, failed, skipped/not run, and unavailable checks separately; require exact-source hosted evidence before claiming a release.
-- SQLite coverage and a local smoke do not establish MySQL or production readiness; verification claims require evidence for the relevant environment and source.
+- Local MySQL coverage and image checks do not establish deployed production readiness; verification claims require evidence for the relevant environment and source.
 
 ## Scope and operational boundaries
 

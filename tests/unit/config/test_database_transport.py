@@ -70,9 +70,10 @@ def test_database_defaults_and_tls_context(tmp_path: Path) -> None:
         tls_context(DatabasePolicy(ssl_enabled=True, ca_file=str(bad)))
     with pytest.raises(ValueError, match="requires DB_SSL"):
         tls_context(DatabasePolicy(ca_file=str(bad)))
-    with pytest.raises(ValueError, match="require MySQL"):
+    with pytest.raises(ValueError, match="requires asyncmy"):
         build_database_engine(
-            'sqlite+aiosqlite:///:memory:', policy=DatabasePolicy(ssl_enabled=True)
+            'postgresql+asyncpg://test:test@localhost/test',
+            policy=DatabasePolicy(ssl_enabled=True),
         )
     with pytest.raises(ValueError, match="only the charset"):
         build_database_engine(

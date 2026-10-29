@@ -24,7 +24,7 @@ These optional settings use code defaults; process environment overrides `.env`.
 | `DB_MIGRATION_CHECK_TIMEOUT_MS` | `5000` | Integer 1–2147483647 |
 
 Empty, fractional, negative, and malformed values fail startup validation. The
-same settings apply to SQLite and MySQL. [Transport settings](database-settings.md)
+settings apply to the supported MySQL transport. [Transport settings](database-settings.md)
 separately bound MySQL acquisition and connection establishment.
 
 ## Startup
@@ -90,8 +90,8 @@ The regular disposable MySQL suite includes a real HTTP listener and a test-owne
 TCP relay. It verifies repeated outages and recovery on the same running API,
 independent liveness, stale-session replacement, stalled-query connection retirement,
 concurrent probes, exhausted acquisition cleanup, and ordinary item reads after
-recovery. It does not stop or reconfigure the development database. SQLite runs
-exercise shared probe behavior; the MySQL socket test is explicitly skipped there.
+recovery. It does not stop or reconfigure the development database. The MySQL
+socket test runs in the normal integration suite, without a database-backend skip.
 Dedicated TLS tests retain their separate infrastructure and command.
 
 Readiness does not qualify deployed database failover, backups, ingress behavior,

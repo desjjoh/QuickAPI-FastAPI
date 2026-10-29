@@ -13,7 +13,7 @@ FORBIDDEN_TEXT = (
     "traceback",
     "runtimeerror",
     "sqlalchemy",
-    "sqlite",
+    "asyncmy",
     "select ",
     "password",
     "submitted-secret",

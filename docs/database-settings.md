@@ -4,8 +4,7 @@
 
 ## Defaults and configuration
 
-`DATABASE_URL` selects the database. MySQL uses `mysql+asyncmy`; SQLite uses its
-existing asynchronous driver. Optional settings have code defaults and process
+`DATABASE_URL` must select MySQL through `mysql+asyncmy`; other drivers are rejected. Optional settings have code defaults and process
 environment overrides `.env`. Explicit tests select their own configuration.
 
 | Setting | Default | Accepted values |
@@ -25,9 +24,8 @@ overridden through driver query options. Restart after configuration changes.
 
 Application startup, readiness queries, Alembic commands, and disposable MySQL
 fixtures use the shared engine factory. Migration helpers using an existing
-connection inherit that connection's policy. SQLite does not receive MySQL pool or
-TLS arguments and retains its existing pool behavior. Independent test-only SQLite
-engines remain private compatibility fixtures.
+connection inherit that connection's policy. Pool lifecycle and migration checks
+use actual MySQL sessions, including the late-connection disposal tests.
 
 ## Connection and waiting limits
 

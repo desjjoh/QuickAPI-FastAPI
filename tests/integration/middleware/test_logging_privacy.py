@@ -80,7 +80,7 @@ def test_dependency_threshold_and_message_privacy_in_fresh_process(level: str) -
     code = """
 import logging
 from app.config.logging import log
-logging.getLogger('aiosqlite').debug('private-value-never-log')
+logging.getLogger('asyncmy').debug('private-value-never-log')
 # Reproduce unlisted reload/dependency loggers, including an explicit child level.
 for name in ('watchfiles.main', 'unlisted_dependency.child'):
     dependency = logging.getLogger(name)

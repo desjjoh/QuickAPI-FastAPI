@@ -29,13 +29,18 @@ The [Quality workflow](../.github/workflows/tests.yml) defines these check conte
 ```text
 static-analysis
 test-layers (unit)
-test-layers (integration)
-test-layers (e2e)
 mysql-tests (integration)
 mysql-tests (e2e)
 combined-coverage
 production-container
 ```
+
+Remove obsolete required contexts `test-layers (integration)` and
+`test-layers (e2e)` from existing rulesets. Those duplicate jobs are no longer
+emitted; persistence layers are required through `mysql-tests (integration)` and
+`mysql-tests (e2e)`. Retaining removed contexts would leave merges waiting forever.
+The full coverage job also runs against MySQL.
+
 
 The MySQL contexts above are defined by the workflow. Run it on GitHub and confirm
 the actual check names before adding the new contexts; local runs do not establish

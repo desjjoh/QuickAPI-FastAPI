@@ -20,7 +20,7 @@ def settings(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> Settings:
         "APP_VERSION": "1.2.3",
         "ENV": "test",
         "PORT": "8000",
-        "DATABASE_URL": "sqlite:///test.db",
+        "DATABASE_URL": "mysql+asyncmy://test:test@localhost/test",
     }
     values.update(overrides)
     for key, value in values.items():

@@ -136,7 +136,7 @@ def run_tls(config: TestDatabaseConfig) -> int:
             )
             child = {
                 **env,
-                'QUICKAPI_TEST_DATABASE': 'sqlite',
+                'QUICKAPI_TEST_RUN': 'true',
                 'QUICKAPI_TEST_TLS': 'true',
                 'TEST_MYSQL_PORT': raw,
                 'TEST_DATABASE_URL': url.render_as_string(hide_password=False),

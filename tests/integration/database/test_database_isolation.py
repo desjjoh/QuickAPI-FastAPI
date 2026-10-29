@@ -1,10 +1,11 @@
-from pathlib import Path
+import asyncio
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.config.database_transport import build_database_engine
 from app.config.migrations import check_revision
 from scripts.test_database_support import guarded_connection, load_test_config
 
@@ -14,20 +15,16 @@ pytestmark = pytest.mark.integration
 async def test_selected_backend_identity_and_concurrent_reset_exclusion(
     database_engine: AsyncEngine,
 ) -> None:
-    if database_engine.dialect.name == "mysql":
-        config = load_test_config()
-        async with database_engine.connect() as connection:
-            identity = (
-                await connection.execute(text("SELECT DATABASE(), CURRENT_USER()"))
-            ).one()
-            assert identity[0] == config.database
-            assert str(identity[1]).split("@", 1)[0] == config.user
-        with pytest.raises(RuntimeError, match="already in use"):
-            async with guarded_connection(database_engine, config):
-                pytest.fail("A second connection must not enter the held test lock")
-    else:
-        assert database_engine.url.database is not None
-        assert Path(database_engine.url.database).is_file()
+    config = load_test_config()
+    async with database_engine.connect() as connection:
+        identity = (
+            await connection.execute(text("SELECT DATABASE(), CURRENT_USER()"))
+        ).one()
+        assert identity[0] == config.database
+        assert str(identity[1]).split("@", 1)[0] == config.user
+    with pytest.raises(RuntimeError, match="already in use"):
+        async with guarded_connection(database_engine, config):
+            pytest.fail("A second connection must not enter the held test lock")
 
 
 async def test_selected_database_starts_clean_with_migration_history(
@@ -72,15 +69,26 @@ async def test_real_commit_is_visible_on_fresh_connection_and_constraints_hold(
         ).scalar_one() == 1
 
 
-async def test_sqlite_engine_disposal_releases_database_file(tmp_path: Path) -> None:
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    path = tmp_path / "disposal.db"
-    engine = create_async_engine(f"sqlite+aiosqlite:///{path}")
+async def test_engine_disposal_releases_mysql_session(
+    database_engine: AsyncEngine,
+) -> None:
+    engine = build_database_engine(database_engine.url)
     try:
         async with engine.connect() as connection:
-            await connection.execute(text("SELECT 1"))
+            identifier = int(
+                (await connection.execute(text("SELECT CONNECTION_ID()"))).scalar_one()
+            )
+        await engine.dispose()
+        async with asyncio.timeout(3):
+            while True:
+                async with database_engine.connect() as control:
+                    rows = (
+                        (await control.execute(text("SHOW PROCESSLIST")))
+                        .mappings()
+                        .all()
+                    )
+                if not any(int(row["Id"]) == identifier for row in rows):
+                    break
+                await asyncio.sleep(0.01)
     finally:
         await engine.dispose()
-    path.unlink()
-    assert not path.exists()

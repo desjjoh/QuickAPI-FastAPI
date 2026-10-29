@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
-from scripts import test_db
+from scripts import test_database_support, test_db
 from scripts.test_database_support import (
     clear_application_rows,
     command_lock,
@@ -34,7 +34,7 @@ pytestmark = pytest.mark.unit
         {"TEST_DB_DATABASE": "mysql"},
         {"TEST_DB_USER": "root"},
         {"TEST_DB_USER": "quickapi"},
-        {"TEST_DATABASE_URL": "sqlite+aiosqlite:///:memory:"},
+        {"TEST_DATABASE_URL": "postgresql+asyncpg://test:test@localhost/test"},
         {"TEST_DATABASE_URL": "not-a-url"},
         {
             "TEST_DATABASE_URL": "mysql+asyncmy://root:password@127.0.0.1:3311/quickapi_fastapi_disposable_test"
@@ -89,7 +89,9 @@ async def test_live_identity_mismatch_prevents_lock_and_destructive_sql(
 
 
 async def test_engine_mismatch_is_rejected_before_connection() -> None:
-    engine = Mock(spec=AsyncEngine, url=make_url("sqlite+aiosqlite:///:memory:"))
+    engine = Mock(
+        spec=AsyncEngine, url=make_url("postgresql+asyncpg://test:test@localhost/test")
+    )
     with pytest.raises(ValueError, match="Active engine"):
         async with guarded_connection(engine, load_test_config({})):
             pytest.fail("Unsafe engine must not be admitted")
@@ -157,10 +159,26 @@ def test_rejected_cli_configuration_does_not_expose_credentials() -> None:
     assert "Traceback" not in result.stderr
 
 
-def test_competing_command_is_rejected_before_touching_infrastructure() -> None:
+def test_competing_command_is_rejected_before_touching_infrastructure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        test_database_support.tempfile, "gettempdir", lambda: str(tmp_path)
+    )
     with command_lock():
         result = subprocess.run(
-            [sys.executable, "-m", "scripts.test_db", "down"],
+            [
+                sys.executable,
+                "-c",
+                "from scripts import test_db; import sys; test_db.compose=lambda *args: (_ for _ in ()).throw(AssertionError('Infrastructure was touched')); sys.argv=['test_db','down']; test_db.main()",
+            ],
+            env={
+                **os.environ,
+                "TMPDIR": str(tmp_path),
+                "TEMP": str(tmp_path),
+                "TMP": str(tmp_path),
+            },
             capture_output=True,
             text=True,
             timeout=10,
@@ -171,7 +189,12 @@ def test_competing_command_is_rejected_before_touching_infrastructure() -> None:
     )
 
 
-def test_command_lock_releases_after_failure() -> None:
+def test_command_lock_releases_after_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        test_database_support.tempfile, "gettempdir", lambda: str(tmp_path)
+    )
     with pytest.raises(RuntimeError):
         with command_lock():
             raise RuntimeError("test failed")
@@ -229,7 +252,7 @@ def test_collection_and_test_exit_codes_preserve_cleanup(
     assert any(event[0] == "logs" for event in events) == bool(collected or test_result)
 
 
-def test_unavailable_mysql_fails_instead_of_using_sqlite(tmp_path: Path) -> None:
+def test_unavailable_mysql_fails_without_fallback(tmp_path: Path) -> None:
     # Reserve a loopback port without a listener, proving no MySQL can answer it.
     with socket.socket() as reserved:
         reserved.bind(("127.0.0.1", 0))
@@ -251,7 +274,7 @@ def test_unavailable_mysql_fails_instead_of_using_sqlite(tmp_path: Path) -> None
             ],
             env={
                 **os.environ,
-                "QUICKAPI_TEST_DATABASE": "mysql",
+                "QUICKAPI_TEST_RUN": "true",
                 "TEST_MYSQL_PORT": str(port),
                 "TEST_DATABASE_URL": url,
             },
@@ -270,7 +293,7 @@ def test_selected_mysql_settings_ignore_development_dotenv(
     from app.config.environment import load_settings
 
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("QUICKAPI_TEST_DATABASE", "mysql")
+    monkeypatch.setenv("QUICKAPI_TEST_RUN", "true")
     monkeypatch.setenv("ENV", "test")
     monkeypatch.delenv("HTTP_MAX_BODY_BYTES", raising=False)
     (tmp_path / ".env").write_text("HTTP_MAX_BODY_BYTES=-1\n")

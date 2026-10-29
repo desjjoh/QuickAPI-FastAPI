@@ -1,0 +1,38 @@
+# Disposable built-image qualification; never mounts development data.
+name: quickapi-fastapi-smoke
+services:
+  mysql-smoke:
+    image: mysql:8.4.6
+    environment:
+      MYSQL_DATABASE: ${TEST_DB_DATABASE:?Load guarded test configuration}
+      MYSQL_USER: ${TEST_DB_USER:?Load guarded test configuration}
+      MYSQL_PASSWORD: ${TEST_DB_PASSWORD:?Load guarded test configuration}
+      MYSQL_ROOT_PASSWORD: ${TEST_DB_ROOT_PASSWORD:?Load guarded test configuration}
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u"$$MYSQL_USER" "$$MYSQL_DATABASE" --silent --skip-column-names --execute="SELECT 1"']
+      interval: 2s
+      timeout: 3s
+      retries: 45
+      start_period: 20s
+  migrate:
+    image: ${SMOKE_IMAGE:?Select the built image}
+    environment: &runtime
+      APP_NAME: QuickAPI
+      APP_VERSION: 1.0.0
+      ENV: production
+      LOG_LEVEL: INFO
+      HOST: 0.0.0.0
+      PORT: "8000"
+      DATABASE_URL: ${SMOKE_DATABASE_URL:?Run python -m scripts.test_image}
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+  api:
+    image: ${SMOKE_IMAGE:?Select the built image}
+    environment: *runtime
+    stop_grace_period: 35s
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8000/ready"]
+      interval: 1s
+      timeout: 3s
+      retries: 45

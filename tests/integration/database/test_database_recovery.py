@@ -124,8 +124,6 @@ async def test_real_readiness_and_stopped_state(database_engine: AsyncEngine) ->
 async def test_mysql_outage_stall_stale_and_recovery_on_running_api(
     database_engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    if database_engine.dialect.name != 'mysql':
-        pytest.skip('Real MySQL socket failure qualification')
     url = database_engine.url
     relay = MysqlProxy(url.host or '127.0.0.1', url.port or 3306)
     proxy = await asyncio.start_server(relay.accept, '127.0.0.1', 0)

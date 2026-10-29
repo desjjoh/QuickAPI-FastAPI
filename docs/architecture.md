@@ -88,7 +88,7 @@ Public readiness serializes no dependency details; internal service checking rem
 
 ## Database capacity and transport
 
-The shared [engine policy](database-settings.md) uses SQLAlchemy connection records with bounded async admission for MySQL. It caps connections/waiters, separates acquisition and connection setup budgets, and verifies TLS before returning encrypted connections. SQLite retains its existing engine behavior. API startup, sessions, readiness, migrations, and disposable MySQL fixtures share transport configuration.
+The shared [engine policy](database-settings.md) uses SQLAlchemy connection records with bounded async admission for MySQL. It caps connections/waiters, separates acquisition and connection setup budgets, and verifies TLS before returning encrypted connections. Other database drivers are rejected during configuration and engine creation. API startup, sessions, readiness, migrations, and disposable MySQL fixtures share transport configuration.
 
 ## Persistence and migrations
 

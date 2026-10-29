@@ -39,7 +39,7 @@ remote ruleset enforces those contexts for a candidate pull request.
 | Remaining work                                                                                                                | Roadmap phase |
 | ----------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | Non-root runtime and digest-pinned bases; runtime/dev dependency separation verified in 1A                                    | 6A            |
-| Actual production-container smoke against MySQL instead of SQLite, including mutations and lifecycle                          | 6B            |
+| Extend production-container MySQL qualification with restart/persistence evidence                          | 6B            |
 | Dependency audit and exact final-image scan, blocking policy, scoped expiring exceptions                                      | 6C            |
 | Retained results/security evidence and an always-running aggregate fail-closed CI job                                         | 6D            |
 | Configure/verify required GitHub status checks once those checks actually run                                                 | 6E            |
@@ -54,4 +54,4 @@ remote ruleset enforces those contexts for a candidate pull request.
 
 ## Verification discipline
 
-The supplied assessment is A-range application code/testing discipline and B+ production assurance; it is not a fresh verification of this commit. The roadmap closes the listed assurance gaps and records environment-dependent evidence separately. Keep passed, failed, skipped/not run, and unavailable results distinct. Defined workflows, test counts, or SQLite coverage alone do not establish a verified MySQL release.
+The supplied assessment is A-range application code/testing discipline and B+ production assurance; it is not a fresh verification of this commit. The roadmap closes the listed assurance gaps and records environment-dependent evidence separately. Keep passed, failed, skipped/not run, and unavailable results distinct. Defined workflows, test counts, or local coverage alone do not establish a verified MySQL release.

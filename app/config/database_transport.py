@@ -64,10 +64,6 @@ def build_database_engine(
     policy = configured_policy() if policy is None else policy
     url = make_url(database_url)
     context = tls_context(policy)
-    if url.get_backend_name() != "mysql":
-        if policy.ssl_enabled:
-            raise ValueError("Database TLS settings require MySQL.")
-        return create_async_engine(url, echo=False, hide_parameters=True)
     if url.drivername != "mysql+asyncmy" or set(url.query) - {"charset"}:
         raise ValueError(
             "MySQL requires asyncmy; only the charset URL option is supported."

@@ -38,23 +38,31 @@ python -m scripts.test_db test --layer integration
 python -m scripts.test_db test --layer e2e
 ```
 
-These runs use MySQL for shared repository/API persistence fixtures. Isolated
-SQLite migration and file-disposal checks still use their private temporary files.
-The pytest summary reports the selected backend and number of database-backed
-tests selected. A MySQL selection with no database-backed tests fails. MySQL
-unavailability, failed migrations, failed collection, and failed assertions all
-produce nonzero exits; no SQLite fallback or automatic skip is provided.
+All database cases use MySQL, including migration history, model comparison,
+connection disposal, and pool lifecycle tests. Fixtures verify the live database
+and user and hold an exclusive lock before resetting rows or schema. Migration
+fixtures restore the baseline before releasing that lock. Missing infrastructure,
+failed migrations, empty collection, and failed assertions produce nonzero exits.
 
-The normal compatibility suite remains:
+The default wrapper runs unit, integration, and E2E tests together and measures
+branch coverage. Per-layer runs disable coverage and are used by CI. Unit-only
+checks do not require Docker:
 
 ```powershell
-python -m pytest -q
+python -m pytest -q -m unit --no-cov
 ```
 
-That command uses private SQLite databases unless MySQL selection was explicitly
-requested by the wrapper. Unit tests remain independent of Docker. Full-suite
-branch coverage is measured by the compatibility run; separate MySQL checks must
-also pass in CI.
+For direct focused persistence checks, first start and migrate the disposable server:
+
+```powershell
+python -m scripts.test_db up
+python -m scripts.test_db migrate
+python -m pytest -q tests/integration/database/test_migrations.py --no-cov
+```
+
+Direct `python -m pytest` also uses MySQL and requires that setup; it never starts
+Docker automatically or substitutes another database. Run the wrapper for managed
+startup, migration, full-suite coverage, and cleanup.
 
 ## Keep the test database for inspection
 
@@ -197,5 +205,5 @@ test/command owns the target; let that work finish before retrying.
 
 These suites establish application persistence behavior on disposable MySQL. They
 do not qualify representative future backfills, production-image MySQL smoke,
-pool/TLS capacity, database outages, or deployed backup/recovery. See
+all pool/TLS faults, all database outages, or deployed backup/recovery. See
 [Milestones](milestones.md) and [Verification](verification.md) for scope and evidence.

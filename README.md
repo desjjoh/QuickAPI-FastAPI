@@ -18,7 +18,7 @@ Use Python 3.12. Docker Engine is needed for container verification.
 
 1. Create a Python 3.12 virtual environment (`py -3.12 -m venv .venv` on Windows or `python3.12 -m venv .venv` on Linux/macOS), activate it, then run `python -m pip install -r requirements-dev.txt` and `python -m pip check`.
 2. Copy [.env.example](.env.example) to a gitignored `.env`.
-3. Start local MySQL with `docker compose up -d --wait mysql`. The example `DATABASE_URL` reaches the isolated `quickapi-fastapi-dev` database at `127.0.0.1:3310`. Run `python -m alembic upgrade head` before starting the API. See [Migrations](docs/migrations.md) for the command guide. SQLite remains available through `sqlite+aiosqlite:///./app.db` and also requires explicit migration.
+3. Start local MySQL with `docker compose up -d --wait mysql`. The example `DATABASE_URL` reaches the isolated `quickapi-fastapi-dev` database at `127.0.0.1:3310`. Run `python -m alembic upgrade head` before starting the API. See [Migrations](docs/migrations.md) for the command guide.
 4. Run `python -m app.main`.
 
 For the complete local container stack, run `docker compose up --build -d --wait`; the container API is at `http://127.0.0.1:8000`. Compose overrides the native database URL, bind address, port, and mode for its internal topology. See [local Compose](docs/development.md#local-compose).
@@ -71,7 +71,7 @@ python -m mypy app scripts
 python -m pytest -q
 ```
 
-Follow [Testing](docs/testing.md) for layer selection, critical coverage thresholds, and container checks. The disposable MySQL suites verify repository/API persistence; SQLite coverage and the current SQLite image smoke remain separate evidence. See [MySQL testing](docs/mysql-testing.md) for the test runner. These checks do not establish deployment readiness.
+Follow [Testing](docs/testing.md) for layer selection, critical coverage thresholds, and container checks. All persistence and coverage runs use disposable MySQL. The built-image check uses an independent disposable MySQL server. See [MySQL testing](docs/mysql-testing.md) for the test runner. These checks do not establish deployment readiness.
 
 ## License
 
