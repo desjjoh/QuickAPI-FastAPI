@@ -1,7 +1,9 @@
 # ruff: noqa: E402
 # Test environment isolation must happen before application imports.
+import asyncio
 import os
-from collections.abc import AsyncIterator, Iterator
+import sys
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 
 from scripts.test_database_support import (
@@ -22,6 +24,7 @@ os.environ.update(
         "APP_NAME": "QuickAPI",
         "APP_VERSION": "1.0.0",
         "ENV": "test",
+        "QUICKAPI_TEST_DATABASE": _backend,
         "DOCS_ENABLED": "true",
         "DIAGNOSTICS_ENABLED": "true",
         "METRICS_ENABLED": "true",
@@ -31,6 +34,11 @@ os.environ.update(
         "API_PUBLISHED_PORT": "8000",
         "MYSQL_PUBLISHED_PORT": "3310",
         "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
+        "DB_POOL_CONNECTION_LIMIT": "10",
+        "DB_POOL_QUEUE_LIMIT": "50",
+        "DB_POOL_ACQUIRE_TIMEOUT_MS": "1000",
+        "DB_CONNECT_TIMEOUT_MS": "10000",
+        "DB_SSL": "false",
         "CORS_ORIGINS": "http://localhost:3000,https://client.test,https://client.example",
         "CORS_METHODS": "GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS",
         "CORS_ALLOWED_HEADERS": "content-type,authorization,x-requested-with",
@@ -52,6 +60,7 @@ os.environ.update(
         "HTTP_ALLOWED_CONTENT_TYPES": "application/json,multipart/form-data",
     }
 )
+os.environ.pop("DB_SSL_CA_FILE", None)
 
 import pytest
 import pytest_asyncio
@@ -59,14 +68,36 @@ import structlog
 from _pytest.terminal import TerminalReporter
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlalchemy.pool import NullPool
 
 from app.common.handlers.lifecycle_handler import LifecycleHandler
 from app.common.store.request_context import RequestContext
+from app.config.database_transport import build_database_engine
 from app.config.metrics import REQUEST_ABORTED, REQUEST_COUNT, REQUEST_DURATION
 from app.config.migrations import check_revision, upgrade_connection
 
 _selected_database_tests = 0
+_tls_tests = os.environ.get("QUICKAPI_TEST_TLS") == "true"
+
+
+def pytest_asyncio_loop_factories() -> (
+    dict[str, Callable[[], asyncio.AbstractEventLoop]]
+):
+    if _tls_tests and sys.platform == "win32":
+        return {"selector": asyncio.SelectorEventLoop}
+    return {"default": asyncio.new_event_loop}
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    removed = [
+        item
+        for item in items
+        if (item.get_closest_marker("database_tls") is not None) != _tls_tests
+    ]
+    if removed:
+        config.hook.pytest_deselected(items=removed)
+        items[:] = [item for item in items if item not in removed]
 
 
 def pytest_report_header() -> str:
@@ -78,7 +109,10 @@ def pytest_collection_finish(session: pytest.Session) -> None:
     _selected_database_tests = sum(
         1
         for item in session.items
-        if isinstance(item, pytest.Function) and "database_engine" in item.fixturenames
+        if isinstance(item, pytest.Function)
+        and (
+            "database_engine" in item.fixturenames or "tls_target" in item.fixturenames
+        )
     )
     if _mysql_config is not None and not _selected_database_tests:
         raise pytest.UsageError("MySQL selection contains no database-backed tests.")
@@ -86,7 +120,7 @@ def pytest_collection_finish(session: pytest.Session) -> None:
 
 def pytest_terminal_summary(terminalreporter: TerminalReporter) -> None:
     terminalreporter.write_line(
-        f"Persistence backend: {_backend}; database-backed tests selected: {_selected_database_tests}"
+        f"Persistence backend: {'mysql-tls' if _tls_tests else _backend}; database-backed tests selected: {_selected_database_tests}"
     )
 
 
@@ -102,9 +136,7 @@ async def database_engine(tmp_path: Path) -> AsyncIterator[AsyncEngine]:
         finally:
             await engine.dispose()
     else:
-        engine = create_async_engine(
-            _mysql_config.url, poolclass=NullPool, hide_parameters=True
-        )
+        engine = build_database_engine(_mysql_config.url)
         try:
             async with guarded_connection(engine, _mysql_config) as connection:
                 await connection.run_sync(check_revision)

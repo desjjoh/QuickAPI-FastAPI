@@ -183,6 +183,7 @@ cython_debug/
 .cursorindexingignore
 
 app.db
+test-artifacts/
 
 .vscode/*
 !.vscode/extensions.json

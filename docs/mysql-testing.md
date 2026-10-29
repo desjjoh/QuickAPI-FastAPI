@@ -139,9 +139,13 @@ python -m scripts.test_db up
 python -m scripts.test_db migrate
 ```
 
+## TLS qualification
+
+`python -m scripts.test_db tls` creates an independent temporary CA/server and MySQL project on loopback port 3312. It verifies encryption, trust/identity rejection, stalled TLS setup cleanup, and the native API entrypoint, then removes those resources. These cases are explicitly deselected from ordinary runs and executed by the MySQL integration CI job. See [Database capacity and transport](database-settings.md) for policy and Windows loop requirements.
+
 ## Configuration and safeguards
 
-`.env.test` is the explicit base. Process `TEST_*` variables and `ENV` can override
+`.env.test` is the explicit base. Process `TEST_*`, `DB_*` variables and `ENV` can override
 it; an inherited production/development `ENV` is rejected. The ordinary
 `DATABASE_URL` is ignored as a test target. Required checks include:
 
@@ -150,7 +154,7 @@ it; an inherited production/development `ENV` is rejected. The ordinary
   underscore and an alphanumeric isolation suffix; development/sibling/system names
   do not qualify.
 - User `quickapi_fastapi_test`, with a matching URL, password, and numeric test port.
-- A local/test host (`127.0.0.1`, `localhost`, `::1`, `mysql-test`), or an exact host
+- A local/test host (`127.0.0.1`, `localhost`, `::1`, `mysql-test`, `mysql-tls-test`), or an exact host
   explicitly listed in `TEST_DB_ALLOWED_HOSTS`. Driver query options are rejected.
 - Matching engine URL and live `DATABASE()` / `CURRENT_USER()` before admission;
   live identity is rechecked before row deletion.

@@ -12,6 +12,7 @@ def main() -> None:
         host=settings.HOST,
         port=settings.PORT,
         reload=(settings.ENV == "development"),
+        loop="app.config.event_loop:server_loop_factory",
         log_config=None,
         # The app owns proxy trust; never let Uvicorn apply a second policy.
         proxy_headers=False,

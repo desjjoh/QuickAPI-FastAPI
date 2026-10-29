@@ -78,6 +78,10 @@ docker compose down
 
 See [Database migrations](migrations.md) for the complete first-run guide, command reference, migration authoring, and intentional reset procedure. The FastAPI database is disposable and separate from shared local databases.
 
+## Database capacity and TLS
+
+[Database settings](database-settings.md) defines validated connection/queue/deadline overrides and verified TLS. The same transport factory serves native/container API startup and Alembic commands. Local MySQL remains plaintext by default.
+
 ## Disposable MySQL tests
 
 Use `python -m scripts.test_db test` to start, migrate, test, and remove the isolated MySQL test instance on port 3311. Development MySQL on 3310 remains available. [MySQL testing](mysql-testing.md) includes the `.env.test` settings, per-layer commands, test migration generation/application, and intentional reset procedure.

@@ -5,10 +5,10 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
-    create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
 
+from app.config.database_transport import build_database_engine
 from app.config.environment import settings
 from app.config.migrations import check_revision
 
@@ -18,7 +18,7 @@ class Base(DeclarativeBase):
 
 
 def create_engine() -> AsyncEngine:
-    return create_async_engine(settings.DATABASE_URL, echo=False, hide_parameters=True)
+    return build_database_engine(settings.DATABASE_URL)
 
 
 engine: AsyncEngine = create_engine()

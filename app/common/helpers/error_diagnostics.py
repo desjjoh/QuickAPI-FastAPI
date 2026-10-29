@@ -6,6 +6,7 @@ from typing import Any
 _NAMES = frozenset(
     {
         "Exception",
+        "DatabaseUnavailableError",
         "RuntimeError",
         "ValueError",
         "TypeError",
@@ -54,6 +55,16 @@ def error_diagnostics(error: object) -> dict[str, Any]:
         result: dict[str, Any] = {
             "errorType": name if name in _NAMES else "UnknownError"
         }
+        code = error.__dict__.get("code")
+        if code in {
+            "DB_POOL_CLOSED",
+            "DB_POOL_CAPACITY",
+            "DB_POOL_ACQUIRE_TIMEOUT",
+            "DB_CONNECT_TIMEOUT",
+            "DB_CONNECTION_FAILED",
+            "DB_TLS_REQUIRED",
+        }:
+            result["errorCode"] = code
         original = error.__dict__.get("orig", error)
         if isinstance(original, BaseException):
             args = original.args

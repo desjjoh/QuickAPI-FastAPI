@@ -32,6 +32,7 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Development](docs/development.md) | Setup, configuration, database selection, and local commands |
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
+| [Database settings](docs/database-settings.md) | Connection/queue limits, deadlines, TLS, and transport tests |
 | [MySQL testing](docs/mysql-testing.md) | Disposable test infrastructure, .env.test, migrations, and CI |
 | [Migrations](docs/migrations.md) | Database setup, Alembic commands, schema checks, and disposable resets |
 | [Logging](docs/logging.md) | Console/JSON output, levels, request correlation, and safe diagnostics |

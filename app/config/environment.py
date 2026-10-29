@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     MYSQL_PUBLISHED_PORT: int = Field(DEFAULT_MYSQL_PUBLISHED_PORT, ge=1, le=65_535)
 
     DATABASE_URL: str = Field(..., min_length=5)
+    DB_POOL_CONNECTION_LIMIT: int = Field(10, ge=1, le=1000)
+    DB_POOL_QUEUE_LIMIT: int = Field(50, ge=0, le=10000)
+    DB_POOL_ACQUIRE_TIMEOUT_MS: int = Field(1000, ge=1, le=2147483647)
+    DB_CONNECT_TIMEOUT_MS: int = Field(10000, ge=1, le=2147483647)
+    DB_SSL: bool = False
+    DB_SSL_CA_FILE: str | None = Field(None, min_length=1)
     TIMEZONE: str = "Etc/UTC"
 
     # Operational routes default on in development/test, off in production.
@@ -207,6 +213,7 @@ class Settings(BaseSettings):
         "DOCS_ENABLED",
         "DIAGNOSTICS_ENABLED",
         "METRICS_ENABLED",
+        "DB_SSL",
         mode="before",
     )
     @classmethod
@@ -231,6 +238,10 @@ class Settings(BaseSettings):
         "HTTP_MAX_SINGLE_HEADER_BYTES",
         "HTTP_MAX_TOTAL_HEADER_BYTES",
         "CORS_MAX_AGE_SECONDS",
+        "DB_POOL_CONNECTION_LIMIT",
+        "DB_POOL_QUEUE_LIMIT",
+        "DB_POOL_ACQUIRE_TIMEOUT_MS",
+        "DB_CONNECT_TIMEOUT_MS",
         mode="before",
     )
     @classmethod
@@ -243,6 +254,25 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_http_relationships(self) -> Self:
+        if self.DB_SSL_CA_FILE is not None and (
+            not self.DB_SSL or not self.DB_SSL_CA_FILE.strip()
+        ):
+            raise ValueError("DB_SSL_CA_FILE requires DB_SSL=true and a non-empty path")
+        if self.DB_SSL:
+            from sqlalchemy.engine import make_url
+
+            from app.config.database_transport import DatabasePolicy, tls_context
+
+            try:
+                if make_url(self.DATABASE_URL).get_backend_name() != "mysql":
+                    raise ValueError("Database TLS settings require MySQL")
+                tls_context(
+                    DatabasePolicy(ssl_enabled=True, ca_file=self.DB_SSL_CA_FILE)
+                )
+            except Exception:
+                raise ValueError(
+                    "Invalid database TLS configuration or CA certificates"
+                ) from None
         if self.HTTP_MAX_SINGLE_HEADER_BYTES > self.HTTP_MAX_TOTAL_HEADER_BYTES:
             raise ValueError(
                 "HTTP_MAX_SINGLE_HEADER_BYTES must not exceed HTTP_MAX_TOTAL_HEADER_BYTES"
@@ -301,7 +331,7 @@ def load_settings() -> Settings:
         # The explicit MySQL test wrapper supplies settings in the process env.
         # Do not let a developer's .env affect this independently selected run.
         if (
-            os.environ.get("QUICKAPI_TEST_DATABASE") == "mysql"
+            os.environ.get("QUICKAPI_TEST_DATABASE") in {"sqlite", "mysql"}
             and os.environ.get("ENV") == "test"
         ):
             return Settings(_env_file=None)  # type: ignore

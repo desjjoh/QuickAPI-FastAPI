@@ -46,7 +46,7 @@ These are local development credentials. Express and NestJS databases are separa
 The API container uses `mysql:3306` instead of the host address. If you override
 `MYSQL_PUBLISHED_PORT`, update the native URL to match. Process environment variables
 override `.env`; verify that your shell has no stale `DATABASE_URL` override before
-running a write command. Migration commands use the same application settings as
+running a write command. Migration commands use the shared [database transport policy](database-settings.md), including bounded admission, connection deadlines, TLS, and compatible Windows loop selection. They use the same application settings as
 the API; no database URL or credentials are stored in `alembic.ini`.
 
 `upgrade head` may finish without additional output when successful. `current`

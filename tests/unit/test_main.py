@@ -27,6 +27,7 @@ def test_main_forwards_settings_and_selects_reload_by_environment(
         host="127.0.0.9",
         port=9123,
         reload=reload_enabled,
+        loop="app.config.event_loop:server_loop_factory",
         log_config=None,
         proxy_headers=False,
     )
