@@ -41,7 +41,7 @@ def command_environment(config: TestDatabaseConfig) -> dict[str, str]:
         "PORT": "8000",
         "LOG_LEVEL": "ERROR",
         "DATABASE_URL": config.url.render_as_string(hide_password=False),
-        "QUICKAPI_TEST_DATABASE": "mysql",
+        "QUICKAPI_TEST_RUN": "true",
     }
 
 
@@ -155,17 +155,20 @@ def dispatch(config: TestDatabaseConfig, args: argparse.Namespace) -> int:
             return result
         result = 1
         run_migration(config, "migrate", "head")
-        selection: str = "integration or e2e" if args.layer == "all" else args.layer
+        selection: str = (
+            "unit or integration or e2e" if args.layer == "all" else args.layer
+        )
         command: list[str] = [
             sys.executable,
             "-m",
             "pytest",
-            "--no-cov",
             "-m",
             selection,
         ]
+        if args.layer != "all":
+            command.append("--no-cov")
         collected = subprocess.run(
-            [*command, "--collect-only", "-q"],
+            [*command, "--collect-only", "--no-cov", "-q"],
             cwd=ROOT,
             env=command_environment(config),
             stdout=subprocess.PIPE,

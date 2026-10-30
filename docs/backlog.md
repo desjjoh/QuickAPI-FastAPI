@@ -23,13 +23,11 @@ remote ruleset enforces those contexts for a candidate pull request.
 | True server/ingress header/whole-upload receive protection and deployed proxy/direct-port verification; application HTTP configuration is implemented locally | 2A deployment boundary, 8        |
 | Confirm candidate-specific hosted MySQL integration/E2E results and required-check enforcement                                                                 | 6E                               |
 | Representative-data and supported compatibility/rollback evidence for every future real schema change                                                                  | Every later schema change |
-| Shutdown admission, drain, cleanup, and final deadline                                                                                                        | 4A                               |
 
 ## Item contracts and persistence
 
 | Remaining work                                                                                               | Roadmap phase |
 | ------------------------------------------------------------------------------------------------------------ | ------------- |
-| Transaction ownership through response preparation; pre-commit expiry handling and uncertain commit outcomes | 4B, 4C        |
 | Decimal price validation aligned with storage; matching filter rules                                         | 5A, 5B        |
 | Unique pagination tie-breaker, safe offsets, explicit defaults/naming/ID compatibility decisions             | 5A, 5C        |
 | Revision migration/backfill, required preconditions, stale-write protection, agreed deletion route           | 5D            |
@@ -40,7 +38,7 @@ remote ruleset enforces those contexts for a candidate pull request.
 | Remaining work                                                                                                                | Roadmap phase |
 | ----------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | Non-root runtime and digest-pinned bases; runtime/dev dependency separation verified in 1A                                    | 6A            |
-| Actual production-container smoke against MySQL instead of SQLite, including mutations and lifecycle                          | 6B            |
+| Extend production-container MySQL qualification with restart/persistence evidence                          | 6B            |
 | Dependency audit and exact final-image scan, blocking policy, scoped expiring exceptions                                      | 6C            |
 | Retained results/security evidence and an always-running aggregate fail-closed CI job                                         | 6D            |
 | Configure/verify required GitHub status checks once those checks actually run                                                 | 6E            |
@@ -55,4 +53,4 @@ remote ruleset enforces those contexts for a candidate pull request.
 
 ## Verification discipline
 
-The supplied assessment is A-range application code/testing discipline and B+ production assurance; it is not a fresh verification of this commit. The roadmap closes the listed assurance gaps and records environment-dependent evidence separately. Keep passed, failed, skipped/not run, and unavailable results distinct. Defined workflows, test counts, or SQLite coverage alone do not establish a verified MySQL release.
+The supplied assessment is A-range application code/testing discipline and B+ production assurance; it is not a fresh verification of this commit. The roadmap closes the listed assurance gaps and records environment-dependent evidence separately. Keep passed, failed, skipped/not run, and unavailable results distinct. Defined workflows, test counts, or local coverage alone do not establish a verified MySQL release.

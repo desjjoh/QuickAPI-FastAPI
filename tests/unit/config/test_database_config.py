@@ -6,6 +6,7 @@ from typing import cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.common.handlers.database_readiness import DatabaseReadiness
@@ -37,7 +38,7 @@ async def test_get_session_yields_and_closes_through_context_manager(
     session = object()
     context = SessionContext(session)
     monkeypatch.setattr(database, "SessionLocal", lambda: context)
-    dependency = database.get_session()
+    dependency = database.get_session(Request({"type": "http"}))
     assert await anext(dependency) is session
     with pytest.raises(StopAsyncIteration):
         await anext(dependency)
@@ -50,7 +51,7 @@ async def test_get_session_propagates_error_and_context_rolls_back(
     session = object()
     context = SessionContext(session)
     monkeypatch.setattr(database, "SessionLocal", lambda: context)
-    dependency = database.get_session()
+    dependency = database.get_session(Request({"type": "http"}))
     await anext(dependency)
     error = RuntimeError("endpoint failed")
     with pytest.raises(RuntimeError, match="endpoint failed"):

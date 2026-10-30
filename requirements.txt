@@ -1,6 +1,5 @@
 # Runtime dependencies, including manually pinned transitive dependencies.
 # Development and CI tooling belongs in requirements-dev.txt.
-aiosqlite==0.21.0
 alembic==1.20.1
 annotated-doc==0.0.3
 annotated-types==0.7.0

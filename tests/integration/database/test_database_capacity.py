@@ -1,5 +1,6 @@
 import asyncio
-from pathlib import Path
+import importlib
+from typing import Any
 
 import httpx
 import pytest
@@ -15,21 +16,27 @@ pytestmark = pytest.mark.integration
 
 
 async def test_connection_finishing_after_disposal_is_closed_not_delivered(
-    tmp_path: Path,
+    database_engine: AsyncEngine,
 ) -> None:
-    import aiosqlite
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    started = asyncio.Event()
-    release = asyncio.Event()
+    started, release = asyncio.Event(), asyncio.Event()
+    identifiers: list[int] = []
+    driver = importlib.import_module("asyncmy")
+    _, arguments = database_engine.dialect.create_connect_args(database_engine.url)
 
-    async def creator() -> aiosqlite.Connection:
+    async def creator() -> Any:
         started.set()
         await release.wait()
-        return await aiosqlite.connect(tmp_path / 'late.db')
+        connection: Any = await driver.connect(**arguments)
+        async with connection.cursor() as cursor:
+            await cursor.execute("SELECT CONNECTION_ID()")
+            row = await cursor.fetchone()
+            identifiers.append(int(row[0]))
+        return connection
 
     engine = create_async_engine(
-        'sqlite+aiosqlite://',
+        database_engine.url,
         async_creator=creator,
         poolclass=BoundedAsyncPool,
         pool_size=1,
@@ -40,18 +47,31 @@ async def test_connection_finishing_after_disposal_is_closed_not_delivered(
 
     async def connect() -> None:
         async with engine.connect():
-            pytest.fail('A disposed pool must not deliver a late connection')
+            pytest.fail("A disposed pool must not deliver a late connection")
 
+    task = asyncio.create_task(connect())
     try:
-        task = asyncio.create_task(connect())
-        await asyncio.wait_for(started.wait(), 1)
+        await asyncio.wait_for(started.wait(), 2)
         await engine.dispose()
         release.set()
         with pytest.raises(DatabaseUnavailableError) as error:
             await task
-        assert error.value.code == 'DB_POOL_CLOSED' and pool.admission.active == 0
+        assert error.value.code == "DB_POOL_CLOSED" and pool.admission.active == 0
+        async with asyncio.timeout(3):
+            while True:
+                async with database_engine.connect() as control:
+                    rows = (
+                        (await control.execute(text("SHOW PROCESSLIST")))
+                        .mappings()
+                        .all()
+                    )
+                if not any(int(row["Id"]) in identifiers for row in rows):
+                    break
+                await asyncio.sleep(0.01)
     finally:
         release.set()
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
         await engine.dispose()
 
 
@@ -64,21 +84,8 @@ async def wait_for_waiters(pool: BoundedAsyncPool, count: int) -> None:
 async def test_real_pool_limits_queue_timeout_cancel_and_recovery(
     database_engine: AsyncEngine,
 ) -> None:
-    # Exercise the same pool adapter on SQLite too, so default CI checks its logic.
-    from sqlalchemy.ext.asyncio import create_async_engine
-
     policy = DatabasePolicy(connection_limit=1, queue_limit=1, acquire_timeout_ms=100)
-    if database_engine.dialect.name == 'mysql':
-        engine = build_database_engine(database_engine.url, policy=policy)
-    else:
-
-        class SmallPool(BoundedAsyncPool):
-            policy_queue_limit = 1
-            policy_acquire_timeout = 0.1
-
-        engine = create_async_engine(
-            database_engine.url, poolclass=SmallPool, pool_size=1, max_overflow=0
-        )
+    engine = build_database_engine(database_engine.url, policy=policy)
     assert isinstance(engine.pool, BoundedAsyncPool)
     pool = engine.pool
     try:

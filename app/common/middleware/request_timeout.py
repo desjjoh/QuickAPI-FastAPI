@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.common.handlers.request_activity import RequestExpired, request_activity
+from app.common.handlers.request_work import RequestWork
 from app.common.middleware.request_outcome import abort_request
 from app.common.models.error_model import error_response
 from app.config.logging import log
@@ -21,6 +24,7 @@ class RequestTimeoutASGIMiddleware:
         first_body_timeout: float = 5.0,
         chunk_timeout: float = 2.0,
         total_timeout: float = 10.0,
+        work: RequestWork | None = None,
     ) -> None:
         for name, value in (
             ("first_body_timeout", first_body_timeout),
@@ -33,11 +37,14 @@ class RequestTimeoutASGIMiddleware:
         self.first_body_timeout = first_body_timeout
         self.chunk_timeout = chunk_timeout
         self.total_timeout = total_timeout
+        self.work = work
         # Cancellation is cooperative. Retain work until it settles even when the
         # transport must finish first; retrieve late failures in its done callback.
         self._pending: set[asyncio.Task[None]] = set()
 
     def track_work(self, task: asyncio.Task[None]) -> None:
+        if self.work is not None:
+            self.work.track(task)
         self._pending.add(task)
         task.add_done_callback(self._pending.discard)
 
@@ -70,6 +77,10 @@ class _RequestDeadline:
         self.body_started = False
         self.body_complete = False
         self.timeout_detail: str | None = None
+        self.activity = request_activity(scope)
+        self.activity.expires_at = min(
+            self.activity.expires_at, time.monotonic() + middleware.total_timeout
+        )
 
     async def read_messages(self) -> None:
         # Exactly one owner reads the server channel. Backpressure bounds this to
@@ -80,6 +91,7 @@ class _RequestDeadline:
                 if message["type"] == "http.disconnect":
                     if not self.completed.is_set():
                         self.disconnected = True
+                        self.activity.abandon('Request disconnected.')
                         self.interrupted.set()
                     return
                 await self.incoming.put(message)
@@ -87,6 +99,7 @@ class _RequestDeadline:
             raise  # TimeoutError is also an OSError; it is not proof of disconnect.
         except OSError:
             self.disconnected = True
+            self.activity.abandon('Request disconnected.')
             self.interrupted.set()
 
     async def receive_body(self) -> Message:
@@ -109,6 +122,7 @@ class _RequestDeadline:
                 if self.body_started
                 else "Request first body timeout exceeded."
             )
+            self.activity.abandon(self.timeout_detail)
             self.interrupted.set()
             # Do not let FastAPI's request parser convert this into a JSON 400.
             # The request owner, rather than downstream exception handling, emits 408.
@@ -128,6 +142,7 @@ class _RequestDeadline:
             raise
         except OSError:
             self.disconnected = True
+            self.activity.abandon('Request disconnected.')
             self.interrupted.set()
             raise
         if message["type"] == "http.response.body" and not message.get(
@@ -138,7 +153,11 @@ class _RequestDeadline:
     def observe_work(self, task: asyncio.Task[None]) -> None:
         if not task.cancelled():
             error = task.exception()
-            if error is not None and self.closed:
+            if (
+                error is not None
+                and self.closed
+                and not isinstance(error, RequestExpired)
+            ):
                 log.error(
                     "Request work failed after its response closed.",
                     error=error,
@@ -167,11 +186,14 @@ class _RequestDeadline:
             elif self.disconnected:
                 abort_request(self.scope)
                 self.closed = True
-                work.cancel()
+                if not self.activity.owns_mutation:
+                    work.cancel()
             elif self.timeout_detail is not None or not done:
                 self.closed = True
-                work.cancel()
                 detail = self.timeout_detail or "Total request timeout exceeded."
+                self.activity.abandon(detail)
+                if not self.activity.owns_mutation:
+                    work.cancel()
                 if self.started:
                     abort_request(self.scope)
                     # ASGI has no portable socket-abort message. Raising after
@@ -185,7 +207,13 @@ class _RequestDeadline:
                 await work  # Preserve downstream errors, including TimeoutError.
         finally:
             self.closed = True
-            if not work.done() and not work.cancelling():
+            if not work.done():
+                self.activity.abandon('Request interrupted.')
+            if (
+                not work.done()
+                and not work.cancelling()
+                and not self.activity.owns_mutation
+            ):
                 work.cancel()
             for task in watchers:
                 task.cancel()

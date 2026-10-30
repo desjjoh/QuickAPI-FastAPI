@@ -2,49 +2,82 @@
 
 [Documentation index](../README.md#documentation)
 
+[Mutation transactions](transactions.md) defines the route decorator, shared session,
+repository caller obligations, and response-before-commit verification.
+
+[Graceful shutdown](shutdown.md) defines request admission, draining, deadlines,
+entrypoint ownership, and process verification.
+
 [Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
 shared checks, startup cleanup, and runtime recovery behavior.
 
 ## Setup and test boundaries
 
-Install [requirements-dev.txt](../requirements-dev.txt) in a fresh Python 3.12 virtual environment and run `python -m pip check`. Markers and coverage settings live in [pyproject.toml](../pyproject.toml); job dependencies and commands live in [the Quality workflow](../.github/workflows/tests.yml).
+Use Python 3.12 and install [requirements-dev.txt](../requirements-dev.txt) in the
+project virtual environment. Verify `python --version` and `python -m pip check`.
+On Windows, activate `.venv\Scripts\Activate.ps1` or invoke
+`.venv\Scripts\python.exe` directly. Global Python is not the project's interpreter.
 
-| Layer       | Location             | Boundary                                                                                  |
-| ----------- | -------------------- | ----------------------------------------------------------------------------------------- |
-| Unit        | `tests/unit/`        | Isolated models, handlers, middleware, configuration, and utilities                       |
-| Integration | `tests/integration/` | Real SQLite/MySQL sessions/repositories, application stack, and error/OpenAPI integration |
-| E2E         | `tests/e2e/`         | Complete app over HTTPX ASGI transport, lifespan, and isolated SQLite/MySQL persistence   |
+MySQL through `mysql+asyncmy` is the only supported database. All persistence,
+migration, pool/session, readiness/recovery, and database-backed process checks use
+real disposable MySQL. Unit checks use test doubles and need no running database.
 
-[Shared fixtures](../tests/conftest.py) isolate configuration and logging/request/metrics state. Integration/E2E fixtures default to private SQLite files; the explicit [MySQL runner](mysql-testing.md) selects the guarded disposable MySQL target from `.env.test`. HTTP E2E uses in-process ASGI transport; socket behavior has separate Uvicorn tests.
+| Layer | Location | Boundary |
+| --- | --- | --- |
+| Unit | `tests/unit/` | Isolated models, handlers, middleware, configuration and utilities |
+| Integration | `tests/integration/` | MySQL repositories/migrations, application stack, real sockets and processes |
+| E2E | `tests/e2e/` | Complete application lifespan and HTTP over isolated MySQL persistence |
 
-## Quality gates and tests
+Fixtures load `.env.test`, verify live identity, and hold an exclusive reset guard.
+Destructive migration cases restore the baseline before releasing that guard.
+Development `.env` and the persistent development database are separate.
 
-Run the same static checks used by CI:
+## Commands
 
-```bash
+From the repository root with Docker running:
+
+```powershell
+# Start authenticated MySQL, migrate, run the full suite with coverage, and clean up.
+python -m scripts.test_db test
+# Individual persistence layers, without coverage.
+python -m scripts.test_db test --layer integration
+python -m scripts.test_db test --layer e2e
+# Separate generated-certificate MySQL server; cleaned up afterward.
+python -m scripts.test_db tls
+```
+
+Without Docker, run unit tests only:
+
+```powershell
+python -m pytest -q -m unit --no-cov
+```
+
+For focused direct pytest checks, use `python -m scripts.test_db up` and
+`python -m scripts.test_db migrate` first. Direct `python -m pytest` loads the same
+guarded MySQL configuration and fails if the server is unavailable; it does not
+start Docker or substitute a different backend. Use `--no-cov` for partial selections
+that cannot meet the full application's coverage threshold.
+
+Pytest `.` means passed, `s` means skipped, and `F` means failed. Use `-rs` to show
+skip reasons. Windows skips the two POSIX-only native entrypoint signal cases;
+Linux executes them. The MySQL outage case runs on both platforms. Five dedicated
+TLS cases are explicitly deselected from ordinary runs and run via the TLS command.
+Test counts are recorded in [Verification](verification.md), not fixed as a contract.
+
+## Quality gates
+
+```powershell
 python -m black --check app tests scripts
 python -m ruff check app tests scripts
 python -m mypy app scripts
 ```
 
-Every test has an explicit layer marker. CI first verifies that each layer collects
-at least one test, preventing an accidentally empty suite from passing:
+The full MySQL run measures branch coverage and requires 90% overall. CI additionally
+requires 90% middleware and 95% lifecycle, database-package, and API coverage. Bash
+commands matching CI are:
 
 ```bash
-pytest --collect-only -q --no-cov -m unit
-pytest --collect-only -q --no-cov -m integration
-pytest --collect-only -q --no-cov -m e2e
-pytest -q --no-cov -m unit
-pytest -q --no-cov -m integration
-pytest -q --no-cov -m e2e
-```
-
-The combined run enforces 90% overall coverage with branch measurement enabled; it does not enforce separate 90% statement and branch floors. CI additionally
-requires 90% middleware coverage and 95% coverage for lifecycle, database, and API
-packages:
-
-```bash
-pytest -q
+python -m scripts.test_db test
 shopt -s globstar
 coverage report --fail-under=90 app/common/middleware/*.py
 coverage report --fail-under=95 app/common/handlers/lifecycle_handler.py
@@ -52,33 +85,39 @@ coverage report --fail-under=95 app/database/**/*.py
 coverage report --fail-under=95 app/api/**/*.py
 ```
 
-The `shopt` and recursive glob commands require Bash, matching Ubuntu CI. PowerShell can run `python -m pytest -q` for the overall gate and `python -m coverage report --fail-under=95 app/common/handlers/lifecycle_handler.py` for the single-file gate; run shell-specific package commands in Bash or CI.
+The shell glob commands require Bash. PowerShell can use
+`python -m coverage report --fail-under=95 --include='app/database/*'` for a package.
+An unavailable service is a failure to execute the persistence suite, never a pass.
 
-## CI sequence and verification limits
+## CI and image qualification
 
-Pull requests, pushes to `main`/`staging`/`dev`, merge groups, and manual dispatch run static analysis, then the SQLite unit/integration/E2E matrix and separate disposable MySQL integration/E2E jobs, then combined coverage, then the production-container job. Layer runs disable coverage; combined coverage reruns all tests and applies overall and critical-package thresholds.
+The Quality workflow runs static analysis, unit checks, MySQL integration/E2E jobs,
+a full MySQL coverage run, and built-image MySQL qualification. Database jobs own
+independent disposable infrastructure. Layer collection must be nonempty; failures
+collect bounded logs and cleanup is attempted. Dedicated TLS checks remain in the
+MySQL integration job.
 
-Container CI builds the image, starts it with explicit production settings and disposable SQLite, polls `/ready`, and reads `/api/v1/items/`. The image smoke remains SQLite-based; separate MySQL jobs test migrated repository/API persistence. The image smoke does not qualify MySQL container mutations, durable deployment storage, representative data upgrades, restore, or rollback. See [Deployment](deployment.md).
+```powershell
+docker build -t quickapi-fastapi:ci .
+python -m scripts.test_image
+```
 
-Record the commit/environment and distinguish passed, failed, skipped/not run, and unavailable checks. A workflow definition is not evidence that a particular commit passed.
+The image command verifies explicit migrations, CRUD, probes, static assets,
+production exposure defaults, dependencies, and graceful Docker termination against
+an independent MySQL server. See [Deployment](deployment.md) for ownership and limits.
 
-Hosted check names and required-check configuration are documented in [Branch protections](branch-protection.md). Dated execution results belong to [Verification](verification.md); each result applies to its recorded source/environment.
+Required check names and removal of obsolete duplicate contexts are documented in
+[Branch protections](branch-protection.md). Workflow definitions and local checks do
+not establish hosted success or ruleset enforcement. There is no aggregate
+fail-closed final job yet. Representative future migrations, restart/persistence,
+backup restoration and candidate-bound release publication remain separately scoped.
 
 ## Regression coverage
 
-Place tests at the boundary that owns the behavior: unit for isolated decisions, repository integration for transaction/query behavior, and HTTP for client-visible contracts. Protect consequential failure paths without mirroring implementation details. Track unresolved gaps in [Backlog](backlog.md).
-
-## Verification boundaries
-
-Use Python 3.12 for local checks. An unsupported interpreter or an unavailable service
-is an execution limitation, not a passing or failing application test. Record the
-source identity, environment, and outcome in [Verification](verification.md).
-
-Automated persistence tests run against SQLite and disposable MySQL; the image smoke
-still uses SQLite. The workflow does not qualify representative future data upgrades/rollback, backup restoration, or candidate-bound
-release publication. It has no aggregate fail-closed job. Required checks must be
-configured separately in GitHub; see [Branch protections](branch-protection.md).
-Additional verification requirements are tracked in [Backlog](backlog.md).
+Place tests at the boundary that owns the behavior. Record actual source identity,
+environment, passed/failed/skipped results and limitations in
+[Verification](verification.md). Historical records describe their original source
+and do not define the current supported database configuration.
 
 ## HTTP deadline and streaming checks
 
@@ -152,8 +191,23 @@ complete suite also protects request/timeout outcome semantics and public error 
 
 ## Disposable MySQL commands
 
-`python -m scripts.test_db test` starts and migrates isolated MySQL, runs integration/E2E tests, and cleans up. Use `--layer integration` or `--layer e2e` for the separate CI selections. [Disposable MySQL testing](mysql-testing.md) documents `.env.test`, migration generation/application, safety checks, and inspection/reset commands.
+`python -m scripts.test_db test` starts and migrates isolated MySQL, runs unit/integration/E2E tests with coverage, and cleans up. Use `--layer integration` or `--layer e2e` for the separate CI selections. [Disposable MySQL testing](mysql-testing.md) documents `.env.test`, migration generation/application, safety checks, and inspection/reset commands.
 
 ## Database capacity and TLS
 
 [Database transport tests](database-settings.md#verification-commands) exercise actual pool saturation, queue expiry/cancellation, invalidation/disposal, and stalled connection setup. Dedicated TLS cases run through `python -m scripts.test_db tls` and are part of the MySQL integration CI job. They are explicitly deselected from default compatibility runs, with their results recorded separately.
+
+## Mutation expiry and uncertain outcomes
+
+`python -m pytest -q tests/integration/database/test_mutation_expiry.py --no-cov`
+requires the started, migrated disposable MySQL server. It uses real HTTP sockets,
+separate observer sessions and a test-owned MySQL packet relay to distinguish
+pre-commit rollback, lost acknowledgement, and committed data without a delivered
+success response. Checks include disconnect/server cancellation, caught
+cancellation, expired acquisition, cleanup failure, invalidation and pool recovery.
+Rollback-command and acknowledgement loss verify retirement of the broken lease,
+unchanged data, disappearance of the server session, and recovery of a queued caller.
+The [shutdown process checks](shutdown.md#verification) exercise expired marked
+transactions during graceful termination and forced termination of stuck work.
+The regular MySQL integration job and full-suite wrapper include these tests.
+See [Mutation transactions](transactions.md#expiry-and-commit-outcomes) for limits.

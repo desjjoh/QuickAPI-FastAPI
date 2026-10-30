@@ -102,6 +102,8 @@ class Settings(BaseSettings):
     RATE_LIMIT_MAX_CLIENTS: ClientCapacity = DEFAULT_MAX_CLIENTS
 
     REQUEST_TIMEOUT_MS: int = Field(10_000, ge=1, le=2_147_483_647)
+    HTTP_DRAIN_TIMEOUT_MS: int = Field(25_000, ge=1, le=2_147_483_647)
+    SHUTDOWN_TIMEOUT_MS: int = Field(30_000, ge=1, le=2_147_483_647)
     REQUEST_FIRST_BODY_TIMEOUT_MS: int = Field(5_000, ge=1, le=2_147_483_647)
     REQUEST_CHUNK_TIMEOUT_MS: int = Field(2_000, ge=1, le=2_147_483_647)
     HTTP_MAX_BODY_BYTES: int = Field(1_048_576, ge=1, le=1_073_741_824)
@@ -234,6 +236,8 @@ class Settings(BaseSettings):
         "RATE_LIMIT_MAX",
         "RATE_LIMIT_MAX_CLIENTS",
         "REQUEST_TIMEOUT_MS",
+        "HTTP_DRAIN_TIMEOUT_MS",
+        "SHUTDOWN_TIMEOUT_MS",
         "REQUEST_FIRST_BODY_TIMEOUT_MS",
         "REQUEST_CHUNK_TIMEOUT_MS",
         "HTTP_MAX_BODY_BYTES",
@@ -260,18 +264,28 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_http_relationships(self) -> Self:
+        from sqlalchemy.engine import make_url
+
+        try:
+            url = make_url(self.DATABASE_URL)
+            if url.drivername != "mysql+asyncmy" or set(url.query) - {"charset"}:
+                raise ValueError("Unsupported database URL")
+        except Exception:
+            raise ValueError(
+                "DATABASE_URL must use mysql+asyncmy; only the charset URL option is supported"
+            ) from None
+        if self.HTTP_DRAIN_TIMEOUT_MS >= self.SHUTDOWN_TIMEOUT_MS:
+            raise ValueError(
+                "HTTP_DRAIN_TIMEOUT_MS must be less than SHUTDOWN_TIMEOUT_MS"
+            )
         if self.DB_SSL_CA_FILE is not None and (
             not self.DB_SSL or not self.DB_SSL_CA_FILE.strip()
         ):
             raise ValueError("DB_SSL_CA_FILE requires DB_SSL=true and a non-empty path")
         if self.DB_SSL:
-            from sqlalchemy.engine import make_url
-
             from app.config.database_transport import DatabasePolicy, tls_context
 
             try:
-                if make_url(self.DATABASE_URL).get_backend_name() != "mysql":
-                    raise ValueError("Database TLS settings require MySQL")
                 tls_context(
                     DatabasePolicy(ssl_enabled=True, ca_file=self.DB_SSL_CA_FILE)
                 )
@@ -337,7 +351,7 @@ def load_settings() -> Settings:
         # The explicit MySQL test wrapper supplies settings in the process env.
         # Do not let a developer's .env affect this independently selected run.
         if (
-            os.environ.get("QUICKAPI_TEST_DATABASE") in {"sqlite", "mysql"}
+            os.environ.get("QUICKAPI_TEST_RUN") == "true"
             and os.environ.get("ENV") == "test"
         ):
             return Settings(_env_file=None)  # type: ignore

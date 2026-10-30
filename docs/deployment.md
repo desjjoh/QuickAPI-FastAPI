@@ -2,6 +2,9 @@
 
 [Documentation index](../README.md#documentation)
 
+[Graceful shutdown](shutdown.md) defines request admission, draining, deadlines,
+entrypoint ownership, and process verification.
+
 [Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
 shared checks, startup cleanup, and runtime recovery behavior.
 
@@ -17,31 +20,26 @@ Domain routes and any enabled operational endpoints have no application authenti
 
 ## Production container validation
 
-Build a local image using the same configuration pattern as CI. A local tag is not an immutable release reference:
+Build and qualify the runtime artifact against independent disposable MySQL:
 
-```bash
+```powershell
 docker build -t quickapi-fastapi:local .
-docker volume create quickapi-fastapi-smoke
-docker run --rm --mount source=quickapi-fastapi-smoke,target=/data \
-  -e APP_NAME=QuickAPI -e APP_VERSION=1.0.0 -e ENV=production -e PORT=8000 \
-  -e DATABASE_URL=sqlite+aiosqlite:////data/quickapi.db \
-  quickapi-fastapi:local python -m alembic upgrade head
-docker run --rm -p 8000:8000 \
-  --mount source=quickapi-fastapi-smoke,target=/data \
-  -e APP_NAME=QuickAPI -e APP_VERSION=1.0.0 \
-  -e ENV=production -e LOG_LEVEL=INFO \
-  -e HOST=0.0.0.0 -e PORT=8000 \
-  -e DATABASE_URL=sqlite+aiosqlite:////data/quickapi.db \
-  quickapi-fastapi:local
-curl --fail http://localhost:8000/ready
-curl --fail http://localhost:8000/api/v1/items/
+python -m scripts.test_image --image quickapi-fastapi:local
 ```
 
-SQLite makes the smoke test self-contained; `/data/quickapi.db` uses the disposable smoke volume shared by migration and API containers. Deploy with the async database URL and durable storage required by your service. CI checks startup and an API read against the built image; it does not validate a production deployment or MySQL compatibility.
+The command loads guarded `.env.test` credentials and creates the
+`quickapi-fastapi-smoke` Compose project. It publishes no host ports and mounts no
+development data. It waits for MySQL, applies migrations using the built image,
+starts that image with production defaults, and checks CRUD, readiness/liveness,
+favicon delivery, and disabled documentation/diagnostics/metrics. It also runs
+`pip check`, sends Docker's stop signal, and verifies exit zero and the final clean
+shutdown record. Bounded logs are retained in `test-artifacts/production-mysql.log`;
+the temporary project and storage are removed on completion or failure.
 
-After stopping the container, remove the smoke volume with `docker volume rm quickapi-fastapi-smoke` when its data is no longer needed.
-
-Run the container in one terminal and curl checks in a second. The example uses Bash continuation; use a single line or PowerShell continuation syntax in PowerShell.
+This validates the selected local image and MySQL behavior. A local tag is not an
+immutable release reference. Restart/persistence, deployment storage, representative
+future migrations, restore, failover, and release promotion have separate acceptance
+criteria. The test database is disposable and is not a deployment configuration.
 
 ## Local Compose topology
 
@@ -49,10 +47,10 @@ The checked-in [Compose file](../docker-compose.yaml) is a local development sta
 
 Compose reads `.env` and overrides container-specific settings: `HOST=0.0.0.0`, `PORT=8000`, `ENV=production`, and a local MySQL service URL. Native Python keeps its own port/mode/database URL. The unused `DEBUG`/`WORKERS` entries were removed. See [local setup, credentials, persistence, and reset commands](development.md#local-compose).
 
-Compose provides a local MySQL development topology. The CI runtime-image smoke
-uses SQLite and explicitly applies the baseline before API startup. Separate disposable MySQL jobs exercise repository/API persistence; the image smoke does not
-qualify MySQL failure paths or representative future data upgrades. See [Testing](testing.md) for verification boundaries and
-[Verification](verification.md) for dated execution evidence.
+Development, persistence tests, and built-image qualification all use MySQL.
+The runtime-image check uses its own temporary project and explicit migrations;
+it does not mutate the development or regular test database. See [Testing](testing.md)
+for verification boundaries and [Verification](verification.md) for dated evidence.
 
 ## Application lifespan and operational endpoints
 
@@ -199,7 +197,7 @@ pytest -q
 
 ## Releases, persistence, and recovery
 
-Apply `python -m alembic upgrade head` before starting the API; startup checks revision compatibility without changing the schema. See [Migrations](migrations.md) for native/container commands. Verify MySQL separately when it is the deployment target; automated persistence suites cover SQLite and disposable MySQL.
+Apply `python -m alembic upgrade head` before starting the API; startup checks revision compatibility without changing the schema. See [Migrations](migrations.md) for native/container commands. Automated persistence and built-image checks use disposable MySQL; verify the actual deployment separately.
 
 Retain the tested commit and image digest, inject production configuration, and verify readiness plus a disposable API workflow in the target environment. Configure durable storage, backups, retention, and restore for the selected database. Compose supplies a one-shot local migration step. No hosted promotion, backup/restore, or application rollback workflow is supplied.
 

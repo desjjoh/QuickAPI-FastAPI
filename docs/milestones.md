@@ -30,21 +30,21 @@ and verification requirements.
 
 ### Milestone 3 — Migrations and production-like persistence
 
-| Phase                                                       | Scope                                                                                                           | Completion check                                                                                                  |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **3A — Migration foundation (complete locally)**            | Alembic baseline for fresh databases; isolated disposable Docker development database; explicit schema creation | Explicit migrations create a fresh schema; startup rejects pending/incompatible revision history                  |
-| **3B — Disposable MySQL testing (complete locally)**        | Guarded infrastructure; MySQL integration/E2E checks; safe setup/teardown                                       | Local checks passed; required-check configuration confirmed by the maintainer; hosted results tracked separately  |
-| **3C — Upgrade and rollback evidence (complete locally)**   | Real-baseline and test-only data-bearing migration qualification; defined history/drift checks and ordering     | SQLite/MySQL evidence passes; future real migrations and historical image rollback require separate qualification |
-| **3D — Database capacity and transport (complete locally)** | Pool/queue bounds, acquisition/connect deadlines, TLS trust and identity                                        | Saturation, expiry/cancellation, socket cleanup, and verified TLS including native API/Alembic entrypoints pass   |
-| **3E — Readiness and recovery (complete locally)**          | Bounded probes, outage/recovery behavior, stale connections, resource cleanup                                   | Local MySQL socket/HTTP checks pass on Windows and Linux; candidate hosted results remain separate                |
+| Phase                                                       | Scope                                                                                                           | Completion check                                                                                                 |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **3A — Migration foundation (complete locally)**            | Alembic baseline for fresh databases; isolated disposable Docker development database; explicit schema creation | Explicit migrations create a fresh schema; startup rejects pending/incompatible revision history                 |
+| **3B — Disposable MySQL testing (complete locally)**        | Guarded infrastructure; MySQL integration/E2E checks; safe setup/teardown                                       | Local checks passed; required-check configuration confirmed by the maintainer; hosted results tracked separately |
+| **3C — Upgrade and rollback evidence (complete locally)**   | Real-baseline and test-only data-bearing migration qualification; defined history/drift checks and ordering     | MySQL evidence passes; future real migrations and historical image rollback require separate qualification       |
+| **3D — Database capacity and transport (complete locally)** | Pool/queue bounds, acquisition/connect deadlines, TLS trust and identity                                        | Saturation, expiry/cancellation, socket cleanup, and verified TLS including native API/Alembic entrypoints pass  |
+| **3E — Readiness and recovery (complete locally)**          | Bounded probes, outage/recovery behavior, stale connections, resource cleanup                                   | Local MySQL socket/HTTP checks pass on Windows and Linux; candidate hosted results remain separate               |
 
 ### Milestone 4 — Shutdown and mutation safety
 
-| Phase                                  | Scope                                                                                                | Completion check                                                                                                             |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **4A — Graceful shutdown**             | Withdraw readiness, close admission, drain accepted work, clean dependencies, enforce final deadline | Process tests cover idle shutdown, active mutations, disconnects, and stuck work                                             |
-| **4B — Transaction ownership**         | One mutation transaction covering persistence and response preparation before commit                 | Write, validation, serialization, and commit failures produce the documented rollback behavior                               |
-| **4C — Expiry and uncertain outcomes** | Pre-commit activity checks, cancellation handling, session reuse, lost-response behavior             | Tests distinguish rollback before commit from uncertain outcomes during/after commit; no unsupported SQL-cancellation claims |
+| Phase                                                     | Scope                                                                                                               | Completion check                                                                                                                                  |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **4A — Graceful shutdown (complete locally)**             | Withdraw readiness, close admission, drain accepted work, clean dependencies, enforce final deadline                | Windows/Linux process checks, real MySQL outcomes, and Docker SIGTERM smoke pass; hosted results remain separate                                  |
+| **4B — Transaction ownership (complete locally)**         | One route-owned mutation transaction through response preparation; services deferred                                | MySQL write/validation/rendering/pre-COMMIT failure, session ownership, and response-contract checks pass locally                                 |
+| **4C — Expiry and uncertain outcomes (complete locally)** | Shared monotonic activity checks, retained mutation ownership, broken-connection retirement, lost-response behavior | Real HTTP/MySQL tests distinguish pre-commit rollback from commit uncertainty, lost acknowledgements and recovery; hosted results remain separate |
 
 ### Milestone 5 — Item API contract alignment
 
@@ -60,13 +60,13 @@ Review the concrete client-facing changes before implementing this milestone.
 
 ### Milestone 6 — Production container and CI enforcement
 
-| Phase                                  | Scope                                                                                 | Completion check                                                                                    |
-| -------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| **6A — Runtime hardening**             | Non-root user, runtime-only dependencies, digest-pinned bases and update process      | Actual image identity, permissions, dependency contents, and startup are verified                   |
-| **6B — MySQL container qualification** | Replace SQLite-only qualification with explicit migrations and disposable MySQL       | Built-image CRUD, probes, static assets, exposure, restart/persistence, and termination checks pass |
-| **6C — Dependency and image security** | Dependency audit, exact final-image scan, blocking policy, scoped expiring exceptions | Scanner/policy failures block; unrelated findings cannot be hidden by exceptions                    |
-| **6D — Aggregate CI gate**             | Retain reports/logs; always-running final job; verify workflow triggers               | Required failed, cancelled, missing, or skipped jobs cannot yield a passing gate                    |
-| **6E — Required branch checks**        | Run hosted CI, confirm exact check/source names, configure rulesets                   | An ordinary PR requires the real gate and cannot merge around failed checks                         |
+| Phase                                  | Scope                                                                                            | Completion check                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| **6A — Runtime hardening**             | Non-root user, runtime-only dependencies, digest-pinned bases and update process                 | Actual image identity, permissions, dependency contents, and startup are verified                   |
+| **6B — MySQL container qualification** | Extend built-image MySQL CRUD/probe/shutdown qualification with restart and persistence evidence | Built-image CRUD, probes, static assets, exposure, restart/persistence, and termination checks pass |
+| **6C — Dependency and image security** | Dependency audit, exact final-image scan, blocking policy, scoped expiring exceptions            | Scanner/policy failures block; unrelated findings cannot be hidden by exceptions                    |
+| **6D — Aggregate CI gate**             | Retain reports/logs; always-running final job; verify workflow triggers                          | Required failed, cancelled, missing, or skipped jobs cannot yield a passing gate                    |
+| **6E — Required branch checks**        | Run hosted CI, confirm exact check/source names, configure rulesets                              | An ordinary PR requires the real gate and cannot merge around failed checks                         |
 
 ### Milestone 7 — Verified release pipeline
 

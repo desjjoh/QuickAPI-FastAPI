@@ -7,7 +7,7 @@ The small domain keeps the focus on application boundaries, failure handling, an
 ## What's included
 
 - Pydantic request/response models and a shared JSON error envelope.
-- Request-owned database sessions and repository-owned mutations with rollback.
+- Request-owned mutation transactions covering persistence and response preparation.
 - Pure-ASGI middleware for request context, logging, CORS, security headers, limits, timeouts, rate limiting, and Prometheus metrics.
 - Managed startup/shutdown, separate liveness/readiness probes, and system diagnostics.
 - Unit, integration, and in-process HTTP E2E suites, plus CI checks of the built container.
@@ -18,7 +18,7 @@ Use Python 3.12. Docker Engine is needed for container verification.
 
 1. Create a Python 3.12 virtual environment (`py -3.12 -m venv .venv` on Windows or `python3.12 -m venv .venv` on Linux/macOS), activate it, then run `python -m pip install -r requirements-dev.txt` and `python -m pip check`.
 2. Copy [.env.example](.env.example) to a gitignored `.env`.
-3. Start local MySQL with `docker compose up -d --wait mysql`. The example `DATABASE_URL` reaches the isolated `quickapi-fastapi-dev` database at `127.0.0.1:3310`. Run `python -m alembic upgrade head` before starting the API. See [Migrations](docs/migrations.md) for the command guide. SQLite remains available through `sqlite+aiosqlite:///./app.db` and also requires explicit migration.
+3. Start local MySQL with `docker compose up -d --wait mysql`. The example `DATABASE_URL` reaches the isolated `quickapi-fastapi-dev` database at `127.0.0.1:3310`. Run `python -m alembic upgrade head` before starting the API. See [Migrations](docs/migrations.md) for the command guide.
 4. Run `python -m app.main`.
 
 For the complete local container stack, run `docker compose up --build -d --wait`; the container API is at `http://127.0.0.1:8000`. Compose overrides the native database URL, bind address, port, and mode for its internal topology. See [local Compose](docs/development.md#local-compose).
@@ -33,6 +33,8 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
 | [Database settings](docs/database-settings.md) | Connection/queue limits, deadlines, TLS, and transport tests |
+| [Mutation transactions](docs/transactions.md) | Decorator, session ownership, response preparation, and rollback boundaries |
+| [Graceful shutdown](docs/shutdown.md) | Request draining, cleanup order, shutdown budgets, and process tests |
 | [Database readiness and recovery](docs/database-lifecycle.md) | Shared probes, startup verification, outages, and connection cleanup |
 | [MySQL testing](docs/mysql-testing.md) | Disposable test infrastructure, .env.test, migrations, and CI |
 | [Migrations](docs/migrations.md) | Database setup, Alembic commands, schema checks, and disposable resets |
@@ -70,7 +72,7 @@ python -m mypy app scripts
 python -m pytest -q
 ```
 
-Follow [Testing](docs/testing.md) for layer selection, critical coverage thresholds, and container checks. The disposable MySQL suites verify repository/API persistence; SQLite coverage and the current SQLite image smoke remain separate evidence. See [MySQL testing](docs/mysql-testing.md) for the test runner. These checks do not establish deployment readiness.
+Follow [Testing](docs/testing.md) for layer selection, critical coverage thresholds, and container checks. All persistence and coverage runs use disposable MySQL. The built-image check uses an independent disposable MySQL server. See [MySQL testing](docs/mysql-testing.md) for the test runner. These checks do not establish deployment readiness.
 
 ## License
 

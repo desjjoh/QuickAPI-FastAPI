@@ -183,8 +183,7 @@ async def test_failed_ddl_leaves_history_unadvanced_and_requires_explicit_cleanu
             tables = await connection.run_sync(
                 lambda conn: inspect(conn).get_table_names()
             )
-            if database_engine.dialect.name == "mysql":
-                assert "migration_evidence_partial" in tables
+            assert "migration_evidence_partial" in tables
             await connection.run_sync(migrations.check_revision)
     finally:
         await cleanup(database_engine)

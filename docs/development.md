@@ -2,12 +2,18 @@
 
 [Documentation index](../README.md#documentation)
 
+[Mutation transactions](transactions.md) defines the route decorator, shared session,
+repository caller obligations, and response-before-commit verification.
+
+[Graceful shutdown](shutdown.md) defines request admission, draining, deadlines,
+entrypoint ownership, and process verification.
+
 [Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
 shared checks, startup cleanup, and runtime recovery behavior.
 
 ## Prerequisites and startup
 
-Use Python 3.12, matching CI and the container runtime. Run commands from the repository root. The checked-in Compose topology supplies local MySQL 8.4.6 and an optional API container. For native Python, start MySQL first with `docker compose up -d --wait mysql`, apply migrations with `python -m alembic upgrade head`, then use the example database URL at `127.0.0.1:3310`. An external MySQL instance or local SQLite remains an option.
+Use Python 3.12, matching CI and the container runtime. Run commands from the repository root. The checked-in Compose topology supplies local MySQL 8.4.6 and an optional API container. For native Python, start MySQL first with `docker compose up -d --wait mysql`, apply migrations with `python -m alembic upgrade head`, then use the example database URL at `127.0.0.1:3310`. An external MySQL instance remains an option.
 
 PowerShell:
 
@@ -34,7 +40,7 @@ cp .env.example .env
 python -m app.main
 ```
 
-For a self-contained local run set `DATABASE_URL=sqlite+aiosqlite:///./app.db` in `.env`. Relative SQLite paths resolve from the working directory. For external MySQL, replace the URL/credentials and verify that the database exists and is reachable. For Compose MySQL, the local credentials below are already configured; existing `.env` files are not rewritten automatically.
+For external MySQL, replace the URL/credentials and verify that the database exists and is reachable. For Compose MySQL, the local credentials below are already configured; existing `.env` files are not rewritten automatically.
 
 ## HTTP environment overrides
 
@@ -99,7 +105,7 @@ For production or a separate runtime-only verification environment, create anoth
 
 When updating dependencies, edit the appropriate exact pins, reconcile related transitive requirements, and verify fresh runtime and development installations. Run `python -m pip check`, static checks, tests, and the runtime-image checks. Avoid replacing these curated lists with an unreviewed `pip freeze` from a long-lived environment. These files pin application packages, not Python/pip or operating-system packages.
 
-SQLite is a supported local runtime option; `aiosqlite` is a runtime dependency. The default suite uses SQLite; explicit MySQL integration/E2E runs use the separate `quickapi-fastapi-test` project and `.env.test`. See [MySQL testing](mysql-testing.md) for commands and database boundaries.
+MySQL through `mysql+asyncmy` is the only supported runtime database. Every persistence test uses the separate `quickapi-fastapi-test` project and `.env.test`; unit tests do not open a database connection. See [MySQL testing](mysql-testing.md) for commands and database boundaries.
 
 ## Configuration
 

@@ -81,7 +81,7 @@ and shipping require hosting-specific controls.
 
 ## 3B. Disposable MySQL testing
 
-[MySQL testing](mysql-testing.md) defines the separate temporary test stack, explicit `.env.test` connection, guarded migrations/resets, real-commit persistence fixtures, serial execution, and integration/E2E CI jobs. SQLite remains a compatibility and coverage check. Hosted check execution/enforcement requires independent verification.
+[MySQL testing](mysql-testing.md) defines the separate temporary test stack, explicit `.env.test` connection, guarded migrations/resets, real-commit persistence fixtures, serial execution, and integration/E2E CI jobs. MySQL is the only persistence backend for tests and combined coverage. Hosted check execution/enforcement requires independent verification.
 
 ## 3C. Upgrade and rollback evidence
 
@@ -99,13 +99,35 @@ connection retirement. MySQL socket tests exercise repeated outages, stalled
 responses, stale sessions, acquisition exhaustion, and recovery on the same API.
 Full traffic withdrawal and request draining remain shutdown requirements.
 
+## 4B. Transaction ownership
+
+[Mutation transactions](transactions.md) keeps one request-owned transaction around
+controller/repository work and native FastAPI response preparation. Repositories
+participate through the supplied session, without independent commits. Controllers
+retain their logic; services are deferred.
+
+## 4C. Expiry and uncertain outcomes
+
+[Mutation transactions](transactions.md#expiry-and-commit-outcomes) defines shared
+monotonic activity checks before work, after acquisition, and immediately before
+commit. HTTP timeout/disconnect retains the mutation task through settlement and
+cleanup, while suppressing late output. Real MySQL packet barriers and HTTP socket
+tests distinguish pre-commit rollback, commit acknowledgement loss, cancellation,
+post-commit failure, invalidation and recovery. No SQL-cancellation or retry-safety
+guarantee is implied; durable idempotency remains a separate contract.
+
 ## Working decisions
+
+[Graceful shutdown](shutdown.md) defines early readiness withdrawal, closed HTTP
+admission, accepted-work draining, reverse dependency cleanup, and final process
+termination. The supported entrypoint coordinates Uvicorn and development reload;
+transaction ownership and request activity share that accepted-work lifetime.
 
 - Use Express and NestJS as references for behavior and quality. Prefer native FastAPI/Pydantic/SQLAlchemy/Uvicorn mechanisms where they satisfy the same requirements.
 - Use pip with manually maintained requirements; no uv adoption or generated lockfile is planned.
 - Review concrete public-contract changes before milestone 5: IDs, names, defaults, price acceptance, required revisions, deletion route, and replay headers.
 - Tests and documentation land with each phase. Record passed, failed, skipped/not run, and unavailable checks separately; require exact-source hosted evidence before claiming a release.
-- SQLite coverage and a local smoke do not establish MySQL or production readiness; verification claims require evidence for the relevant environment and source.
+- Local MySQL coverage and image checks do not establish deployed production readiness; verification claims require evidence for the relevant environment and source.
 
 ## Scope and operational boundaries
 

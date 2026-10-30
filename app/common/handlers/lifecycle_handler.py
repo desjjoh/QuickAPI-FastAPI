@@ -47,12 +47,21 @@ class LifecycleHandler:
         self._startup_started = False
         self._startup_completed = False
         self._shutdown_started = False
+        self._quiescing = False
+        self.shutdown_failed = False
+
+    def quiesce(self) -> None:
+        self._quiescing = True
 
     def is_alive(self) -> bool:
         return not self._shutdown_started
 
     def is_ready(self) -> bool:
-        return self._startup_completed and not self._shutdown_started
+        return (
+            self._startup_completed
+            and not self._shutdown_started
+            and not self._quiescing
+        )
 
     async def are_all_services_healthy(self) -> bool:
         return all(result.is_up for result in await self.check_services())
@@ -143,6 +152,8 @@ class LifecycleHandler:
         if self._startup_started:
             return
         self._startup_started = True
+        self._quiescing = False
+        self.shutdown_failed = False
         self._shutdown_started = False
         self._startup_completed = False
         self._started_services.clear()
@@ -170,6 +181,7 @@ class LifecycleHandler:
         if self._shutdown_started:
             return
         self._shutdown_started = True
+        self.quiesce()
 
         start = time.perf_counter()
 
@@ -190,6 +202,7 @@ class LifecycleHandler:
                 await svc.stop()
                 log.debug(f"Service stopped ← {svc.name}")
             except Exception as exc:
+                self.shutdown_failed = True
                 log.error("Service shutdown failed.", error=exc)
 
                 log.warning(f"Failed to stop service ← {svc.name}")

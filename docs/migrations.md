@@ -51,8 +51,7 @@ the API; no database URL or credentials are stored in `alembic.ini`.
 
 `upgrade head` may finish without additional output when successful. `current`
 should report `0001_create_items (head)` for the initial schema. A nonzero command
-exit means failure; resolve it before starting the API. SQLite remains supported:
-select a file-backed SQLite URL and run the same migration command before startup.
+exit means failure; resolve it before starting the API. Only MySQL through `mysql+asyncmy` is supported.
 
 ## Commands and their effects
 
@@ -140,8 +139,8 @@ python -m pytest -q tests/integration/database/test_migration_evidence.py --no-c
 python -m scripts.test_db test --layer integration
 ```
 
-The first command uses disposable SQLite by default; the second includes the same
-evidence against disposable MySQL. The real baseline is downgraded and recreated:
+The first command requires the disposable MySQL server to be started and migrated;
+the wrapper in the second command manages that setup automatically. The real baseline is downgraded and recreated:
 its downgrade drops `items` and destroys rows, rather than restoring old data.
 
 Test-only revisions under `tests/fixtures/migrations/` add a column to disposable
@@ -185,8 +184,9 @@ these disposable tests do not establish one.
 
 Migration integration tests cover the fresh baseline, model comparison, repeated
 upgrade with retained data, missing/incompatible history, offline SQL, and a
-disposable downgrade/reapply cycle. SQLite tests remain fast local/CI checks;
-recorded Docker MySQL smoke evidence is separate from a complete MySQL test suite.
+disposable downgrade/reapply cycle. All database cases use MySQL. Destructive
+revision tests hold the exclusive disposable-database guard, start with a blank
+schema, and restore the baseline before releasing the guard.
 MySQL integration/E2E infrastructure is documented separately. Representative future data upgrades, capacity/TLS,
 and outage/recovery qualification have their own acceptance criteria in
 [Milestones](milestones.md).

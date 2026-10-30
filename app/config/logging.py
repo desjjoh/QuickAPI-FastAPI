@@ -204,7 +204,6 @@ def configure_dependency_logging() -> None:
         "uvicorn.error",
         "fastapi",
         "asyncmy",
-        "aiosqlite",
         "sqlalchemy",
         "httpx",
         "httpcore",

@@ -4,7 +4,6 @@ import asyncio
 import os
 import sys
 from collections.abc import AsyncIterator, Callable, Iterator
-from pathlib import Path
 
 from scripts.test_database_support import (
     clear_application_rows,
@@ -12,11 +11,9 @@ from scripts.test_database_support import (
     load_test_config,
 )
 
-# Validate explicit MySQL selection before forcing ordinary collection settings.
-_backend = os.environ.get("QUICKAPI_TEST_DATABASE", "sqlite")
-if _backend not in {"sqlite", "mysql"}:
-    raise ValueError("QUICKAPI_TEST_DATABASE must be sqlite or mysql.")
-_mysql_config = load_test_config() if _backend == "mysql" else None
+# Every persistence fixture uses the explicitly guarded disposable MySQL target.
+_mysql_config = load_test_config()
+_backend = "mysql"
 
 # Do not allow a developer shell or CI runner to alter collection-time settings.
 os.environ.update(
@@ -24,7 +21,7 @@ os.environ.update(
         "APP_NAME": "QuickAPI",
         "APP_VERSION": "1.0.0",
         "ENV": "test",
-        "QUICKAPI_TEST_DATABASE": _backend,
+        "QUICKAPI_TEST_RUN": "true",
         "DOCS_ENABLED": "true",
         "DIAGNOSTICS_ENABLED": "true",
         "METRICS_ENABLED": "true",
@@ -33,7 +30,7 @@ os.environ.update(
         "PORT": "8000",
         "API_PUBLISHED_PORT": "8000",
         "MYSQL_PUBLISHED_PORT": "3310",
-        "DATABASE_URL": "sqlite+aiosqlite:///:memory:",
+        "DATABASE_URL": _mysql_config.url.render_as_string(hide_password=False),
         "DB_POOL_CONNECTION_LIMIT": "10",
         "DB_POOL_QUEUE_LIMIT": "50",
         "DB_POOL_ACQUIRE_TIMEOUT_MS": "1000",
@@ -53,6 +50,8 @@ os.environ.update(
         "RATE_LIMIT_MAX": "200",
         "RATE_LIMIT_MAX_CLIENTS": "10000",
         "REQUEST_TIMEOUT_MS": "10000",
+        "HTTP_DRAIN_TIMEOUT_MS": "25000",
+        "SHUTDOWN_TIMEOUT_MS": "30000",
         "REQUEST_FIRST_BODY_TIMEOUT_MS": "5000",
         "REQUEST_CHUNK_TIMEOUT_MS": "2000",
         "HTTP_MAX_BODY_BYTES": "1048576",
@@ -70,9 +69,10 @@ import pytest_asyncio
 import structlog
 from _pytest.terminal import TerminalReporter
 from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.common.handlers.lifecycle_handler import LifecycleHandler
+from app.common.handlers.request_work import RequestWork
 from app.common.store.request_context import RequestContext
 from app.config.database_transport import build_database_engine
 from app.config.metrics import REQUEST_ABORTED, REQUEST_COUNT, REQUEST_DURATION
@@ -114,11 +114,11 @@ def pytest_collection_finish(session: pytest.Session) -> None:
         for item in session.items
         if isinstance(item, pytest.Function)
         and (
-            "database_engine" in item.fixturenames or "tls_target" in item.fixturenames
+            "database_engine" in item.fixturenames
+            or "migration_engine" in item.fixturenames
+            or "tls_target" in item.fixturenames
         )
     )
-    if _mysql_config is not None and not _selected_database_tests:
-        raise pytest.UsageError("MySQL selection contains no database-backed tests.")
 
 
 def pytest_terminal_summary(terminalreporter: TerminalReporter) -> None:
@@ -128,29 +128,54 @@ def pytest_terminal_summary(terminalreporter: TerminalReporter) -> None:
 
 
 @pytest_asyncio.fixture
-async def database_engine(tmp_path: Path) -> AsyncIterator[AsyncEngine]:
-    """Real commits, isolated rows, guarded MySQL or a private SQLite file."""
-    if _mysql_config is None:
-        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
-        try:
-            async with engine.begin() as connection:
-                await connection.run_sync(upgrade_connection)
-            yield engine
-        finally:
-            await engine.dispose()
-    else:
-        engine = build_database_engine(_mysql_config.url)
-        try:
-            async with guarded_connection(engine, _mysql_config) as connection:
-                await connection.run_sync(check_revision)
-                await connection.commit()
+async def database_engine() -> AsyncIterator[AsyncEngine]:
+    """Real MySQL commits, guarded identity, exclusive reset, isolated rows."""
+    engine = build_database_engine(_mysql_config.url)
+    try:
+        async with guarded_connection(engine, _mysql_config) as connection:
+            await connection.run_sync(check_revision)
+            await connection.commit()
+            await clear_application_rows(connection, _mysql_config)
+            try:
+                yield engine
+            finally:
                 await clear_application_rows(connection, _mysql_config)
-                try:
-                    yield engine
-                finally:
-                    await clear_application_rows(connection, _mysql_config)
-        finally:
-            await engine.dispose()
+    finally:
+        await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def migration_engine() -> AsyncIterator[AsyncEngine]:
+    """Blank disposable schema under the same live-identity and exclusive guard.
+
+    Only fixed application/evidence tables are removed. Always restore the baseline
+    before releasing the guard so later tests cannot inherit damaged history.
+    """
+    from sqlalchemy import text
+
+    engine = build_database_engine(_mysql_config.url)
+    try:
+        async with guarded_connection(engine, _mysql_config) as connection:
+
+            async def reset() -> None:
+                for table in (
+                    "migration_evidence_partial",
+                    "migration_evidence_version",
+                    "items",
+                    "alembic_version",
+                ):
+                    await connection.execute(text(f"DROP TABLE IF EXISTS `{table}`"))
+                await connection.commit()
+
+            await reset()
+            try:
+                yield engine
+            finally:
+                await reset()
+                await connection.run_sync(upgrade_connection)
+                await connection.commit()
+    finally:
+        await engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -174,4 +199,5 @@ def lightweight_app() -> FastAPI:
     """Provide a lifecycle-free app for unit tests that replace dependencies."""
     application = FastAPI()
     application.state.lifecycle = LifecycleHandler()
+    application.state.request_work = RequestWork(25)
     return application

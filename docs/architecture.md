@@ -2,6 +2,9 @@
 
 [Documentation index](../README.md#documentation)
 
+[Graceful shutdown](shutdown.md) defines request admission, draining, deadlines,
+entrypoint ownership, and process verification.
+
 ## Architecture
 
 ```text
@@ -19,7 +22,7 @@ app/
 ├── config/                           # app assembly, settings, DB, logging, metrics
 ├── database/
 │   ├── entities/                     # SQLAlchemy mappings
-│   └── repositories/                 # queries and transaction boundaries
+│   └── repositories/                 # queries and caller-owned persistence
 ├── public/                           # static assets
 └── main.py                           # executable entry point
 tests/
@@ -85,7 +88,7 @@ Public readiness serializes no dependency details; internal service checking rem
 
 ## Database capacity and transport
 
-The shared [engine policy](database-settings.md) uses SQLAlchemy connection records with bounded async admission for MySQL. It caps connections/waiters, separates acquisition and connection setup budgets, and verifies TLS before returning encrypted connections. SQLite retains its existing engine behavior. API startup, sessions, readiness, migrations, and disposable MySQL fixtures share transport configuration.
+The shared [engine policy](database-settings.md) uses SQLAlchemy connection records with bounded async admission for MySQL. It caps connections/waiters, separates acquisition and connection setup budgets, and verifies TLS before returning encrypted connections. Other database drivers are rejected during configuration and engine creation. API startup, sessions, readiness, migrations, and disposable MySQL fixtures share transport configuration.
 
 ## Persistence and migrations
 
@@ -95,10 +98,13 @@ Probe cancellation retires only its connection; caller cancellation is isolated
 from shared work. Startup revision verification has its own deadline and failure
 cleanup. Runtime outages leave the engine available for replacement connections.
 
-`get_session()` creates one async session per dependency invocation and closes it
-after the response dependency scope completes. Read queries do not commit. Each
-repository mutation owns its transaction: it flushes and refreshes, commits on
-success, and rolls back on any failure so the session is safe to close or reuse.
+[Mutation transaction ownership](transactions.md) uses `ApplicationRoute` and
+`@transactional` on the four item mutation endpoints. One fresh session/transaction
+covers dependency resolution, controller work, repository writes, and FastAPI
+response validation/JSON rendering before commit. `get_session(request)` borrows
+that owner for marked routes and creates/closes a read session for other routes.
+Repositories require an active transaction and do not commit or roll back.
+Controllers retain their existing logic; the item service layer is deferred.
 
 [Alembic migrations](migrations.md) own schema creation and changes. The API checks
 that the connected database revision matches the single source head before startup

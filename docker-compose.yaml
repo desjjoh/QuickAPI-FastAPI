@@ -3,6 +3,8 @@
 name: quickapi-fastapi-dev
 services:
   api:
+    # Allow the default 30-second application shutdown budget to finish.
+    stop_grace_period: 35s
     cpus: 0.5
     mem_limit: 256m
     image: quickapi-fastapi:local
