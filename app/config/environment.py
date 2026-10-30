@@ -87,7 +87,12 @@ class Settings(BaseSettings):
         max_length=7,
     )
     CORS_ALLOWED_HEADERS: StringList = Field(
-        default_factory=lambda: ["content-type", "authorization", "x-requested-with"],
+        default_factory=lambda: [
+            "content-type",
+            "authorization",
+            "x-requested-with",
+            "idempotency-key",
+        ],
         max_length=100,
     )
     CORS_EXPOSED_HEADERS: StringList = Field(
@@ -100,6 +105,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW_MS: WindowMilliseconds = DEFAULT_WINDOW_MS
     RATE_LIMIT_MAX: RequestCapacity = DEFAULT_MAX_REQUESTS
     RATE_LIMIT_MAX_CLIENTS: ClientCapacity = DEFAULT_MAX_CLIENTS
+
+    IDEMPOTENCY_MAX_RESPONSE_BYTES: int = Field(65536, ge=1, le=65536)
+    IDEMPOTENCY_CLEANUP_BATCH_SIZE: int = Field(100, ge=1, le=1000)
+    IDEMPOTENCY_CLEANUP_MAX_BATCHES: int = Field(10, ge=1, le=100)
 
     REQUEST_TIMEOUT_MS: int = Field(10_000, ge=1, le=2_147_483_647)
     HTTP_DRAIN_TIMEOUT_MS: int = Field(25_000, ge=1, le=2_147_483_647)
@@ -268,6 +277,9 @@ class Settings(BaseSettings):
         "DB_READINESS_TIMEOUT_MS",
         "DB_READINESS_CACHE_MS",
         "DB_MIGRATION_CHECK_TIMEOUT_MS",
+        "IDEMPOTENCY_MAX_RESPONSE_BYTES",
+        "IDEMPOTENCY_CLEANUP_BATCH_SIZE",
+        "IDEMPOTENCY_CLEANUP_MAX_BATCHES",
         mode="before",
     )
     @classmethod
@@ -283,6 +295,12 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_http_relationships(self) -> Self:
         from sqlalchemy.engine import make_url
+
+        if (
+            self.IDEMPOTENCY_CLEANUP_BATCH_SIZE * self.IDEMPOTENCY_CLEANUP_MAX_BATCHES
+            > 10000
+        ):
+            raise ValueError('Idempotency cleanup must not exceed 10000 rows per sweep')
 
         try:
             url = make_url(self.DATABASE_URL)

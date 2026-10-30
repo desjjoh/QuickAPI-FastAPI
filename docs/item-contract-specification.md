@@ -16,8 +16,8 @@ runtime changes have already shipped. [Milestones](milestones.md) tracks deliver
 
 The current implementation includes alphanumeric IDs, response timestamp aliases,
 exact price validation, inclusive price filters, deterministic pagination, mutation
-revisions and versioned deletion. Idempotency differences remain described in the
-current contract guide.
+revisions and versioned deletion. Durable idempotency is implemented through shared route infrastructure; see
+[Durable mutation retries](idempotency.md) for reuse and operational limits.
 
 ## Identity and resource shape
 

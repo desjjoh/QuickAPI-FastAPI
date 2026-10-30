@@ -18,6 +18,7 @@ app/
 │   ├── handlers/                     # exception and lifecycle behavior
 │   ├── middleware/                   # transport/security/observability policies
 │   ├── models/                       # shared errors, parameters, pagination
+│   ├── services/                     # shared idempotency execution and cleanup
 │   └── store/                        # request context and rate-limit state
 ├── config/                           # app assembly, settings, DB, logging, metrics
 ├── database/

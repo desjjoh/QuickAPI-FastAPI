@@ -56,6 +56,17 @@ class LifecycleHandler:
     def quiesce(self) -> None:
         self._quiescing = True
 
+        for service in self._started_services:
+            stop_admitting = getattr(service, 'quiesce', None)
+
+            if callable(stop_admitting):
+                try:
+                    stop_admitting()
+                except Exception as exc:
+                    self.shutdown_failed = True
+
+                    log.error('Service quiesce failed.', error=exc)
+
     def is_alive(self) -> bool:
         return not self._shutdown_started
 

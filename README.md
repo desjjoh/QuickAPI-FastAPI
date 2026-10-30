@@ -37,6 +37,7 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Item API specification](docs/item-contract-specification.md) | Agreed Express contract for item alignment and compatibility decisions |
 | [Database settings](docs/database-settings.md) | Connection/queue limits, deadlines, TLS, and transport tests |
 | [Mutation transactions](docs/transactions.md) | Decorator, session ownership, response preparation, and rollback boundaries |
+| [Durable mutation retries](docs/idempotency.md) | Idempotency keys, replay, shared domain policies and cleanup |
 | [Graceful shutdown](docs/shutdown.md) | Request draining, cleanup order, shutdown budgets, and process tests |
 | [Database readiness and recovery](docs/database-lifecycle.md) | Shared probes, startup verification, outages, and connection cleanup |
 | [MySQL testing](docs/mysql-testing.md) | Disposable test infrastructure, .env.test, migrations, and CI |

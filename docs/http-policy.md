@@ -27,7 +27,7 @@ The existing published-port settings separately accept empty values as defaults.
 | ---------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `CORS_ORIGINS`         | `http://localhost:3000`                       | 1-100 exact serialized HTTP(S) origins; no wildcard, credentials, path/trailing slash, query, fragment, or explicit default port |
 | `CORS_METHODS`         | `GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS`      | Non-empty subset of `HTTP_ALLOWED_METHODS`                                                                                       |
-| `CORS_ALLOWED_HEADERS` | `content-type,authorization,x-requested-with` | Up to 100 supported names; forwarding/hop-by-hop names are reserved                                                              |
+| `CORS_ALLOWED_HEADERS` | `content-type,authorization,x-requested-with,idempotency-key` | Up to 100 supported names; forwarding/hop-by-hop names are reserved                                                              |
 | `CORS_EXPOSED_HEADERS` | `authorization,set-cookie`                    | Same syntax/count rules; empty disables configured exposed headers                                                               |
 | `CORS_CREDENTIALS`     | `true`                                        | Boolean                                                                                                                          |
 | `CORS_MAX_AGE_SECONDS` | `86400`                                       | Integer 0-86400; zero disables preflight caching                                                                                 |

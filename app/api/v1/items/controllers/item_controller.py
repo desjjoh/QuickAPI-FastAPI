@@ -11,6 +11,7 @@ from app.common.handlers.application_route import ApplicationRoute, transactiona
 from app.common.handlers.flexible_router import FlexibleRouter
 from app.common.handlers.query_validation import reject_repeated_query_parameters
 from app.common.models.error_model import ErrorResponse
+from app.common.models.idempotency_model import idempotent
 from app.common.models.pagination import PaginatedResult
 from app.common.models.parameters_model import EntityId
 from app.common.models.version_model import VersionInput
@@ -29,6 +30,7 @@ router = FlexibleRouter(route_class=ApplicationRoute)
     status_code=status.HTTP_201_CREATED,
 )
 @transactional
+@idempotent(caller_scope="public", operation="items.create", route="POST /api/v1/items")
 async def create(
     payload: ItemBase, service: ItemService = Depends(get_item_service)
 ) -> ItemResponse:
@@ -97,7 +99,7 @@ async def get(
     status_code=status.HTTP_200_OK,
     responses={
         409: {
-            "description": "Item version conflict; reload the item before retrying.",
+            "description": "Stale item version, in-progress idempotent request, or Idempotency-Key reused with different validated input.",
             "model": ErrorResponse,
         },
         status.HTTP_404_NOT_FOUND: {
@@ -107,6 +109,9 @@ async def get(
     },
 )
 @transactional
+@idempotent(
+    caller_scope="public", operation="items.update", route="PATCH /api/v1/items/:id"
+)
 async def update(
     id: EntityId,
     payload: UpdateItemRequest,
@@ -128,7 +133,7 @@ async def update(
     status_code=status.HTTP_200_OK,
     responses={
         409: {
-            "description": "Item version conflict; reload the item before retrying.",
+            "description": "Stale item version, in-progress idempotent request, or Idempotency-Key reused with different validated input.",
             "model": ErrorResponse,
         },
         status.HTTP_404_NOT_FOUND: {
@@ -138,6 +143,9 @@ async def update(
     },
 )
 @transactional
+@idempotent(
+    caller_scope="public", operation="items.replace", route="PUT /api/v1/items/:id"
+)
 async def replace(
     id: EntityId,
     payload: ReplaceItemRequest,
@@ -159,7 +167,7 @@ async def replace(
     status_code=status.HTTP_200_OK,
     responses={
         409: {
-            "description": "Item version conflict; reload the item before retrying.",
+            "description": "Stale item version, in-progress idempotent request, or Idempotency-Key reused with different validated input.",
             "model": ErrorResponse,
         },
         status.HTTP_404_NOT_FOUND: {
@@ -169,6 +177,11 @@ async def replace(
     },
 )
 @transactional
+@idempotent(
+    caller_scope="public",
+    operation="items.delete",
+    route="POST /api/v1/items/:id/delete",
+)
 async def delete(
     id: EntityId,
     payload: VersionInput,

@@ -46,10 +46,11 @@ and verification requirements.
 | **4B — Transaction ownership (complete locally)**         | One route-owned mutation transaction through service execution, controller model validation and response preparation | MySQL write/validation/rendering/pre-COMMIT failure, shared service/session ownership, and response-contract checks pass locally                  |
 | **4C — Expiry and uncertain outcomes (complete locally)** | Shared monotonic activity checks, retained mutation ownership, broken-connection retirement, lost-response behavior  | Real HTTP/MySQL tests distinguish pre-commit rollback from commit uncertainty, lost acknowledgements and recovery; hosted results remain separate |
 
-### Milestone 5 — Item API contract alignment
+### Milestone 5 — Item API contract alignment (complete locally)
 
 The [item specification](item-contract-specification.md) records the agreed Express
-contract. Runtime alignment is delivered and verified by the remaining phases.
+contract. All phases are implemented and verified with focused local checks; hosted
+CI and release qualification remain separate.
 
 | Phase                                                             | Scope                                                                                                                             | Completion check                                                                                                                |
 | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -57,7 +58,7 @@ contract. Runtime alignment is delivered and verified by the remaining phases.
 | **5B — Item models, exact prices and filters (complete locally)** | Alphanumeric IDs, response timestamp aliases, Decimal precision/range, accepted inputs, response validation and inclusive filters | Identity/model and price-boundary tests pass; rejected mutations leave MySQL unchanged; hosted CI remains separate              |
 | **5C — Deterministic pagination (complete locally)**              | Unique sorting tie-breaker, safe offsets, agreed query names/defaults, repeated/crossed query validation                          | Equal-sort-value pages are deterministic for unchanged data; pagination limits are documented                                   |
 | **5D — Optimistic concurrency (complete locally)**                | Revision migration/backfill, required `expected_version`, stale-write protection and agreed deletion route                        | Focused Windows concurrency, missing/stale versions, overflow, rollback and migration checks passed; hosted CI remains separate |
-| **5E — Durable idempotency**                                      | Optional keys, fingerprinting, atomic replay, conflicts, retention, bounded cleanup                                               | MySQL/HTTP tests cover duplicate concurrency, replay, failure rollback, expiry, cleanup, and later item changes                 |
+| **5E — Durable idempotency (complete locally)**                   | Optional keys, fingerprinting, atomic replay, conflicts, retention, bounded cleanup                                               | MySQL/HTTP replay, rollback, expiry and cleanup checks passed; fixed fingerprint vectors and supported-input registration guards verified locally                 |
 
 ### Milestone 6 — Production container and CI enforcement
 

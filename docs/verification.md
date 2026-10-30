@@ -5,59 +5,52 @@
 ## Source and scope
 
 Verified locally on Windows with Python 3.12.10 on 2026-10-30 against base commit
-`cee25c794aa102bbb05307f8dbe3c4b9d635819f` plus the working changes.
-This report covers the versioned item contract, lifecycle log alignment and flexible routing. Earlier full-platform evidence is
-retained in Git history and does not establish qualification of this candidate.
+`a684c78fce8502c7709d489b0f44399ff5e4988a` plus the working changes. This report covers durable idempotency
+and affected request/transaction infrastructure. Earlier qualification remains in
+Git history; it does not establish full-platform qualification of this candidate.
 
-The Python tree digest for all 182 files under `app`, `tests` and `scripts` is
-`6d7657e73822bd054e09140ed7f238a9b486fb951c8a2d0b54efa4c27b552b77`. Hash sorted project-relative POSIX paths followed by a NUL byte,
+The Python tree digest for all 195 files under `app`, `tests` and `scripts` is
+`7dd91a384e6d73c25bd262a4a034258f96ce8143d12e40ce9b87c620f554ae5c`. Hash sorted project-relative POSIX paths followed by a NUL byte,
 raw file bytes and another NUL byte. Local environment secrets are excluded.
+
+The frozen reference-vector fixture SHA-256 is
+`eccb27738bbdd983a3a4b0802dc499f854b64330312ff3c42dafb559db5c70ae`.
 
 ## Results
 
 | Check | Result |
 | --- | --- |
-| Existing affected item regression | 371 selected cases passed across the initial run and targeted corrections; initial failures were three outdated response/schema/precondition fixtures |
-| Focused concurrency, migration, SQL preconditions, rollback and expiry | 118 passed, including the corrected fixtures; guarded disposable MySQL only |
-| Final revision-model and OpenAPI checks | 28 passed |
-| Formatting and lint | Combined formatter and Ruff passed |
-| Types | mypy passed for 77 application/tool files; strict Pyright passed for 28 affected Python files |
-| Lifecycle logging | 26 focused checks passed; two real Windows process checks passed for clean shutdown and cleanup failure |
-| Flexible routing | 41 focused Windows checks passed, including three MySQL-backed cases; nested inclusion, root handling, models/dependencies, canonical OpenAPI, system exposure and both mutation spellings covered |
-| Documentation | Relative links and code fences checked; migration and client changes documented |
-| Full Windows suite | Not repeated; focused checks selected for the changed contract |
-| Linux, TLS and built-image qualification | Not run locally; delegated to CI; image smoke inputs updated for versioned mutations |
-| Hosted CI / branch enforcement | Not verified for this candidate |
+| Keyed mutations and affected regressions | 139 passed: shared-domain reuse, replay/conflicts, rollback, migration, OpenAPI, transaction ownership and guarded resets |
+| Real transport boundaries | Eight MySQL/HTTP cases passed across focused selections: lock/commit/release acknowledgement loss, timeout/disconnect after commit, and pre-commit rollback |
+| Cleanup and environment configuration | 12 focused unit/configuration cases passed; overlapping sweeps, shutdown ownership, failure logging, defaults and combined limits |
+| Additional header/startup/repository checks | 30 cases passed across the initial selection and one corrected error-message assertion |
+| Final fingerprint hardening | 15 passed: real secret/excluded inputs, exact Decimal precision, normalization, restart replay and another domain |
+| Fingerprint compatibility and input declarations | 31 focused Windows checks passed; frozen v1 vectors, raw model normalization, unsupported nested/direct input rejection and supported item/other-domain replay |
+| Static checks | Ruff and the combined formatter passed; mypy passed for 83 application/tool files; strict Pyright passed for 25 affected Python files, including explicit editor inference annotations |
+| Environment | New policy comments synchronized between `.env.example` and local `.env`; existing local settings preserved except the requested CORS header addition; test configuration isolated |
+| Full Windows suite | Not repeated; focused checks selected for changed behavior |
+| Linux, TLS, built image and hosted CI | Not run locally; delegated to CI; hosted results remain unverified |
 
-## Covered behavior
+Initial replay failures exposed reserialization of stored bytes and were corrected.
+The focused runs were supplemented with targeted checks after final fingerprint
+changes. The last Pylance corrections add explicit types without changing behavior;
+static checks were used rather than repeating successful test suites.
 
-- New and existing items start at version 1; response models expose the revision.
-- Missing, boolean, string, null, fractional and out-of-range preconditions are rejected. Parsed numeric `1.0` follows Express's integer-number semantics.
-- PATCH requires an editable field. PATCH/PUT increment once even for unchanged values; stale retries conflict. PUT omission still clears description.
-- Concurrent PATCH/PATCH, PUT/PATCH, update/delete and delete/delete requests use separate sessions behind a held MySQL row lock. One succeeds; the other sees the resulting stale revision or missing resource.
-- Direct repository calls with stale preconditions are rejected by SQL without relying on the service's check. Maximum revision blocks further updates but permits deletion.
-- POST deletion returns the final persisted representation; repeated deletion returns 404. The previous DELETE route is absent. Canonical collection routes and trailing-slash aliases work without redirects.
-- Existing controller/serialization/commit failures roll back field changes and revision increments. Timeout/disconnect tests still reach real writes before verifying settlement and rollback.
-- The additive migration initializes existing rows, repeated upgrade preserves revisions, and downgrade preserves other item data. Reapplying after downgrade resets revisions to 1. Metadata comparison, migration history/drift and real online commands pass.
+## Covered guarantees and limits
 
-## Lifecycle message conventions
+- All four item mutations accept optional keys. Invalid/duplicate headers return 400; changed input and active claims return 409. No key preserves normal behavior.
+- Validated body/path/query inputs determine the fingerprint. Explicit caller scope and stable application/database namespace allow reuse by other domains; authorization dependencies still run before replay.
+- Domain writes and prepared successful responses commit atomically. Original status/JSON bytes replay after later item changes/deletion or application reconstruction, without another revision increment.
+- Validation/rendering/completion/commit failures roll back claims and mutations. Size limits reject oversized fresh results; lowering the limit does not invalidate an existing valid replay.
+- Completion uses database UTC; results expire after 24 hours and replay never extends expiry. Expired keys can execute again. Cleanup is bounded and safe across overlapping instances; quiesce stops new batches and shutdown awaits active work before database teardown.
+- Real packet barriers establish commit outcomes independently of HTTP delivery. Uncertain advisory-lock ownership and failed release retire connections; retries reconcile durable results without duplicate mutations.
+- Migration upgrade/repeated upgrade/downgrade/reapply preserves domain data. Downgrade drops replay history. Table metadata matches the models.
 
-Startup/service timing messages follow the inspected Express/NestJS conventions,
-with native Python levels and runtime/service identity. The supported entrypoint
-announces HTTP readiness after listener startup. Signal initiation is named and
-logged once before draining; programmatic/lifespan cleanup uses requested-stop
-wording. The redundant services-stopped record is removed; clean completion uses
-`Application exited (code 0)`. Failure paths do not receive that success record.
-Log-dependent image/process assertions were updated; image qualification stays in CI.
+Only the guarded disposable test database was migrated to `0003_request_idempotency`.
+Development data was not reset or migrated. Apply `python -m alembic upgrade head`
+before starting the updated development app; the test-target command is
+`python -m scripts.test_db migrate`. See [Migrations](migrations.md).
 
-## Operational boundaries
-
-Only the guarded disposable test database was migrated. Development data was not
-reset or migrated. Apply `python -m alembic upgrade head` to the configured development
-database before starting the updated app; see [Migrations](migrations.md).
-
-Downgrade loses revision history and requires matching application code. It does
-not establish backup restoration or historical-image rollback. Do not mix old
-writers with the versioned API. Request timeout or a lost commit acknowledgement
-still cannot establish rollback; see [Mutation transactions](transactions.md).
-Durable idempotency and replay protection remain separate work.
+Idempotency does not provide authorization, delivery guarantees or SQL cancellation.
+Expired/unkeyed attempts are not protected against duplicate execution. Release,
+backup/restore and deployed topology qualification remain separate work.

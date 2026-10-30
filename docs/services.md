@@ -17,6 +17,10 @@ value to status 200 or 503, favicon uses a file response, and metrics uses the
 Prometheus media type. File paths and metrics bytes come from the system service.
 FastAPI retains its normal input validation, response validation and serialization.
 
+Idempotency is declared on transactional routes, after normal request validation.
+The shared execution layer handles claims, replay and atomic response storage; domain
+services remain responsible for their operation rules. See [Durable mutation retries](idempotency.md).
+
 ## Item operations
 
 `ItemService` owns create, list, fetch, PATCH, PUT and delete behavior. It converts

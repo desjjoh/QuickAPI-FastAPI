@@ -10,6 +10,7 @@ from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.common.handlers.exception_handler import http_exception_handler
+from app.common.models.idempotency_model import KEY_ERROR
 from app.config.http_policy import FORBIDDEN_HEADERS
 
 
@@ -43,6 +44,7 @@ class HeaderSanitizationASGIMiddleware:
         "x-csrf-token",
         "x-request-id",
         "x-api-key",
+        "idempotency-key",
     }
 
     VALID_NAME_RE: re.Pattern[str] = re.compile(r"^[A-Za-z0-9-]+$")
@@ -99,7 +101,11 @@ class HeaderSanitizationASGIMiddleware:
             if name in seen:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Duplicate header '{name}' is not permitted.",
+                    detail=(
+                        KEY_ERROR
+                        if name == 'idempotency-key'
+                        else f"Duplicate header '{name}' is not permitted."
+                    ),
                 )
 
             seen.add(name)

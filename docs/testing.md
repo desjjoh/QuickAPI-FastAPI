@@ -11,6 +11,10 @@ entrypoint ownership, and process verification.
 [Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
 shared checks, startup cleanup, and runtime recovery behavior.
 
+[Durable mutation retries](idempotency.md) documents shared route policies,
+replay storage and cleanup. Focused Windows checks cover keyed item mutations,
+another domain, concurrent claims, migration/rollback, and real MySQL/HTTP loss.
+
 ## Setup and test boundaries
 
 Use Python 3.12 and install [requirements-dev.txt](../requirements-dev.txt) in the

@@ -122,7 +122,8 @@ There is no atomic boundary between checking the deadline and the database
 receiving COMMIT. An expiry or disconnect after the final check cannot revoke an
 already-started commit. The application never retries a mutation automatically and
 never interprets 408, disconnect, or driver failure as proof of rollback. Clients
-must not assume retry safety; durable idempotency is a separate contract.
+must retain the original key/input for [durable retries](idempotency.md); unkeyed
+mutations have no replay guarantee.
 
 Database errors propagate through SQLAlchemy's rollback/close paths. A broken
 connection is invalidated rather than returned as a usable lease. A subsequent
@@ -159,8 +160,19 @@ disappears, and a queued request receives a replacement lease only after rollbac
 settles. [Process checks](shutdown.md#verification) also combine an expired marked
 mutation with shutdown and verify dependency lifetime and final-deadline behavior.
 
-This boundary does not guarantee delivery, implement idempotency, add optimistic
-concurrency, or establish query cancellation. No database migration or environment
-setting is introduced by transaction ownership or request activity checks.
+Transaction ownership alone does not guarantee delivery or establish query
+cancellation. Revision preconditions and the optional durable retry policy build on
+this boundary; see [API contracts](api-contracts.md) and [Durable mutation retries](idempotency.md).
 
 See [Verification](verification.md) for candidate-specific results.
+
+## Durable keyed mutations
+
+Routes opt in with an explicit `@idempotent` policy alongside `@transactional`.
+FastAPI still validates inputs and prepares responses. The route wrapper acquires
+the key claim after validation, before controller execution, and stores the exact
+prepared successful response in the same transaction as the domain write. Matching
+replays return stored bytes without calling the controller or checking current item
+versions. Keyed execution pins a connection through commit and advisory-lock release;
+uncertain ownership is retired rather than returned to the pool. See
+[Durable mutation retries](idempotency.md) for the shared contract.

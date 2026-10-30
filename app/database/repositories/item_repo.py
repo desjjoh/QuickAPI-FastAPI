@@ -17,6 +17,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import SQLColumnExpression, UnaryExpression
 
 from app.common.models.parameters_model import EntityId
 from app.common.models.version_model import MAX_VERSION
@@ -104,12 +105,15 @@ class ItemRepository:
         if payload.max_price is not None:
             filters.append(ItemORM.price <= payload.max_price)
 
-        sort_column = {
+        sort_columns: dict[ItemSort, SQLColumnExpression[object]] = {
             ItemSort.CREATED_AT: ItemORM.created_at,
             ItemSort.ITEM_NAME: ItemORM.name,
             ItemSort.PRICE: ItemORM.price,
-        }[payload.sort]
-        sort_expr = sort_column.desc() if payload.order == "desc" else sort_column.asc()
+        }
+        sort_column: SQLColumnExpression[object] = sort_columns[payload.sort]
+        sort_expr: UnaryExpression[object] = (
+            sort_column.desc() if payload.order == "desc" else sort_column.asc()
+        )
 
         base_query: Select[tuple[ItemORM]] = (
             select(ItemORM)

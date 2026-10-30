@@ -114,6 +114,25 @@ def test_validation_error_names_alias_the_shared_envelope(
 
 def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) -> None:
     collection = schema["paths"]["/api/v1/items"]
+
+    for path, method in [
+        ('/api/v1/items', 'post'),
+        ('/api/v1/items/{id}', 'patch'),
+        ('/api/v1/items/{id}', 'put'),
+        ('/api/v1/items/{id}/delete', 'post'),
+    ]:
+        operation = schema['paths'][path][method]
+        keys = [
+            parameter
+            for parameter in operation.get('parameters', [])
+            if parameter['name'] == 'Idempotency-Key'
+        ]
+
+        assert len(keys) == 1 and keys[0]['required'] is False
+        assert keys[0]['schema']['maxLength'] == 128
+        assert response_schema(operation['responses']['400']) == ERROR_REF
+        assert response_schema(operation['responses']['409']) == ERROR_REF
+
     query = {
         parameter["name"]: parameter for parameter in collection["get"]["parameters"]
     }

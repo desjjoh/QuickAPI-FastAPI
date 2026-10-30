@@ -50,7 +50,7 @@ Missing items return 404 with `No item exists with the provided identifier.` Sta
 or exhausted revisions return 409 with `Item version conflict; reload the item before
 retrying.` The shared error envelope is unchanged. DELETE is no longer an item route;
 use `POST /api/v1/items/{id}/delete` with JSON such as `{"expected_version": 2}`.
-Successful deletion retries without idempotency return 404.
+Successful deletion retries without a key return 404; keyed retries replay the original result.
 
 Item routes and named system endpoints accept either trailing-slash spelling through
 the shared router, without redirecting or duplicate controller declarations. OpenAPI
@@ -107,8 +107,12 @@ The process-local limiter defaults to 200 admitted requests in the preceding 60 
 Item controllers delegate to services and validate their results into response models. Repository
 mutations participate in the request-owned transaction and never commit
 independently. The route owner commits after service execution and buffered JSON
-preparation; see [Mutation transactions](transactions.md). Optimistic concurrency is enforced; no idempotency-key contract or replay protection exists. Avoid automatic
-mutation retries unless the caller can reconcile an uncertain result.
+preparation; see [Mutation transactions](transactions.md). Optimistic concurrency is enforced. Declared item mutations optionally accept
+`Idempotency-Key` for durable retries. Matching completed requests replay the original
+successful JSON/status for 24 hours, including after later item changes or deletion.
+Invalid/duplicate keys return 400; changed input and in-progress keys return 409.
+Failures are not retained. Keep the original payload and `expected_version` on retries;
+see [Durable mutation retries](idempotency.md) for scopes, cleanup and limits.
 
 Operational payloads and access boundaries are documented in [Deployment](deployment.md#application-lifespan-and-operational-endpoints).
 

@@ -49,6 +49,7 @@ from app.common.middleware.request_outcome import RequestOutcomeASGIMiddleware
 from app.common.middleware.request_timeout import RequestTimeoutASGIMiddleware
 from app.common.middleware.security_headers import SecurityHeadersMiddleware
 from app.common.middleware.trusted_proxy import TrustedProxyASGIMiddleware
+from app.common.services.idempotency_cleanup_service import IdempotencyCleanupService
 from app.config.database import DatabaseService
 from app.config.environment import settings
 from app.config.logging import log
@@ -125,7 +126,7 @@ def create_app() -> FastAPI:
     app.state.lifecycle = LifecycleHandler()
     app.state.request_work = RequestWork(settings.HTTP_DRAIN_TIMEOUT_MS / 1000)
 
-    app.state.lifecycle.register([DatabaseService()])
+    app.state.lifecycle.register([DatabaseService(), IdempotencyCleanupService()])
     app.state.initialization_timestamp = started_at
     app.state.system_info = SystemInfoService(started_at=started_at)
     app.state.monotonic_start = time.perf_counter()

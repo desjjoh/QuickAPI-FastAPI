@@ -6,6 +6,7 @@ from sqlalchemy.engine import Connection
 from app.config.database_transport import build_database_engine
 from app.config.environment import settings
 from app.config.event_loop import run_database
+from app.database.entities.idempotency_orm import IdempotencyORM as IdempotencyORM
 from app.database.entities.item_orm import ItemORM
 
 config = context.config
