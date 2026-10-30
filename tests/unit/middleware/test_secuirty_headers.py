@@ -11,6 +11,7 @@ async def test_headers_and_docs_bypass(app: ASGIApp, call: RequestCall) -> None:
     mw = SecurityHeadersMiddleware(app)
     normal = await call(mw)
     docs = await call(mw, path="/docs")
+
     assert (
         normal.headers["x-frame-options"] == "DENY"
         and normal.headers["content-security-policy"]

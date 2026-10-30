@@ -29,12 +29,14 @@ class Service:
 
     async def check(self) -> bool:
         self.calls.append("check")
+
         return self.healthy
 
 
 async def test_startup_and_shutdown_update_health_and_stop_in_reverse_order() -> None:
     handler = LifecycleHandler()
     first, second = Service("first"), Service("second")
+
     handler.register([first, second])
 
     assert handler.is_alive() is True
@@ -52,6 +54,7 @@ async def test_startup_and_shutdown_update_health_and_stop_in_reverse_order() ->
 async def test_failed_startup_rolls_back_started_services() -> None:
     handler = LifecycleHandler()
     first, broken = Service("first"), Service("broken", fail_start=True)
+
     handler.register([first, broken])
 
     with pytest.raises(RuntimeError, match="start failed"):
@@ -60,6 +63,7 @@ async def test_failed_startup_rolls_back_started_services() -> None:
     assert first.calls == ["start", "stop"]
     assert handler.is_ready() is False
     broken.fail_start = False
+
     await handler.startup()
     assert handler.is_ready() is True
 
@@ -67,6 +71,7 @@ async def test_failed_startup_rolls_back_started_services() -> None:
 async def test_health_checks_execute_every_service() -> None:
     handler = LifecycleHandler()
     bad, unchecked = Service("bad", healthy=False), Service("unchecked")
+
     handler.register([bad, unchecked])
     assert await handler.are_all_services_healthy() is False
     assert bad.calls == ["check"]
@@ -75,8 +80,10 @@ async def test_health_checks_execute_every_service() -> None:
 
 async def test_all_services_healthy_including_empty_registration() -> None:
     handler = LifecycleHandler()
+
     assert await handler.are_all_services_healthy() is True
     service = Service("healthy")
+
     handler.register([service])
     assert await handler.are_all_services_healthy() is True
 
@@ -108,6 +115,7 @@ async def test_event_loop_lag_uses_each_sample(monkeypatch: pytest.MonkeyPatch) 
 async def test_repeated_registration_startup_and_shutdown_are_idempotent() -> None:
     handler = LifecycleHandler()
     service = Service("same")
+
     handler.register([service, service])
     await handler.startup()
     await handler.startup()
@@ -119,6 +127,7 @@ async def test_repeated_registration_startup_and_shutdown_are_idempotent() -> No
 async def test_shutdown_continues_after_stop_failure() -> None:
     handler = LifecycleHandler()
     first, broken = Service("first"), Service("broken", fail_stop=True)
+
     handler.register([first, broken])
     await handler.startup()
     await handler.shutdown()
@@ -133,9 +142,11 @@ async def test_check_results_cover_false_exception_timeout_and_preserve_order() 
     class SlowService(Service):
         async def check(self) -> bool:
             await asyncio.sleep(1)
+
             return True
 
     handler = LifecycleHandler(check_timeout_seconds=0.01)
+
     handler.register(
         [Service("false", healthy=False), FailingService("raised"), SlowService("slow")]
     )
@@ -162,9 +173,11 @@ async def test_independent_checks_run_concurrently_and_restore_registration_orde
         async def check(self) -> bool:
             await asyncio.sleep(self.delay)
             completed.append(self.name)
+
             return True
 
     handler = LifecycleHandler(check_timeout_seconds=1)
+
     handler.register([DelayedService("first", 0.04), DelayedService("second", 0.01)])
     started = time.perf_counter()
 

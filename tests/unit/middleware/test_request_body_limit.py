@@ -26,6 +26,7 @@ async def test_content_length_cases(
         http_scope(headers),
         [{"type": "http.request", "body": b"1234"}],
     )
+
     assert response[0]["status"] == status
 
 
@@ -36,6 +37,7 @@ async def test_exact_and_oversized_streams_and_replay() -> None:
         await receive()
         await receive()
         replay = cast(Receive, scope["_body_replay"])
+
         replayed.extend([(await replay())["body"], (await replay())["body"]])
         await send({"type": "http.response.start", "status": 200, "headers": []})
         await send({"type": "http.response.body"})
@@ -49,12 +51,14 @@ async def test_exact_and_oversized_streams_and_replay() -> None:
         http_scope(),
         chunks,
     )
+
     assert sent[0]["status"] == 200 and replayed == [b"1234", b""]
     sent = await invoke(
         RequestBodyLimitASGIMiddleware(downstream, default_limit=BodyLimit(3)),
         http_scope(),
         chunks,
     )
+
     assert sent[0]["status"] == 413
 
 
@@ -63,4 +67,5 @@ async def test_non_http_bypass(app: ASGIApp) -> None:
         RequestBodyLimitASGIMiddleware(app, default_limit=BodyLimit(1)),
         {"type": "websocket", "path": "/"},
     )
+
     assert sent[0]["status"] == 200

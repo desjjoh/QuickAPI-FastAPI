@@ -22,6 +22,7 @@ async def running(
     app: FastAPI, protocol: Literal["h11", "httptools"]
 ) -> AsyncGenerator[int, None]:
     listener = socket.socket()
+
     listener.bind(("127.0.0.1", 0))
     listener.setblocking(False)
     port = listener.getsockname()[1]
@@ -40,16 +41,21 @@ async def running(
     )
     server = uvicorn.Server(config)
     task = asyncio.create_task(server.serve(sockets=[listener]))
+
     try:
         async with asyncio.timeout(3):
             while not server.started:
                 if task.done():
                     await task
+
                     raise RuntimeError("Test server failed to start")
+
                 await asyncio.sleep(0.001)
+
         yield port
     finally:
         server.should_exit = True
+
         try:
             await asyncio.wait_for(task, 3)
         finally:
@@ -58,6 +64,7 @@ async def running(
 
 def application(total_timeout: float = 0.15) -> FastAPI:
     app = create_app()
+
     for middleware in app.user_middleware:
         if middleware.cls is RequestTimeoutASGIMiddleware:
             middleware.kwargs.update(
@@ -65,6 +72,7 @@ def application(total_timeout: float = 0.15) -> FastAPI:
                 first_body_timeout=0.1,
                 chunk_timeout=0.05,
             )
+
     return app
 
 
@@ -83,12 +91,14 @@ async def test_real_408_precedes_slow_cleanup_and_suppresses_late_response(
         except asyncio.CancelledError:
             await release.wait()
             cleaned.set()
+
         return {"unexpected": True}
 
     async with running(app, protocol) as port:
         try:
             async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{port}") as client:
                 response = await client.get("/slow", timeout=2)
+
                 assert response.status_code == 408
                 assert response.json()["message"] == "Total request timeout exceeded."
                 assert response.headers["x-request-id"]
@@ -99,6 +109,7 @@ async def test_real_408_precedes_slow_cleanup_and_suppresses_late_response(
                 # Successful work on the next request proves late output did not
                 # corrupt the HTTP connection after the middleware sent 408.
                 following = await client.get("/")
+
                 assert following.status_code == 200
         finally:
             release.set()
@@ -140,12 +151,14 @@ async def test_real_stream_is_truncated_before_async_cleanup_finishes(
 
     async with running(app, protocol) as port:
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
+
         try:
             writer.write(
                 b"GET /stream HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
             )
             await writer.drain()
             wire = await asyncio.wait_for(reader.read(), 2)
+
             assert wire.count(b"HTTP/1.1") == 1
             assert wire.split(b"\r\n", 1)[0] == b"HTTP/1.1 200 OK"
             assert b"partial" in wire
@@ -178,6 +191,7 @@ async def test_real_disconnect_cancels_handler_without_body_reads(
 
     async with running(app, protocol) as port:
         _, writer = await asyncio.open_connection("127.0.0.1", port)
+
         try:
             writer.write(b"GET /wait HTTP/1.1\r\nHost: localhost\r\n\r\n")
             await writer.drain()
@@ -185,6 +199,7 @@ async def test_real_disconnect_cancels_handler_without_body_reads(
         finally:
             writer.close()
             await writer.wait_closed()
+
         # The total deadline is five seconds; cleanup must come from disconnect.
         await asyncio.wait_for(cleaned.wait(), 1)
 
@@ -201,6 +216,7 @@ async def test_real_stalled_body_uses_json_408_not_parser_400(
 
     async with running(app, protocol) as port:
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
+
         try:
             writer.write(
                 b"POST /body HTTP/1.1\r\nHost: localhost\r\n"
@@ -209,6 +225,7 @@ async def test_real_stalled_body_uses_json_408_not_parser_400(
             )
             await writer.drain()
             wire = await asyncio.wait_for(reader.read(), 2)
+
             assert wire.count(b"HTTP/1.1") == 1
             assert b"408 Request Timeout" in wire
             assert b'"message":"Request chunk timeout exceeded."' in wire
@@ -222,13 +239,16 @@ async def test_completed_request_deadline_cannot_affect_reused_socket(
     protocol: Literal["h11", "httptools"],
 ) -> None:
     app = application()
+
     async with running(app, protocol) as port:
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
+
         try:
             for _ in range(3):
                 writer.write(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
                 await writer.drain()
                 headers = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 1)
+
                 assert headers.startswith(b"HTTP/1.1 200 OK")
                 length = next(
                     int(line.split(b":", 1)[1])
@@ -236,6 +256,7 @@ async def test_completed_request_deadline_cannot_affect_reused_socket(
                     if line.lower().startswith(b"content-length:")
                 )
                 body = await asyncio.wait_for(reader.readexactly(length), 1)
+
                 assert b"Hello World" in body
                 await asyncio.sleep(0.2)
         finally:
@@ -263,6 +284,7 @@ async def test_real_disconnect_closes_stream_generator(
 
     async with running(app, protocol) as port:
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
+
         try:
             writer.write(b"GET /stream HTTP/1.1\r\nHost: localhost\r\n\r\n")
             await writer.drain()
@@ -270,4 +292,5 @@ async def test_real_disconnect_closes_stream_generator(
         finally:
             writer.close()
             await writer.wait_closed()
+
         await asyncio.wait_for(cleaned.wait(), 1)

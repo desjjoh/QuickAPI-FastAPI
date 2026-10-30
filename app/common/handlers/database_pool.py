@@ -26,13 +26,19 @@ class Admission:
     async def acquire(self) -> None:
         if self.closed:
             raise DatabaseUnavailableError("DB_POOL_CLOSED")
+
         if self.active < self.limit:
             self.active += 1
+
             return
+
         if len(self.waiters) >= self.queue_limit:
             raise DatabaseUnavailableError("DB_POOL_CAPACITY")
+
         waiter: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+
         self.waiters.append(waiter)
+
         try:
             await waiter
         except BaseException:
@@ -40,20 +46,26 @@ class Admission:
                 self.waiters.remove(waiter)
             elif not waiter.cancelled() and waiter.exception() is None:
                 self.release()
+
             raise
 
     def release(self) -> None:
         while self.waiters:
             waiter = self.waiters.popleft()
+
             if not waiter.done():
                 waiter.set_result(None)
+
                 return
+
         self.active -= 1
 
     def close(self) -> None:
         self.closed = True
+
         while self.waiters:
             waiter = self.waiters.popleft()
+
             if not waiter.done():
                 waiter.set_exception(DatabaseUnavailableError("DB_POOL_CLOSED"))
 
@@ -75,23 +87,30 @@ class BoundedAsyncPool(AsyncAdaptedQueuePool):
 
     async def _acquire_record(self) -> ConnectionPoolEntry:
         acquired = False
+
         try:
             async with asyncio.timeout(self.acquire_timeout):
                 await self.admission.acquire()
                 acquired = True
                 record = await greenlet_spawn(super()._do_get)
+
                 if self.admission.closed:
                     await greenlet_spawn(record.close)
+
                     raise DatabaseUnavailableError("DB_POOL_CLOSED")
+
                 self._leased.add(record)
+
                 return record
         except TimeoutError:
             if acquired:
                 self.admission.release()
+
             raise DatabaseUnavailableError("DB_POOL_ACQUIRE_TIMEOUT") from None
         except BaseException:
             if acquired:
                 self.admission.release()
+
             raise
 
     def _do_return_conn(self, record: ConnectionPoolEntry) -> None:
@@ -113,4 +132,5 @@ class BoundedAsyncPool(AsyncAdaptedQueuePool):
         pool = cast(BoundedAsyncPool, super().recreate())
         pool.admission = Admission(self.size(), self.admission.queue_limit)
         pool.acquire_timeout = self.acquire_timeout
+
         return pool

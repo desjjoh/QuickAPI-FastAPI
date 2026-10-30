@@ -97,6 +97,11 @@ Use `python -m scripts.test_db test` to start, migrate, test, and remove the iso
 
 ## Interpreter and dependency maintenance
 
+[Formatting](formatting.md) defines the shared logical spacing rules, CLI and editor
+integration. Run `python -m scripts.format_code` to format Python sources and
+`python -m scripts.format_code --check` to run the same check as CI. Format-on-save
+uses this combined formatter through the Black Formatter extension.
+
 Pip is the selected package installer. [requirements.txt](../requirements.txt) contains runtime dependencies and manually maintained transitive pins. [requirements-dev.txt](../requirements-dev.txt) includes it and adds formatting, typing, tests, HTTP test clients, and their supporting packages. Local development and CI install the development file; Docker installs only the runtime file. No uv or generated lockfile is required.
 
 After activation, verify `python --version` reports 3.12 and `python -m pip --version` points inside this repository's `.venv`. The Windows launcher may need a new terminal after installing Python. If `py -3.12` cannot find it, use the full path to the installed Python 3.12 executable. An existing virtual environment retains the interpreter used when it was created; installing 3.12 does not convert a 3.14 environment. Preserve or remove the old environment deliberately and create a fresh one with 3.12.
@@ -118,7 +123,7 @@ cp .env.example .env
 | Variable               | Requirement                                                                  |
 | ---------------------- | ---------------------------------------------------------------------------- |
 | `APP_NAME`             | Non-empty, at most 120 characters.                                           |
-| `APP_VERSION`          | Three-part semantic version such as `1.0.0`.                                 |
+| `APP_VERSION`          | Three-part semantic version such as `1.3.0`.                                 |
 | `ENV`                  | `development`, `test`, or `production`.                                      |
 | `LOG_LEVEL`            | `DEBUG`, `INFO`, `WARN`, or `ERROR`; default INFO hides successful requests. |
 | `HOST`                 | Bind address; defaults to `0.0.0.0`.                                         |

@@ -39,6 +39,7 @@ def rejecting_app(kind: str) -> FastAPI:
     async def endpoint() -> dict[str, bool]:
         if kind == "408":
             await asyncio.sleep(1)
+
         return {"ok": True}
 
     if kind == "400":
@@ -61,6 +62,7 @@ def rejecting_app(kind: str) -> FastAPI:
         app.add_middleware(ContentTypeEnforcementASGIMiddleware)
     elif kind == "429":
         limiter = RateLimiter(max_requests=1)
+
         limiter.admit("127.0.0.1")
         app.add_middleware(RateLimitASGIMiddleware, limiter=limiter)
     else:
@@ -68,6 +70,7 @@ def rejecting_app(kind: str) -> FastAPI:
             RequestHeaderLimitASGIMiddleware,
             limits=HeaderLimits(max_header_count=1, allow_chunked=False),
         )
+
     return app
 
 
@@ -93,11 +96,13 @@ async def test_every_middleware_rejection_status_uses_error_response(
 ) -> None:
     app = rejecting_app(kind)
     started = int(time.time() * 1000)
+
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
         base_url="http://test",
     ) as client:
         response = await client.request(method, "/", headers=headers, content=content)
+
     assert_error_contract(response, expected, started_ms=started)
     if expected == 429:
         assert response.headers["x-ratelimit-result"] == "rejected"
@@ -105,6 +110,7 @@ async def test_every_middleware_rejection_status_uses_error_response(
 
 async def test_chunked_request_rejection_is_documented_envelope() -> None:
     app = FastAPI()
+
     app.add_middleware(RequestHeaderLimitASGIMiddleware, limits=HeaderLimits())
 
     async def receive() -> Message:
@@ -129,9 +135,11 @@ async def test_chunked_request_rejection_is_documented_envelope() -> None:
         "server": ("test", 80),
     }
     started = int(time.time() * 1000)
+
     await app(scope, receive, send)
     start = messages[0]
     body = messages[1]["body"]
+
     assert isinstance(start["status"], int)
     assert isinstance(body, bytes)
     response = httpx.Response(
@@ -139,4 +147,5 @@ async def test_chunked_request_rejection_is_documented_envelope() -> None:
         headers=start["headers"],
         content=body,
     )
+
     assert_error_contract(response, 501, started_ms=started)

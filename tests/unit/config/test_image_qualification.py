@@ -23,11 +23,15 @@ def test_image_failure_always_removes_disposable_project(
             raise subprocess.CalledProcessError(
                 1, arguments, output='Test failure', stderr='Test diagnostic'
             )
+
         result = 'Application exited cleanly'
+
         if 'inspect' in arguments:
             result = '0'
+
         if 'ps' in arguments:
             result = 'test-container-id'
+
         return subprocess.CompletedProcess(arguments, 0, stdout=result, stderr='')
 
     monkeypatch.setattr(test_image, 'ROOT', tmp_path)
@@ -38,8 +42,10 @@ def test_image_failure_always_removes_disposable_project(
             raise PermissionError('Injected artifact failure')
 
         monkeypatch.setattr(Path, 'write_text', denied)
+
     with pytest.raises((subprocess.CalledProcessError, PermissionError)):
         test_image.qualify('quickapi-fastapi:test')
+
     assert calls[-1][-3:] == ['down', '--volumes', '--remove-orphans']
     assert 'quickapi-fastapi-smoke' in calls[-1]
     assert all('quickapi-fastapi-dev' not in command for command in calls)

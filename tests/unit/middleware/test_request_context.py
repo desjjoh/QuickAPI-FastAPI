@@ -14,6 +14,7 @@ pytestmark = pytest.mark.unit
 async def test_context_scope_store_and_binding(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[tuple[str, str | None]] = []
     bind: Mock = Mock()
+
     monkeypatch.setattr(
         "app.common.middleware.request_context.structlog.contextvars.bind_contextvars",
         bind,
@@ -26,6 +27,7 @@ async def test_context_scope_store_and_binding(monkeypatch: pytest.MonkeyPatch) 
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         scope_context = cast(dict[str, str], scope["ctx"])
         request_context = RequestContext.get()
+
         seen.append(
             (
                 scope_context["request_id"],

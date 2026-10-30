@@ -16,12 +16,15 @@ async def create_item(
         ITEMS_URL,
         json={"name": name, "price": price, "description": description},
     )
+
     assert response.status_code == 201, response.text
+
     return response.json()
 
 
 def assert_validation_error(response: httpx.Response) -> None:
     assert response.status_code == 422
     body = response.json()
+
     assert body["status"] == 422
     assert body["message"].startswith("Validation failed:")

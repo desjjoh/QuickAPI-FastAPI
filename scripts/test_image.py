@@ -73,12 +73,16 @@ def qualify(image: str, *, cleanup_only: bool = False) -> None:
             capture_output=True,
             text=True,
         )
+
         return result.stdout
 
     if cleanup_only:
         compose('down', '--volumes', '--remove-orphans')
+
         return
+
     failure = ''
+
     try:
         compose('up', '-d', '--wait', 'mysql-smoke')
         compose('run', '--rm', 'migrate')
@@ -93,13 +97,16 @@ def qualify(image: str, *, cleanup_only: bool = False) -> None:
             capture_output=True,
             text=True,
         )
+
         if result.stdout.strip() != '0' or 'Application exited cleanly' not in compose(
             'logs', '--no-color', 'api'
         ):
             raise RuntimeError('Built-image graceful shutdown failed.')
+
         print('Built-image Docker SIGTERM and exit zero verified.')
     except subprocess.CalledProcessError as error:
         failure = (error.stdout or '') + (error.stderr or '')
+
         raise
     finally:
         try:
@@ -111,6 +118,7 @@ def qualify(image: str, *, cleanup_only: bool = False) -> None:
                 text=True,
             )
             artifacts = ROOT / 'test-artifacts'
+
             artifacts.mkdir(exist_ok=True)
             (artifacts / 'production-mysql.log').write_text(
                 failure + '\n' + logs.stdout + logs.stderr, encoding='utf-8'
@@ -121,6 +129,7 @@ def qualify(image: str, *, cleanup_only: bool = False) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument('--image', default='quickapi-fastapi:ci')
     parser.add_argument(
         '--cleanup',
@@ -128,15 +137,18 @@ def main() -> int:
         help='Remove only the disposable smoke project.',
     )
     args = parser.parse_args()
+
     try:
         with command_lock():
             qualify(args.image, cleanup_only=args.cleanup)
+
         return 0
     except Exception:
         print(
             'Built-image MySQL qualification failed; see test-artifacts/production-mysql.log.',
             file=sys.stderr,
         )
+
         return 1
 
 

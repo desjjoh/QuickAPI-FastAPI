@@ -30,14 +30,17 @@ def assert_error_contract(
     assert response.status_code == status
     assert response.headers["content-type"] == "application/json"
     body = response.json()
+
     assert set(body) == {"status", "message", "timestamp"}
     assert body["status"] == response.status_code
     assert isinstance(body["message"], str)
     if message is not None:
         assert body["message"] == message
+
     assert type(body["timestamp"]) is int
     assert started_ms <= body["timestamp"] <= int(time.time() * 1000)
     lowered = response.text.lower()
+
     assert all(value not in lowered for value in FORBIDDEN_TEXT)
 
 
@@ -67,6 +70,7 @@ async def test_routing_and_validation_errors_are_complete_envelopes(
 ) -> None:
     started = int(time.time() * 1000)
     response = await error_client.request(method, url, **kwargs)
+
     assert_error_contract(response, status, started_ms=started)
     assert message_fragment in response.json()["message"]
     assert response.headers["x-request-id"]
@@ -100,6 +104,7 @@ async def test_http_exception_supported_detail_shapes(
     error_app.include_router(router)
     started = int(time.time() * 1000)
     response = await error_client.get(f"/explicit/{abs(hash(expected))}")
+
     assert_error_contract(response, 409, expected, started_ms=started)
     assert response.headers["x-error-marker"] == "kept"
 
@@ -119,6 +124,7 @@ async def test_repository_and_unexpected_failures_do_not_leak(
     error_app.dependency_overrides[get_session] = broken_session
     started = int(time.time() * 1000)
     response = await error_client.get("/api/v1/items/")
+
     assert_error_contract(response, 500, "Internal server error.", started_ms=started)
 
 
@@ -131,6 +137,7 @@ async def test_unexpected_route_exception_is_sanitized(
 
     started = int(time.time() * 1000)
     response = await error_client.get("/unexpected-error")
+
     assert_error_contract(response, 500, "Internal server error.", started_ms=started)
 
 
@@ -140,6 +147,7 @@ async def test_protocol_headers_survive_an_error_response(
     response = await error_client.get(
         "/missing", headers={"origin": "https://client.example"}
     )
+
     assert response.headers["access-control-allow-origin"] == "https://client.example"
     assert response.headers["vary"] == "Origin"
     assert response.headers["x-content-type-options"] == "nosniff"

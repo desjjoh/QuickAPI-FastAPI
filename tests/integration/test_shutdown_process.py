@@ -25,6 +25,7 @@ async def test_native_entrypoint_handles_sigterm(
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
+
     env = {
         **os.environ,
         'ENV': 'development' if reload else 'production',
@@ -36,6 +37,7 @@ async def test_native_entrypoint_handles_sigterm(
         'SHUTDOWN_TIMEOUT_MS': '2000',
     }
     log_path = tmp_path / 'native.log'
+
     with log_path.open('w') as logs:
         process = subprocess.Popen(
             [sys.executable, '-m', 'app.main'],
@@ -43,6 +45,7 @@ async def test_native_entrypoint_handles_sigterm(
             stdout=logs,
             stderr=subprocess.STDOUT,
         )
+
         try:
             async with httpx.AsyncClient(
                 base_url=f'http://127.0.0.1:{port}', timeout=1
@@ -50,17 +53,22 @@ async def test_native_entrypoint_handles_sigterm(
                 async with asyncio.timeout(10):
                     while True:
                         assert process.poll() is None, log_path.read_text()
+
                         try:
                             if (await client.get('/ready')).status_code == 200:
                                 break
                         except httpx.TransportError:
                             pass
+
                         await asyncio.sleep(0.03)
+
             process.send_signal(signal.SIGTERM)
+
             try:
                 await asyncio.to_thread(process.wait, timeout=8)
             except subprocess.TimeoutExpired:
                 pytest.fail("Native shutdown timed out: " + log_path.read_text())
+
             assert process.returncode in (0, -signal.SIGTERM), log_path.read_text()
             assert 'Application exited cleanly' in log_path.read_text()
             with pytest.raises(OSError):
@@ -100,6 +108,7 @@ async def test_shutdown_process_contract(
     with socket.socket() as sock:
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
+
     env = {
         **os.environ,
         'ENV': 'production',
@@ -122,6 +131,7 @@ async def test_shutdown_process_contract(
     # cwd is the repository; module resolution uses PYTHONPATH rather than adding test code to the image.
     env['PYTHONPATH'] = str(Path.cwd())
     output = tmp_path / 'process.log'
+
     with output.open('w') as log:
         process = subprocess.Popen(
             [sys.executable, '-m', 'tests.fixtures.shutdown_server'],
@@ -130,6 +140,7 @@ async def test_shutdown_process_contract(
             stderr=subprocess.STDOUT,
         )
         request: asyncio.Task[httpx.Response] | None = None
+
         try:
             async with (
                 httpx.AsyncClient(
@@ -140,12 +151,15 @@ async def test_shutdown_process_contract(
                 async with asyncio.timeout(8):
                     while True:
                         assert process.poll() is None, output.read_text()
+
                         try:
                             if (await client.get('/ready')).status_code == 200:
                                 break
                         except httpx.TransportError:
                             pass
+
                         await asyncio.sleep(0.02)
+
                 if mode in {
                     'mutation',
                     'stream',
@@ -161,23 +175,28 @@ async def test_shutdown_process_contract(
                         if mode.startswith('transaction-')
                         else client.get('/stream' if mode == 'stream' else '/work')
                     )
+
                     await wait_file(tmp_path / 'entered')
+
                 if mode in {'late', 'transaction-expired', 'transaction-stuck'}:
                     assert request is not None and (await request).status_code == 408
                     assert not (tmp_path / 'finished').exists()
                     if mode.startswith('transaction-'):
                         assert not (tmp_path / 'dependency-closed').exists()
+
                 if mode == 'disconnect':
                     assert request is not None
                     request.cancel()
                     with pytest.raises(asyncio.CancelledError):
                         await request
+
                 if mode != 'blocked':
                     if sys.platform != 'win32':
                         process.send_signal(signal.SIGTERM)
                     else:
                         # Windows terminate() is a hard kill, not a graceful SIGTERM.
                         (tmp_path / 'stop').touch()
+
                 await asyncio.sleep(0.15)
                 if mode in {
                     'mutation',
@@ -189,39 +208,49 @@ async def test_shutdown_process_contract(
                     assert not (tmp_path / 'cleanup').exists()
                     if mode.startswith('transaction-'):
                         assert not (tmp_path / 'dependency-closed').exists()
+
                 if mode in {'mutation', 'stream', 'late', 'transaction-expired'}:
                     # A fresh connection is refused or rejected while accepted
                     # work still owns the database and is allowed to finish.
                     rejected = asyncio.create_task(
                         newcomer.get(f'http://127.0.0.1:{port}/health')
                     )
+
                     await asyncio.sleep(0)
                     (tmp_path / 'release').touch()
                     await wait_file(tmp_path / 'finished')
+
                     try:
                         refused = await rejected
+
                         assert refused.status_code == 503
                     except httpx.TransportError:
                         pass
+
                 if mode == 'repeated':
                     await wait_file(tmp_path / 'cleanup')
                     if sys.platform != 'win32':
                         process.send_signal(signal.SIGTERM)
                     else:
                         (tmp_path / 'stop').touch()
+
                 async with asyncio.timeout(6):
                     while process.poll() is None:
                         await asyncio.sleep(0.02)
+
                 if request is not None:
                     responses = await asyncio.gather(request, return_exceptions=True)
+
                     if mode in {'mutation', 'stream'}:
                         response = responses[0]
+
                         assert (
                             isinstance(response, httpx.Response)
                             and response.status_code == 200
                         )
                         if mode == 'stream':
                             assert response.content == b'first\nlast\n'
+
             logs = output.read_text()
             forced = mode in {
                 'stuck',
@@ -231,6 +260,7 @@ async def test_shutdown_process_contract(
                 'repeated',
                 'transaction-stuck',
             }
+
             if forced:
                 assert process.returncode == 1, logs
                 assert 'Application exited cleanly' not in logs
@@ -241,13 +271,16 @@ async def test_shutdown_process_contract(
             else:
                 assert process.returncode in (0, -signal.SIGTERM), logs
                 assert 'Application exited cleanly' in logs
+
             async with database_engine.connect() as connection:
                 count = await connection.scalar(
                     text("SELECT COUNT(*) FROM items WHERE id='shutdown-test'")
                 )
+
             assert count == (1 if mode == 'mutation' else 0)
             if mode.startswith('transaction-'):
                 connection_id = int((tmp_path / 'connection-id').read_text())
+
                 async with asyncio.timeout(3):
                     while True:
                         async with database_engine.connect() as connection:
@@ -256,17 +289,21 @@ async def test_shutdown_process_contract(
                                 .mappings()
                                 .all()
                             )
+
                         if not any(
                             int(row['Id']) == connection_id for row in processes
                         ):
                             break
+
                         await asyncio.sleep(0.01)
+
                 if mode == 'transaction-expired':
                     assert (tmp_path / 'dependency-closed').exists()
         finally:
             if process.poll() is None:
                 process.kill()
                 process.wait(timeout=5)
+
             if request is not None:
                 request.cancel()
                 await asyncio.gather(request, return_exceptions=True)

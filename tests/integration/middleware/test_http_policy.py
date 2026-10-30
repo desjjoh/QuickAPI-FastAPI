@@ -41,6 +41,7 @@ async def test_cors_overrides_preflight_headers_and_no_origin(
             "access-control-request-headers": "Content-Type, X-Custom",
         }
         response = await client.options("/custom", headers=headers)
+
         assert response.status_code == 204
         assert response.headers["access-control-allow-origin"] == "https://ui.example"
         assert response.headers["access-control-allow-methods"] == "GET, POST"
@@ -71,10 +72,12 @@ async def test_cors_overrides_preflight_headers_and_no_origin(
                 "x-custom": "preserved",
             },
         )
+
         assert result.status_code == 200 and result.json() == {"custom": "preserved"}
         assert result.headers["access-control-expose-headers"] == "x-result"
         assert (await client.post("/custom", json={})).status_code == 415
         direct = await client.get("/")
+
         assert direct.status_code == 200
         assert not any(name.startswith("access-control-") for name in direct.headers)
 
@@ -102,6 +105,7 @@ async def test_configured_body_and_method_limits(
         accepted = await client.post(
             "/body", content=b"x" * 10, headers={"content-type": "application/json"}
         )
+
         assert accepted.status_code == 200 and accepted.json() == {"bytes": 10}
         assert (await client.put("/body", json={})).status_code == 405
 
@@ -112,6 +116,7 @@ async def test_raw_header_limits_before_sanitization_and_cors(
 ) -> None:
     monkeypatch.setattr(settings, "CORS_ORIGINS", ["https://ui.example"])
     custom = {f"x-unknown-{index}": "v" for index in range(5)}
+
     if mode in {"count", "preflight"}:
         monkeypatch.setattr(settings, "HTTP_MAX_HEADER_COUNT", 6)
     elif mode == "single":
@@ -121,7 +126,9 @@ async def test_raw_header_limits_before_sanitization_and_cors(
         monkeypatch.setattr(settings, "HTTP_MAX_SINGLE_HEADER_BYTES", 100)
         monkeypatch.setattr(settings, "HTTP_MAX_TOTAL_HEADER_BYTES", 250)
         custom = {f"x-unknown-{index}": "v" * 60 for index in range(4)}
+
     app = create_app()
+
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:
@@ -136,6 +143,7 @@ async def test_raw_header_limits_before_sanitization_and_cors(
             )
         else:
             result = await client.get("/", headers=custom)
+
         assert result.status_code == 431
         assert result.json()["status"] == 431
 
@@ -149,12 +157,14 @@ async def test_real_proxy_identity_shared_by_context_and_limiter(
 ) -> None:
     monkeypatch.setattr(settings, "TRUST_PROXY", ["127.0.0.0/8"] if trusted else [])
     limiter = Mock(return_value=RateLimitDecision(allowed=True))
+
     monkeypatch.setattr("app.config.rate_limiter.RateLimiter.admit", limiter)
     app = create_app()
 
     @app.get("/identity")
     async def identity(request: Request) -> dict[str, str | None]:
         context = RequestContext.get()
+
         return {
             "ip": request.client.host if request.client else None,
             "context_ip": context.ip if context else None,
@@ -170,6 +180,7 @@ async def test_real_proxy_identity_shared_by_context_and_limiter(
                     "x-forwarded-proto": "https",
                 },
             )
+
             if trusted:
                 assert result.status_code == 200
                 assert result.json() == {
@@ -196,6 +207,7 @@ async def test_real_response_deadline_uses_configured_milliseconds(
     deadline = next(
         m for m in app.user_middleware if m.cls is RequestTimeoutASGIMiddleware
     )
+
     assert deadline.kwargs == {
         "first_body_timeout": 0.08,
         "chunk_timeout": 0.04,
@@ -210,5 +222,6 @@ async def test_real_response_deadline_uses_configured_milliseconds(
     async with running(app, protocol) as port:
         async with httpx.AsyncClient() as client:
             result = await client.get(f"http://127.0.0.1:{port}/slow", timeout=2)
+
             assert result.status_code == 408
             assert result.json()["message"] == "Total request timeout exceeded."

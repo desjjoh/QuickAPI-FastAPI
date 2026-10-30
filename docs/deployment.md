@@ -113,7 +113,7 @@ host values, timings, and resource measurements naturally vary):
 ```json
 {
   "name": "QuickAPI",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "environment": "production",
   "hostname": "api-1",
   "pid": 42,

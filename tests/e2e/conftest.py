@@ -19,6 +19,7 @@ async def app(
     collection, so its process-wide engine and session factory are replaced too.
     """
     database_url = database_engine.url.render_as_string(hide_password=False)
+
     monkeypatch.setenv("DATABASE_URL", database_url)
 
     from app.common.handlers.database_readiness import DatabaseReadiness
@@ -27,6 +28,7 @@ async def app(
 
     monkeypatch.setattr(settings, "DATABASE_URL", database_url)
     test_engine = database_engine
+
     monkeypatch.setattr(database, "engine", test_engine)
     monkeypatch.setattr(database, "database_readiness", DatabaseReadiness(test_engine))
     monkeypatch.setattr(
@@ -39,6 +41,7 @@ async def app(
 
     application = create_app()
     application.state.e2e_database_backend = test_engine.dialect.name
+
     yield application
 
 
@@ -47,6 +50,7 @@ async def client(app: FastAPI) -> AsyncGenerator[httpx.AsyncClient, None]:
     """Run requests inside the application's real production lifespan."""
     async with app.router.lifespan_context(app):
         transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+
         async with httpx.AsyncClient(
             transport=transport, base_url="http://test"
         ) as value:

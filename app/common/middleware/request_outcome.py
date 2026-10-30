@@ -29,25 +29,32 @@ def route_template(
 ) -> str:
     """Follow declared mounts without using concrete root_path values as labels."""
     partial: BaseRoute | None = None
+
     for route in routes:
         match, child = route.matches(incoming)
+
         if match is Match.FULL:
             if isinstance(route, Mount):
                 return route_template(
                     route.routes, {**incoming, **child}, terminal, prefix + route.path
                 )
+
             if isinstance(route, Route) and (
                 terminal.get("route") is route
                 or terminal.get("endpoint") is route.endpoint
             ):
                 return prefix + route.path
+
             return "<unmatched>"
+
         if match is Match.PARTIAL and partial is None:
             partial = route
+
     if isinstance(partial, Route) and (
         terminal.get("route") is partial or terminal.get("endpoint") is partial.endpoint
     ):
         return prefix + partial.path
+
     return "<unmatched>"
 
 
@@ -65,6 +72,7 @@ class RequestObservation:
     def subscribe(self, key: str, callback: Callable[[RequestOutcome], None]) -> None:
         if key in self.subscribers:
             return
+
         self.subscribers.add(key)
         if self.result is not None:
             callback(self.result)
@@ -74,6 +82,7 @@ class RequestObservation:
     def settle(self, outcome: Literal["completed", "aborted"]) -> None:
         if self.result is not None:
             return
+
         elapsed = (time.perf_counter() - self.started_at) * 1000
         method = self.incoming["method"]
         self.result = RequestOutcome(
@@ -85,6 +94,7 @@ class RequestObservation:
             status=self.status,
         )
         callbacks = tuple(self.callbacks.values())
+
         self.callbacks.clear()
         for callback in callbacks:
             callback(self.result)
@@ -92,6 +102,7 @@ class RequestObservation:
 
 def abort_request(scope: Scope) -> None:
     observation = scope.get(_KEY)
+
     if isinstance(observation, RequestObservation):
         observation.settle("aborted")
 
@@ -106,7 +117,9 @@ class RequestOutcomeASGIMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or isinstance(scope.get(_KEY), RequestObservation):
             await self.app(scope, receive, send)
+
             return
+
         observation = RequestObservation(scope, self.routes)
         scope[_KEY] = observation
 
@@ -117,9 +130,12 @@ class RequestOutcomeASGIMiddleware:
                 raise
             except OSError:
                 observation.settle("aborted")
+
                 raise
+
             if message["type"] == "http.disconnect":
                 observation.settle("aborted")
+
             return message
 
         async def send_observed(message: Message) -> None:
@@ -129,7 +145,9 @@ class RequestOutcomeASGIMiddleware:
                 raise
             except OSError:
                 observation.settle("aborted")
+
                 raise
+
             if message["type"] == "http.response.start":
                 observation.status = message["status"]
             elif message["type"] == "http.response.body" and not message.get(
@@ -154,11 +172,15 @@ async def observe_request(
     """Subscribe inside the stack; support standalone middleware as well."""
     if scope["type"] != "http":
         await app(scope, receive, send)
+
         return
+
     observation = scope.get(_KEY)
+
     if isinstance(observation, RequestObservation):
         observation.subscribe(key, callback)
         await app(scope, receive, send)
+
         return
 
     async def subscribed(inner: Scope, receive: Receive, send: Send) -> None:

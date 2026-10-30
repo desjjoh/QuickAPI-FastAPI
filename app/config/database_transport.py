@@ -49,10 +49,13 @@ def tls_context(policy: DatabasePolicy) -> ssl.SSLContext | None:
     if not policy.ssl_enabled:
         if policy.ca_file is not None:
             raise ValueError("DB_SSL_CA_FILE requires DB_SSL=true.")
+
         return None
+
     try:
         context = ssl.create_default_context(cafile=policy.ca_file)
         context.minimum_version = ssl.TLSVersion.TLSv1_2
+
         return context
     except (OSError, ssl.SSLError):
         raise ValueError("Unable to load valid database CA certificates.") from None
@@ -64,6 +67,7 @@ def build_database_engine(
     policy = configured_policy() if policy is None else policy
     url = make_url(database_url)
     context = tls_context(policy)
+
     if url.drivername != "mysql+asyncmy" or set(url.query) - {"charset"}:
         raise ValueError(
             "MySQL requires asyncmy; only the charset URL option is supported."
@@ -75,6 +79,7 @@ def build_database_engine(
         connection: Any = driver.Connection(
             **arguments, connect_timeout=policy.connect_timeout_ms / 1000, ssl=context
         )
+
         try:
             async with asyncio.timeout(policy.connect_timeout_ms / 1000):
                 await connection.connect()
@@ -82,20 +87,26 @@ def build_database_engine(
                     async with connection.cursor() as cursor:
                         await cursor.execute("SHOW SESSION STATUS LIKE 'Ssl_cipher'")
                         cipher = await cursor.fetchone()
+
                         if cipher is None or not cipher[1]:
                             raise DatabaseUnavailableError("DB_TLS_REQUIRED")
+
             return connection
         except TimeoutError:
             connection.close()
+
             raise DatabaseUnavailableError("DB_CONNECT_TIMEOUT") from None
         except asyncio.CancelledError:
             connection.close()
+
             raise
         except DatabaseUnavailableError:
             connection.close()
+
             raise
         except Exception:
             connection.close()
+
             raise DatabaseUnavailableError("DB_CONNECTION_FAILED") from None
 
     queue_limit = policy.queue_limit
@@ -115,4 +126,5 @@ def build_database_engine(
         max_overflow=0,
         pool_timeout=policy.acquire_timeout_ms / 1000,
     )
+
     return engine

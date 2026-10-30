@@ -11,6 +11,7 @@ def upgrade() -> None:
     op.create_table(
         "migration_evidence_partial", sa.Column("id", sa.Integer(), primary_key=True)
     )
+
     raise RuntimeError("Deliberate migration failure after DDL")
 
 

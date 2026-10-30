@@ -19,7 +19,7 @@ _backend = "mysql"
 os.environ.update(
     {
         "APP_NAME": "QuickAPI",
-        "APP_VERSION": "1.0.0",
+        "APP_VERSION": "1.3.0",
         "ENV": "test",
         "QUICKAPI_TEST_RUN": "true",
         "DOCS_ENABLED": "true",
@@ -87,6 +87,7 @@ def pytest_asyncio_loop_factories() -> (
 ):
     if _tls_tests and sys.platform == "win32":
         return {"selector": asyncio.SelectorEventLoop}
+
     return {"default": asyncio.new_event_loop}
 
 
@@ -98,6 +99,7 @@ def pytest_collection_modifyitems(
         for item in items
         if (item.get_closest_marker("database_tls") is not None) != _tls_tests
     ]
+
     if removed:
         config.hook.pytest_deselected(items=removed)
         items[:] = [item for item in items if item not in removed]
@@ -131,11 +133,13 @@ def pytest_terminal_summary(terminalreporter: TerminalReporter) -> None:
 async def database_engine() -> AsyncIterator[AsyncEngine]:
     """Real MySQL commits, guarded identity, exclusive reset, isolated rows."""
     engine = build_database_engine(_mysql_config.url)
+
     try:
         async with guarded_connection(engine, _mysql_config) as connection:
             await connection.run_sync(check_revision)
             await connection.commit()
             await clear_application_rows(connection, _mysql_config)
+
             try:
                 yield engine
             finally:
@@ -154,6 +158,7 @@ async def migration_engine() -> AsyncIterator[AsyncEngine]:
     from sqlalchemy import text
 
     engine = build_database_engine(_mysql_config.url)
+
     try:
         async with guarded_connection(engine, _mysql_config) as connection:
 
@@ -165,9 +170,11 @@ async def migration_engine() -> AsyncIterator[AsyncEngine]:
                     "alembic_version",
                 ):
                     await connection.execute(text(f"DROP TABLE IF EXISTS `{table}`"))
+
                 await connection.commit()
 
             await reset()
+
             try:
                 yield engine
             finally:
@@ -200,4 +207,5 @@ def lightweight_app() -> FastAPI:
     application = FastAPI()
     application.state.lifecycle = LifecycleHandler()
     application.state.request_work = RequestWork(25)
+
     return application

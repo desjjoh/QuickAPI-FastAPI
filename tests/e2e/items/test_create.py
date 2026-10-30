@@ -36,6 +36,7 @@ async def test_create_accepts_zero_and_fractional_prices(
     client: httpx.AsyncClient, price: float
 ) -> None:
     response = await client.post(ITEMS_URL, json={"name": "Priced", "price": price})
+
     assert response.status_code == 201
     assert response.json()["price"] == pytest.approx(round(price, 2))
 
@@ -50,6 +51,7 @@ async def test_create_accepts_optional_and_null_description(
     described = await client.post(
         ITEMS_URL, json={"name": "Described", "price": 4, "description": "details"}
     )
+
     assert omitted.json()["description"] is None
     assert explicit.json()["description"] is None
     assert described.json()["description"] == "details"
@@ -59,6 +61,7 @@ async def test_create_ignores_extra_fields(client: httpx.AsyncClient) -> None:
     response = await client.post(
         ITEMS_URL, json={"name": "Minimal", "price": 5, "unexpected": "ignored"}
     )
+
     assert response.status_code == 201
     assert "unexpected" not in response.json()
 
@@ -70,8 +73,10 @@ async def test_create_returns_and_persists_complete_resource(
         ITEMS_URL,
         json={"name": "Persistent", "price": 9.99, "description": "stored"},
     )
+
     assert response.status_code == 201
     body = response.json()
+
     assert set(body) == {
         "id",
         "name",
@@ -85,5 +90,6 @@ async def test_create_returns_and_persists_complete_resource(
     datetime.fromisoformat(body["created_at"])
     datetime.fromisoformat(body["updated_at"])
     persisted = await client.get(f"{ITEMS_URL}{body['id']}")
+
     assert persisted.status_code == 200
     assert persisted.json() == body

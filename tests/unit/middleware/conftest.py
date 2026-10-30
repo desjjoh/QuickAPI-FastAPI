@@ -22,12 +22,15 @@ class RequestCall(Protocol):
 
 async def ok_app(scope: Scope, receive: Receive, send: Send) -> None:
     body = b""
+
     if scope["type"] == "http":
         while True:
             message = await receive()
             body += message.get("body", b"")
+
             if not message.get("more_body", False):
                 break
+
     await send(
         {"type": f"{scope['type']}.response.start", "status": 200, "headers": []}
     )
@@ -71,6 +74,7 @@ async def invoke(
         sent.append(message)
 
     await app(scope, receive, send)
+
     return sent
 
 
@@ -88,4 +92,5 @@ def http_scope(
         "headers": headers or [],
         "client": client,
     }
+
     return scope

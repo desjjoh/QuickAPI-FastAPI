@@ -14,6 +14,7 @@ async def test_collectors_are_labeled_without_global_state(
 ) -> None:
     count = Mock()
     latency = Mock()
+
     monkeypatch.setattr("app.common.middleware.prometheus_metrics.REQUEST_COUNT", count)
     monkeypatch.setattr(
         "app.common.middleware.prometheus_metrics.REQUEST_DURATION", latency
@@ -32,6 +33,7 @@ async def test_operational_endpoints_are_not_instrumented(
 ) -> None:
     count = Mock()
     latency = Mock()
+
     monkeypatch.setattr("app.common.middleware.prometheus_metrics.REQUEST_COUNT", count)
     monkeypatch.setattr(
         "app.common.middleware.prometheus_metrics.REQUEST_DURATION", latency

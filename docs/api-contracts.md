@@ -61,7 +61,12 @@ JSON mutations should send `Content-Type: application/json`. Middleware may reje
 
 The process-local limiter defaults to 200 admitted requests in the preceding 60 seconds per resolved client, with bounded client storage. Quota exhaustion returns 429; new identities at storage capacity receive 503. Both include positive `Retry-After` and the existing error envelope. Operational routes and preflights share the quota; favicon GET/HEAD is exempt. See [rate limiting](rate-limiting.md) for settings, response details, and process/CORS boundaries.
 
-Repository mutations commit before returning. No optimistic concurrency token, idempotency-key contract, or replay protection exists. Avoid automatic mutation retries unless the caller can reconcile an uncertain result. Implement and test guarantees before documenting them.
+Item controllers delegate to services and validate their results into response models. Repository
+mutations participate in the request-owned transaction and never commit
+independently. The route owner commits after service execution and buffered JSON
+preparation; see [Mutation transactions](transactions.md). No optimistic concurrency
+token, idempotency-key contract, or replay protection exists. Avoid automatic
+mutation retries unless the caller can reconcile an uncertain result.
 
 Operational payloads and access boundaries are documented in [Deployment](deployment.md#application-lifespan-and-operational-endpoints).
 

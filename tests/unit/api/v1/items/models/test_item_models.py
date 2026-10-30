@@ -75,6 +75,7 @@ def test_update_rejects_empty_null_or_invalid_fields(
 
 def test_update_distinguishes_omitted_fields() -> None:
     update = UpdateItemRequest.model_validate({"description": None})
+
     assert update.model_fields_set == {"description"}
     assert update.model_dump(exclude_unset=True) == {"description": None}
 

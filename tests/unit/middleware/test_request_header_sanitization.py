@@ -24,6 +24,7 @@ async def capture(
     sent = await invoke(
         HeaderSanitizationASGIMiddleware(app, extra), http_scope(headers)
     )
+
     return cast(int, sent[0]["status"]), seen
 
 
@@ -31,6 +32,7 @@ async def test_casing_allowed_custom_and_unknown_filtering() -> None:
     status, headers = await capture(
         [(b"X-CUSTOM", b"safe"), (b"x-unknown", b"drop")], {"x-custom"}
     )
+
     assert status == 200 and headers == [(b"X-CUSTOM", b"safe")]
 
 

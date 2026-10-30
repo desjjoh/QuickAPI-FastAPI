@@ -54,6 +54,7 @@ def configure_custom_validation_openapi(app: FastAPI) -> None:
                     )
 
         app.openapi_schema = schema
+
         return app.openapi_schema
 
     setattr(app, "openapi", custom_openapi)

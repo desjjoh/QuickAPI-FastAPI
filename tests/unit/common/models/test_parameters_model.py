@@ -19,6 +19,7 @@ async def test_accepts_lowercase_sixteen_character_hex_ids(identifier: str) -> N
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         response = await client.get(f"/{identifier}")
+
     assert response.status_code == 200
     assert response.json() == identifier
 
@@ -37,4 +38,5 @@ async def test_rejects_invalid_hex_ids(identifier: str) -> None:
         transport=ASGITransport(app=app), base_url="http://test"
     ) as client:
         response = await client.get(f"/{identifier}")
+
     assert response.status_code == 422

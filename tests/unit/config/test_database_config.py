@@ -37,11 +37,14 @@ async def test_get_session_yields_and_closes_through_context_manager(
 ) -> None:
     session = object()
     context = SessionContext(session)
+
     monkeypatch.setattr(database, "SessionLocal", lambda: context)
     dependency = database.get_session(Request({"type": "http"}))
+
     assert await anext(dependency) is session
     with pytest.raises(StopAsyncIteration):
         await anext(dependency)
+
     assert context.exited_with == (None, None, None)
 
 
@@ -50,12 +53,16 @@ async def test_get_session_propagates_error_and_context_rolls_back(
 ) -> None:
     session = object()
     context = SessionContext(session)
+
     monkeypatch.setattr(database, "SessionLocal", lambda: context)
     dependency = database.get_session(Request({"type": "http"}))
+
     await anext(dependency)
     error = RuntimeError("endpoint failed")
+
     with pytest.raises(RuntimeError, match="endpoint failed"):
         await dependency.athrow(error)
+
     assert context.exited_with is not None
     assert context.exited_with[0] is RuntimeError
 
@@ -79,11 +86,13 @@ async def test_init_db_propagates_failure(monkeypatch: pytest.MonkeyPatch) -> No
         yield  # type: ignore[unreachable]
 
     dispose = AsyncMock()
+
     monkeypatch.setattr(
         database, "engine", SimpleNamespace(connect=begin, dispose=dispose)
     )
     with pytest.raises(RuntimeError, match="unavailable"):
         await database.init_db()
+
     dispose.assert_awaited_once()
 
 
@@ -97,6 +106,7 @@ async def test_startup_deadline_or_cancellation_cleans_pool(
     @asynccontextmanager
     async def connect() -> AsyncGenerator[None, None]:
         entered.set()
+
         try:
             await asyncio.Event().wait()
             yield
@@ -104,16 +114,20 @@ async def test_startup_deadline_or_cancellation_cleans_pool(
             cleaned.set()
 
     dispose = AsyncMock()
+
     monkeypatch.setattr(
         database, "engine", SimpleNamespace(connect=connect, dispose=dispose)
     )
     monkeypatch.setattr(database.settings, "DB_MIGRATION_CHECK_TIMEOUT_MS", 30)
     task = asyncio.create_task(database.init_db())
+
     await entered.wait()
     if cancel:
         task.cancel()
+
     with pytest.raises(asyncio.CancelledError if cancel else TimeoutError):
         await task
+
     assert cleaned.is_set()
     dispose.assert_awaited_once()
     assert await database.db_test_query() is False
@@ -131,6 +145,7 @@ async def test_connectivity_success_and_failure(
     probe = DatabaseReadiness(
         cast(AsyncEngine, SimpleNamespace(connect=connected)), cache_ms=0
     )
+
     probe.resume()
     monkeypatch.setattr(database, "database_readiness", probe)
     assert await database.db_test_query() is True
@@ -144,6 +159,7 @@ async def test_connectivity_success_and_failure(
     probe = DatabaseReadiness(
         cast(AsyncEngine, SimpleNamespace(connect=failed)), cache_ms=0
     )
+
     probe.resume()
     monkeypatch.setattr(database, "database_readiness", probe)
     assert await database.db_test_query() is False
@@ -153,15 +169,18 @@ async def test_close_and_service_delegate_to_database_functions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dispose = AsyncMock()
+
     monkeypatch.setattr(database, "engine", SimpleNamespace(dispose=dispose))
     await database.close_db()
     dispose.assert_awaited_once()
 
     start, stop, check = AsyncMock(), AsyncMock(), AsyncMock(return_value=True)
+
     monkeypatch.setattr(database, "init_db", start)
     monkeypatch.setattr(database, "close_db", stop)
     monkeypatch.setattr(database, "db_test_query", check)
     service = database.DatabaseService()
+
     await service.start()
     await service.stop()
     assert await service.check() is True

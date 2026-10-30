@@ -57,6 +57,7 @@ def certificates(path: Path) -> None:
         )
         .sign(key, hashes.SHA256())
     )
+
     (path / "ca.pem").write_bytes(ca.public_bytes(serialization.Encoding.PEM))
     (path / "server-cert.pem").write_bytes(
         server.public_bytes(serialization.Encoding.PEM)
@@ -80,6 +81,7 @@ def certificates(path: Path) -> None:
         .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
         .sign(other, hashes.SHA256())
     )
+
     (path / "untrusted-ca.pem").write_bytes(
         untrusted.public_bytes(serialization.Encoding.PEM)
     )
@@ -88,19 +90,24 @@ def certificates(path: Path) -> None:
     # These disposable test credentials must be readable across host/container UIDs.
     for name in ("ca.pem", "server-cert.pem", "server-key.pem", "untrusted-ca.pem"):
         (path / name).chmod(0o644)
+
     path.chmod(0o755)
 
 
 def run_tls(config: TestDatabaseConfig) -> int:
     raw = config.values.get("TEST_TLS_PORT", "3312")
+
     if not raw.isascii() or not raw.isdecimal() or not 1 <= int(raw) <= 65535:
         raise ValueError(
             "TEST_TLS_PORT must be a whole port number from 1 through 65535."
         )
+
     cache = ROOT / '.cache'
+
     cache.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='mysql-tls-', dir=cache) as temporary:
         path = Path(temporary)
+
         certificates(path)
         env = {
             **os.environ,
@@ -119,14 +126,18 @@ def run_tls(config: TestDatabaseConfig) -> int:
             str(ROOT / 'docker-compose.test.tls.yml'),
         ]
         result = 1
+
         try:
             result = subprocess.call(
                 [*command, 'up', '-d', '--wait'], env=env, cwd=ROOT
             )
+
             if result:
                 return result
+
             result = 1
             url = config.url.set(host='127.0.0.1', port=int(raw))
+
             load_test_config(
                 {
                     **config.values,
@@ -155,6 +166,7 @@ def run_tls(config: TestDatabaseConfig) -> int:
                 env=child,
                 cwd=ROOT,
             )
+
             return result
         finally:
             logs = subprocess.run(
@@ -165,14 +177,17 @@ def run_tls(config: TestDatabaseConfig) -> int:
                 text=True,
             )
             artifacts = ROOT / 'test-artifacts'
+
             artifacts.mkdir(exist_ok=True)
             (artifacts / 'mysql-tls.log').write_text(
                 logs.stdout + logs.stderr, encoding='utf-8'
             )
             if result:
                 print(logs.stdout + logs.stderr)
+
             cleanup = subprocess.call(
                 [*command, 'down', '--volumes'], env=env, cwd=ROOT
             )
+
             if cleanup and result == 0:
                 raise RuntimeError('TLS test cleanup failed.')

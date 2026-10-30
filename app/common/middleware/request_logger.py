@@ -41,6 +41,7 @@ class RequestLoggingASGIMiddleware:
                     else "debug"
                 )
             )
+
             # The final server error can be emitted after request context cleanup.
             with structlog.contextvars.bound_contextvars(request_id=request_id):
                 getattr(log, level)(

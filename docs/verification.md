@@ -5,7 +5,7 @@
 ## Source and environment
 
 Verified on 2026-10-29 against base commit
-`1c9ac3444940f168500928a63b302149c735c3f1` and the local fingerprints below.
+`26fa32ce781303697249598b083fa36457369229` and the local fingerprints below.
 The candidate includes uncommitted changes; the base commit alone does not identify
 it. This report describes the current MySQL-only application and tests. Earlier
 verification snapshots remain in Git history and do not define current support.
@@ -18,29 +18,35 @@ The development database is separate and was not modified.
 
 | Check | Result |
 | --- | --- |
-| Windows full MySQL suite | 997 passed; two POSIX-only cases skipped; five dedicated TLS cases deselected; 95.83% branch-measured application coverage |
-| Linux full MySQL suite | 999 passed; no skips; five dedicated TLS cases deselected; 95.92% branch-measured application coverage |
-| Database-independent units | 645 passed with an unreachable configured database target; no database-backed fixtures selected |
+| Windows full MySQL suite | 1022 passed; two POSIX-only cases skipped; five dedicated TLS cases deselected; 95.94% branch-measured application coverage |
+| Linux full MySQL suite | 1024 passed; no skips; five dedicated TLS cases deselected; 96.03% branch-measured application coverage |
+| Database-independent units | 670 passed with an unreachable configured database target; no database-backed fixtures selected |
 | Dedicated TLS | Five cases passed on Windows against the separate generated-certificate MySQL server |
 | Coverage gates | Middleware 97%, lifecycle 99%, database package 95%, API 99%; all configured gates passed on both platforms |
-| Formatting/linting | Black: 165 files unchanged; Ruff passed |
-| Type checking | mypy: 68 application/tool files passed; strict Pyright: 5 affected files, zero diagnostics, using explicit installed typeshed |
+| Formatting/linting | Combined Black/logical-spacing check: 170 files, zero changes on Windows/Linux; independent Black check and Ruff passed |
+| Formatting safety | All 168 pre-existing Python files retain identical ASTs and comment text; 135 files received spacing changes; the new formatter/checker tests are separate tooling additions |
+| Formatter qualification | Ten cases cover spacing, comments/decorators/docstrings, exclusions/strings, syntax preservation, idempotence, exit codes, invalid-source safety, Unicode/CRLF, discovery and editor buffer/selection protocols; final focused Windows run passed |
+| Format enforcement | CI static analysis runs scripts.format_code --check; VS Code format-on-save uses the same formatter through Black Formatter; no additional Python dependency introduced |
+| Type checking | mypy: 71 application/tool files passed; strict Pyright: 15 affected files, zero diagnostics, using explicit installed typeshed |
 | Dependencies | Local and fresh-image pip checks passed; removed optional database driver absent from both; pytest absent from runtime image |
 | Transaction HTTP qualification | Existing 32-case preparation/ownership module and 23 real HTTP/MySQL expiry, uncertainty and rollback-loss cases pass in both full suites |
 | Forced-exit diagnostics | Watchdog and repeated-signal paths terminate with status 1 even when stderr raises OSError or BrokenPipeError |
 | Combined transaction shutdown | Expired marked mutations retain dependencies through rollback; cancellation-resistant mutations reach the final watchdog; original MySQL server sessions disappear |
-| Final process assertions | Two combined cases passed again on Windows after strengthening dependency-order/watchdog assertions; Linux full suite includes those final assertions |
+| Final process assertions | Combined dependency-order/watchdog assertions pass in both full suites |
 | Rollback connection loss | Real ROLLBACK command/acknowledgement loss invalidates the lease, preserves absence of the failed write, retires the server session and restores a queued caller on a replacement connection |
 | Expiry and uncertain outcomes | Monotonic checks, expired acquisition without business SQL, caught cancellation, all four mutation methods after writes, real disconnects, held INSERT results, interrupted COMMIT, lost acknowledgement, confirmed commit before lost response, cleanup failure, invalidation and recovery |
 | Transaction ownership | Four marked item mutation routes share one explicit request session; repositories never commit/roll back independently; read routes remain unmarked |
+| Service boundary | Services return ORM results or plain typed system data; controllers assign awaited results to local variables and validate response models before returning them |
+| Controller validation | Invalid outputs rejected for all six item operations, root greeting, health, runtime identity and nested diagnostics; pagination metadata preserved; transaction validation failures roll back MySQL writes |
+| Service/session composition | Real MySQL dependency test proves the injected item service borrows the same active route-owned session as repeated get_session dependencies; completed owner cannot silently autobegin |
 | Boundary guards | Existing owner/active factory session rejected; shared dependencies borrow without closing; completed owner cannot silently autobegin; streams/background tasks rejected and prepared error responses rolled back |
-| Configuration | Only mysql+asyncmy accepted; test configuration remains independent of development .env |
+| Configuration | Application version 1.3.0 reflected in example/local environment, test configuration and smoke stack; only mysql+asyncmy accepted; tests remain independent of development .env |
 | Migration behavior | Empty-schema rejection, baseline/model comparison, repeated upgrade, incompatible history, downgrade/reapply, offline SQL and real online commands pass against MySQL |
 | Pool/session cleanup | Real MySQL late-connection disposal, queue/cancellation/invalidation, and server-session disappearance checks pass |
 | Safety | Live identity checks, exclusive reset guards, destructive schema restoration, unavailable-target failure, and isolated command-lock tests pass |
 | CI definition | Unit job, MySQL integration/E2E, full MySQL coverage, dedicated TLS and independent MySQL image qualification; YAML parses |
 | Image-runner failures | Database startup, HTTP-check, and artifact-write failures all attempt disposable-project teardown |
-| Built runtime image | sha256:55fa8176dfcaf129d3325ec49d8f676a6bd9d5f2607bc67b94486982e6e009a8 |
+| Built runtime image | sha256:cc8850be6b7e1c5ff2f1df37212c16525dfd040b40f29a19f50846495d4e800b |
 | Built-image MySQL qualification | Explicit migration, CRUD, probes, favicon, production exposure defaults, pip check, Docker SIGTERM, exit zero and final success record passed |
 | Cleanup | Generated TLS material, independent smoke/TLS projects and verification containers removed; existing development/regular test services retained |
 | Hosted CI / branch enforcement | Not run / not independently verified for this candidate |
@@ -58,7 +64,10 @@ before releasing it. Both schema fixtures and row-reset fixtures verify the perm
 live database/user. No migrations are applied automatically by application startup.
 The application schema and public item contracts are unchanged. Repository callers
 now own their transaction explicitly, as described in [Mutation transactions](transactions.md).
-Controller logic remains in place; no item service layer is introduced.
+Item and system controllers delegate application logic to services, then validate
+the returned data into JSON response models, as described in
+[Controllers and services](services.md). Existing route
+contracts, transaction ownership and expiry/shutdown boundaries are retained.
 
 Real constraint-rejection cases verify rollback after an earlier successful write.
 Expiry tests hold actual MySQL protocol packets rather than simulating commit
@@ -90,10 +99,22 @@ workflow definitions do not establish hosted check execution or ruleset enforcem
 
 ## Input fingerprints
 
+The Python tree digest for all 170 files under `app`, `tests` and `scripts` is
+`f813f59fb39db0d5b4f5106e0e56c00b0a09b287b8170b4dfeee96922391c973`. It hashes sorted project-relative POSIX paths, each followed
+by a NUL byte, the raw file bytes and another NUL byte. The table records formatter,
+CI, editor and runtime configuration inputs separately. Local `.env` secrets are excluded.
+
 | Input | SHA-256 |
 | --- | --- |
-| `app/common/handlers/http_server.py` | `4dbe0a50ac441f2adf33272b6ba102210c24187d7d7852ed2e7c017f566a3203` |
-| `tests/unit/common/handlers/test_http_server.py` | `8f19cbd7ad74fa823bf1e76675e192ba008fff74205c3694e7a7d43bc839f91a` |
-| `tests/fixtures/shutdown_server.py` | `42585a05d37a96800f67845fd0e5d23d82b377f8f23c0c890f2d2a4d1887bdc5` |
-| `tests/integration/test_shutdown_process.py` | `8c828decf9ebb99123cc41bf7d93668dc70a473308460197c7aafe76438ccc3d` |
-| `tests/integration/database/test_mutation_expiry.py` | `750d619410d71f6f2b7400f4a2981a01902fac7649064266fe525d3962055d40` |
+| `pyproject.toml` | `e553f7d09e9f62cd8a6fdecd00492e138ef75dc723eb01aed6793196824ebabe` |
+| `requirements.txt` | `10fc9509811475c290a469a1e004b729cdefa4ca233014f4cb1458f3d620725e` |
+| `requirements-dev.txt` | `78e2697eed46117b133a6748bd74d200f60c03c2f7b75d10b08dd12937011140` |
+| `.github/workflows/tests.yml` | `5fbb8d734c8c34a378327db58527bef350bbcdb4f234e01cb646692dbb82ba00` |
+| `.vscode/settings.json` | `02c9ce4e144f1caec058da4b2e5740af0610ee5cd30d25a1b4d4035e035866b7` |
+| `.vscode/extensions.json` | `790ea189d5918b8ed7d2111821619f4ae6f21284d7679fe467bdaaa7c1f4b037` |
+| `scripts/format_code.py` | `6f50a4411559ca471934e2979af7f321bb9cc9407f954847b7311f138e0c11ac` |
+| `tests/unit/config/test_format_code.py` | `11652b5afdfb6b05961ac417c5006ab9fdb395ef32c6e71ea80008e23b80b6f3` |
+| `.env.example` | `8a9811eee750390bac56eee79d7044a852fdeb4435d07bd8ea800e0257ec9b4b` |
+| `.env.test` | `40b9e30608e524d56ab09d350a1024d5cba38ce643721eb60fe0460538d48802` |
+| `Dockerfile` | `71eedddc4f3e2d4e492eae66b7f4c7ab88aff73cced3c7a56bb7aad2b8297924` |
+| `docker-compose.smoke.yml` | `56a2c1792da56b587457b44813a86b26b222ed47e634b137b13bd9130f7e2f16` |

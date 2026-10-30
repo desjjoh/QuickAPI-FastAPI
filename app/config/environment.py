@@ -143,15 +143,21 @@ class Settings(BaseSettings):
     def parse_list(cls, value: object) -> object:
         if isinstance(value, str):
             value = [] if not value.strip() else value.split(",")
+
         if not isinstance(value, list):
             raise ValueError("must be a comma-separated list")
+
         items: list[str] = []
+
         for entry in cast(list[object], value):
             if not isinstance(entry, str) or not entry.strip():
                 raise ValueError("list entries must be non-empty strings")
+
             entry = entry.strip()
+
             if entry not in items:
                 items.append(entry)
+
         return items
 
     @field_validator("CORS_ORIGINS")
@@ -159,6 +165,7 @@ class Settings(BaseSettings):
     def validate_origins(cls, values: list[str]) -> list[str]:
         for value in values:
             parsed = AnyHttpUrl(value)
+
             # Match the browser's serialized origin, including normalized host/port.
             if (
                 str(parsed).removesuffix("/") != value
@@ -173,6 +180,7 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "use exact HTTP(S) origins without paths, credentials, queries, fragments, or wildcards"
                 )
+
         return values
 
     @field_validator("CORS_METHODS", "HTTP_ALLOWED_METHODS")
@@ -180,12 +188,14 @@ class Settings(BaseSettings):
     def validate_methods(cls, values: list[str]) -> list[str]:
         if any(value not in HTTP_METHODS for value in values):
             raise ValueError("use uppercase supported HTTP methods")
+
         return values
 
     @field_validator("CORS_ALLOWED_HEADERS", "CORS_EXPOSED_HEADERS")
     @classmethod
     def validate_headers(cls, values: list[str]) -> list[str]:
         normalized = list(dict.fromkeys(value.lower() for value in values))
+
         if any(
             not re.fullmatch(r"[a-z0-9-]+", value)
             or value in FORBIDDEN_HEADERS
@@ -195,17 +205,20 @@ class Settings(BaseSettings):
             raise ValueError(
                 "use supported HTTP header names; forwarding/hop-by-hop headers are reserved"
             )
+
         return normalized
 
     @field_validator("HTTP_ALLOWED_CONTENT_TYPES")
     @classmethod
     def validate_content_types(cls, values: list[str]) -> list[str]:
         normalized = list(dict.fromkeys(value.lower() for value in values))
+
         if any(
             not re.fullmatch(r"[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+", value)
             for value in normalized
         ):
             raise ValueError("use exact media types without parameters or wildcards")
+
         return normalized
 
     @field_validator("TRUST_PROXY")
@@ -225,10 +238,13 @@ class Settings(BaseSettings):
     def strict_boolean(cls, value: object) -> bool:
         if isinstance(value, bool):
             return value
+
         if value == "true":
             return True
+
         if value == "false":
             return False
+
         raise ValueError("must be true or false")
 
     @field_validator(
@@ -258,8 +274,10 @@ class Settings(BaseSettings):
     def strict_integer(cls, value: object) -> object:
         if isinstance(value, int) and not isinstance(value, bool):
             return value
+
         if isinstance(value, str) and value.isascii() and value.isdecimal():
             return value
+
         raise ValueError("must be a whole number within the documented range")
 
     @model_validator(mode="after")
@@ -268,20 +286,24 @@ class Settings(BaseSettings):
 
         try:
             url = make_url(self.DATABASE_URL)
+
             if url.drivername != "mysql+asyncmy" or set(url.query) - {"charset"}:
                 raise ValueError("Unsupported database URL")
         except Exception:
             raise ValueError(
                 "DATABASE_URL must use mysql+asyncmy; only the charset URL option is supported"
             ) from None
+
         if self.HTTP_DRAIN_TIMEOUT_MS >= self.SHUTDOWN_TIMEOUT_MS:
             raise ValueError(
                 "HTTP_DRAIN_TIMEOUT_MS must be less than SHUTDOWN_TIMEOUT_MS"
             )
+
         if self.DB_SSL_CA_FILE is not None and (
             not self.DB_SSL or not self.DB_SSL_CA_FILE.strip()
         ):
             raise ValueError("DB_SSL_CA_FILE requires DB_SSL=true and a non-empty path")
+
         if self.DB_SSL:
             from app.config.database_transport import DatabasePolicy, tls_context
 
@@ -293,22 +315,27 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "Invalid database TLS configuration or CA certificates"
                 ) from None
+
         if self.HTTP_MAX_SINGLE_HEADER_BYTES > self.HTTP_MAX_TOTAL_HEADER_BYTES:
             raise ValueError(
                 "HTTP_MAX_SINGLE_HEADER_BYTES must not exceed HTTP_MAX_TOTAL_HEADER_BYTES"
             )
+
         if (
             max(self.REQUEST_FIRST_BODY_TIMEOUT_MS, self.REQUEST_CHUNK_TIMEOUT_MS)
             > self.REQUEST_TIMEOUT_MS
         ):
             raise ValueError("body wait deadlines must not exceed REQUEST_TIMEOUT_MS")
+
         if not set(self.CORS_METHODS).issubset(self.HTTP_ALLOWED_METHODS):
             raise ValueError("CORS_METHODS must be a subset of HTTP_ALLOWED_METHODS")
+
         RateLimitPolicy(
             window_ms=self.RATE_LIMIT_WINDOW_MS,
             max_requests=self.RATE_LIMIT_MAX,
             max_clients=self.RATE_LIMIT_MAX_CLIENTS,
         )
+
         return self
 
     @field_validator("API_PUBLISHED_PORT", "MYSQL_PUBLISHED_PORT", mode="before")
@@ -320,11 +347,13 @@ class Settings(BaseSettings):
                 if info.field_name == "API_PUBLISHED_PORT"
                 else DEFAULT_MYSQL_PUBLISHED_PORT
             )
+
         if isinstance(value, str):
             if value.isascii() and value.isdecimal():
                 return value
         elif isinstance(value, int) and not isinstance(value, bool):
             return value
+
         raise ValueError("must be an integer port from 1 through 65535")
 
     @field_validator("TIMEZONE")
@@ -335,6 +364,7 @@ class Settings(BaseSettings):
             ZoneInfo(value)
         except ZoneInfoNotFoundError as exc:
             raise ValueError("must be a valid IANA timezone identifier") from exc
+
         return value
 
     model_config = SettingsConfigDict(
@@ -355,6 +385,7 @@ def load_settings() -> Settings:
             and os.environ.get("ENV") == "test"
         ):
             return Settings(_env_file=None)  # type: ignore
+
         return Settings()  # type: ignore
 
     except ValidationError as err:
@@ -375,8 +406,10 @@ def print_env_error_and_exit(err: ValidationError) -> NoReturn:
         for issue in errors
     ]
     mode = os.environ.get("ENV")
+
     if mode is None:
         mode = dotenv_values(".env").get("ENV")
+
     if mode == "production":
         print(
             json.dumps(

@@ -35,6 +35,7 @@ async def test_patch_fields_independently_and_preserves_omissions(
 ) -> None:
     item = await create_item(client, "Original", 10, "original")
     response = await client.patch(f"{ITEMS_URL}{item['id']}", json=patch)
+
     assert response.status_code == 200
     assert all(response.json()[key] == value for key, value in expected.items())
 
@@ -56,11 +57,13 @@ async def test_patch_rejects_empty_null_and_invalid_values(
     client: httpx.AsyncClient, patch: dict[str, object]
 ) -> None:
     item = await create_item(client)
+
     assert_validation_error(await client.patch(f"{ITEMS_URL}{item['id']}", json=patch))
 
 
 async def test_patch_missing_resource(client: httpx.AsyncClient) -> None:
     response = await client.patch(f"{ITEMS_URL}{MISSING_ID}", json={"name": "Nope"})
+
     assert response.status_code == 404
 
 
@@ -71,5 +74,6 @@ async def test_patch_persists_to_subsequent_get(client: httpx.AsyncClient) -> No
         json={"name": "After", "price": 2, "description": "after"},
     )
     fetched = await client.get(f"{ITEMS_URL}{item['id']}")
+
     assert patched.status_code == fetched.status_code == 200
     assert fetched.json() == patched.json()

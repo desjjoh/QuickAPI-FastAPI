@@ -19,6 +19,7 @@ def test_main_forwards_settings_and_selects_reload_by_environment(
     configure = Mock(return_value=config)
     server = Mock()
     supervisor = Mock()
+
     monkeypatch.setattr(entrypoint.uvicorn, "Config", configure)
     monkeypatch.setattr(entrypoint, "ApplicationServer", Mock(return_value=server))
     monkeypatch.setattr(entrypoint, "ChangeReload", supervisor)
@@ -56,6 +57,7 @@ def test_run_reports_fatal_startup_error_without_starting_server(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     uvicorn_run = Mock(side_effect=RuntimeError("cannot bind"))
+
     monkeypatch.setattr(entrypoint, "ApplicationServer", uvicorn_run)
 
     with pytest.raises(SystemExit) as error:

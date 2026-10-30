@@ -42,9 +42,11 @@ def main() -> None:
                 raise RuntimeError(
                     'Services stopped before transaction dependency cleanup'
                 )
+
             (directory / 'cleanup').touch()
             if mode in {'cleanup-stuck', 'repeated'}:
                 await asyncio.Event().wait()
+
             if mode == 'cleanup-failure':
                 raise RuntimeError('Injected cleanup failure')
 
@@ -68,6 +70,7 @@ def main() -> None:
     @transactional
     async def mutation(db: AsyncSession = Depends(tracked_session)) -> dict[str, bool]:
         identifier = await db.scalar(text('SELECT CONNECTION_ID()'))
+
         (directory / 'connection-id').write_text(str(identifier))
         await db.execute(
             text(
@@ -81,8 +84,10 @@ def main() -> None:
                     await asyncio.Event().wait()
                 except asyncio.CancelledError:
                     pass  # Final process deadline must bound an owned mutation.
+
         await release()
         (directory / 'finished').touch()
+
         return {'done': True}
 
     app.include_router(router)
@@ -94,6 +99,7 @@ def main() -> None:
             # Start shutdown before blocking so the independent watchdog is armed.
             server.handle_exit(signal.SIGTERM, None)
             time.sleep(10)
+
         if mode in {'late', 'stuck'}:
             (directory / 'entered').touch()
             while True:
@@ -101,6 +107,7 @@ def main() -> None:
                     if mode == 'late':
                         await release()
                         break
+
                     await asyncio.Event().wait()
                 except asyncio.CancelledError:
                     pass  # Deliberately adversarial work, verified by the watchdog.
@@ -114,7 +121,9 @@ def main() -> None:
                     )
                     (directory / 'entered').touch()
                     await release()
+
         (directory / 'finished').touch()
+
         return {'done': True}
 
     @app.get('/stream')
@@ -146,6 +155,7 @@ def main() -> None:
             if (directory / 'stop').exists():
                 (directory / 'stop').unlink()
                 server.request_shutdown()
+
             await asyncio.sleep(0.01)
 
     original_startup = server.startup
@@ -155,6 +165,7 @@ def main() -> None:
         app.state.test_control = asyncio.create_task(control())
 
     server.startup = startup
+
     try:
         server.run()
     except Exception:

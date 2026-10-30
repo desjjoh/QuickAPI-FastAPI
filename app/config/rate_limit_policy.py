@@ -25,4 +25,5 @@ class RateLimitPolicy(BaseModel):
             raise ValueError(
                 f"rate limiter storage must not exceed {MAX_TIMESTAMP_SLOTS} timestamp slots"
             )
+
         return self

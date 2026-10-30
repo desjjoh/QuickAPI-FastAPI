@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from app.api.system.models.live_model import HealthResponse
 from app.api.system.models.ready_model import ReadyResponse
 from app.api.system.models.root_model import RootResponse
+from app.api.system.models.system_model import CpuDiagnostics, MemoryDiagnostics
 
 pytestmark = pytest.mark.unit
 
@@ -72,6 +73,7 @@ def test_health_response_rejects_contradictory_state(
     status: str,
 ) -> None:
     data = valid_health_data()
+
     data.update(alive=alive, status=status)
 
     with pytest.raises(ValidationError):
@@ -116,3 +118,18 @@ INVALID_READY_DATA: list[dict[str, object]] = [
 def test_ready_response_rejects_invalid_contracts(data: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         ReadyResponse.model_validate(data)
+
+
+def test_nested_model_ranges_and_fixed_load_average() -> None:
+    CpuDiagnostics(cores=1, model="unknown", load_average=(0.0, 1.0, 2.0))
+    MemoryDiagnostics(total_bytes=1, available_bytes=1, used_bytes=0, percentage=100.0)
+    with pytest.raises(ValidationError):
+        CpuDiagnostics(cores=0, model="x", load_average=(0.0, 0.0, 0.0))
+
+    with pytest.raises(ValidationError):
+        CpuDiagnostics(cores=1, model="x", load_average=(0.0, 0.0))  # type: ignore[arg-type]
+
+    with pytest.raises(ValidationError):
+        MemoryDiagnostics(
+            total_bytes=1, available_bytes=0, used_bytes=1, percentage=101.0
+        )

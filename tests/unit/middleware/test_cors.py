@@ -37,11 +37,13 @@ async def req(
 
 def headers(sent: list[Message]) -> dict[str, str]:
     raw_headers = sent[0].get("headers", [])
+
     return {key.decode(): value.decode() for key, value in raw_headers}
 
 
 async def test_simple_origin_credentials_exposed_and_vary(app: ASGIApp) -> None:
     h = headers(await req(app, headers=[(b"origin", b"https://ok")]))
+
     assert (
         h["access-control-allow-origin"] == "https://ok"
         and h["access-control-allow-credentials"] == "true"
@@ -61,6 +63,7 @@ async def test_valid_and_invalid_preflight(app: ASGIApp) -> None:
         (b"access-control-request-headers", b"Content-Type, X-Ok"),
     ]
     sent = await req(app, "OPTIONS", base)
+
     assert sent[0]["status"] == 204 and headers(sent)["vary"] == "Origin"
     for changed in [
         [*base[:-2], (b"access-control-request-method", b"TRACE"), *base[-1:]],

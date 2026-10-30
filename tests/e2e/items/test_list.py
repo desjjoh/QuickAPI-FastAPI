@@ -8,10 +8,12 @@ pytestmark = [pytest.mark.e2e, pytest.mark.asyncio]
 
 async def test_list_defaults_and_empty_results(client: httpx.AsyncClient) -> None:
     empty = await client.get(ITEMS_URL)
+
     assert empty.status_code == 200
     assert empty.json() == {"data": [], "total": 0, "page": 1, "limit": 20}
     await create_item(client, "Default", 7)
     body = (await client.get(ITEMS_URL)).json()
+
     assert body["page"] == 1 and body["limit"] == 20 and body["total"] == 1
 
 
@@ -20,10 +22,12 @@ async def test_list_multiple_final_and_out_of_range_pages(
 ) -> None:
     for index in range(5):
         await create_item(client, f"Item {index}", float(index))
+
     first = (await client.get(ITEMS_URL, params={"page": 1, "limit": 2})).json()
     second = (await client.get(ITEMS_URL, params={"page": 2, "limit": 2})).json()
     final = (await client.get(ITEMS_URL, params={"page": 3, "limit": 2})).json()
     beyond = (await client.get(ITEMS_URL, params={"page": 4, "limit": 2})).json()
+
     assert [len(page["data"]) for page in (first, second, final, beyond)] == [
         2,
         2,
@@ -32,6 +36,7 @@ async def test_list_multiple_final_and_out_of_range_pages(
     ]
     assert all(page["total"] == 5 for page in (first, second, final, beyond))
     ids = {item["id"] for page in (first, second, final) for item in page["data"]}
+
     assert len(ids) == 5
 
 
@@ -41,6 +46,7 @@ async def test_list_accepts_boundary_limits(
 ) -> None:
     await create_item(client)
     response = await client.get(ITEMS_URL, params={"limit": limit})
+
     assert response.status_code == 200
     assert response.json()["limit"] == limit
 
@@ -73,13 +79,16 @@ async def test_list_supports_every_sort_and_order(
         await create_item(client, "Charlie", 10),
     ]
     response = await client.get(ITEMS_URL, params={"sort": sort, "order": order})
+
     assert response.status_code == 200
     actual = response.json()["data"]
     reverse = order == "desc"
+
     if sort == "created_at":
         expected = sorted(
             created, key=lambda item: (item[sort], item["id"]), reverse=reverse
         )
+
         assert [item[sort] for item in actual] == [item[sort] for item in expected]
     else:
         assert [item[sort] for item in actual] == sorted(
@@ -92,6 +101,7 @@ async def test_list_order_is_stable_when_sort_values_are_equal(
 ) -> None:
     for name in ("One", "Two", "Three"):
         await create_item(client, name, 5)
+
     params = {"sort": "price", "order": "asc"}
     first = [
         item["id"]
@@ -101,6 +111,7 @@ async def test_list_order_is_stable_when_sort_values_are_equal(
         item["id"]
         for item in (await client.get(ITEMS_URL, params=params)).json()["data"]
     ]
+
     assert first == second
 
 
@@ -111,6 +122,7 @@ async def test_list_searches_name_and_description_case_insensitively(
     await create_item(client, "Alpha blade", 1, "ordinary")
     await create_item(client, "Other", 2, "A needle in this description")
     body = (await client.get(ITEMS_URL, params={"search": search})).json()
+
     assert body["total"] == 1
 
 
@@ -136,8 +148,10 @@ async def test_list_price_filters_are_inclusive(
 ) -> None:
     for price in (5, 10, 15, 20):
         await create_item(client, f"Price {price}", price)
+
     query: dict[str, str | int] = {**params, "sort": "price", "order": "asc"}
     body = (await client.get(ITEMS_URL, params=query)).json()
+
     assert [item["price"] for item in body["data"]] == expected
 
 

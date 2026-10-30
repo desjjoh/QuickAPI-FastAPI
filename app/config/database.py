@@ -41,11 +41,15 @@ SessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
 
 async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
     owned = request.scope.get(TRANSACTION_SESSION_KEY)
+
     if owned is not None:
         if not isinstance(owned, AsyncSession):
             raise RuntimeError('Invalid mutation transaction session.')
+
         yield owned
+
         return
+
     async with SessionLocal() as session:
         yield session
 
@@ -55,10 +59,12 @@ async def init_db() -> None:
         async with asyncio.timeout(settings.DB_MIGRATION_CHECK_TIMEOUT_MS / 1000):
             async with engine.connect() as conn:
                 await conn.run_sync(check_revision)
+
         database_readiness.resume()
     except BaseException:
         await database_readiness.stop()
         await engine.dispose()
+
         raise
 
 

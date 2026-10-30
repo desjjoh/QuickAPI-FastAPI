@@ -34,7 +34,9 @@ def test_total_pages(total: int, limit: int, pages: int) -> None:
 def test_models_are_frozen() -> None:
     query = PaginationQuery()
     result = PaginatedResult[int](data=[], total=0, page=1, limit=20)
+
     with pytest.raises(ValidationError):
         query.__setattr__("page", 2)
+
     with pytest.raises(ValidationError):
         result.__setattr__("total", 1)

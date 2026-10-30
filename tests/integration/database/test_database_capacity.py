@@ -29,10 +29,13 @@ async def test_connection_finishing_after_disposal_is_closed_not_delivered(
         started.set()
         await release.wait()
         connection: Any = await driver.connect(**arguments)
+
         async with connection.cursor() as cursor:
             await cursor.execute("SELECT CONNECTION_ID()")
             row = await cursor.fetchone()
+
             identifiers.append(int(row[0]))
+
         return connection
 
     engine = create_async_engine(
@@ -43,6 +46,7 @@ async def test_connection_finishing_after_disposal_is_closed_not_delivered(
         max_overflow=0,
     )
     pool = engine.pool
+
     assert isinstance(pool, BoundedAsyncPool)
 
     async def connect() -> None:
@@ -50,12 +54,14 @@ async def test_connection_finishing_after_disposal_is_closed_not_delivered(
             pytest.fail("A disposed pool must not deliver a late connection")
 
     task = asyncio.create_task(connect())
+
     try:
         await asyncio.wait_for(started.wait(), 2)
         await engine.dispose()
         release.set()
         with pytest.raises(DatabaseUnavailableError) as error:
             await task
+
         assert error.value.code == "DB_POOL_CLOSED" and pool.admission.active == 0
         async with asyncio.timeout(3):
             while True:
@@ -65,8 +71,10 @@ async def test_connection_finishing_after_disposal_is_closed_not_delivered(
                         .mappings()
                         .all()
                     )
+
                 if not any(int(row["Id"]) in identifiers for row in rows):
                     break
+
                 await asyncio.sleep(0.01)
     finally:
         release.set()
@@ -86,8 +94,10 @@ async def test_real_pool_limits_queue_timeout_cancel_and_recovery(
 ) -> None:
     policy = DatabasePolicy(connection_limit=1, queue_limit=1, acquire_timeout_ms=100)
     engine = build_database_engine(database_engine.url, policy=policy)
+
     assert isinstance(engine.pool, BoundedAsyncPool)
     pool = engine.pool
+
     try:
         held = await engine.connect()
 
@@ -96,13 +106,16 @@ async def test_real_pool_limits_queue_timeout_cancel_and_recovery(
                 await connection.execute(text('SELECT 1'))
 
         waiter = asyncio.create_task(acquire())
+
         await wait_for_waiters(pool, 1)
         with pytest.raises(DatabaseUnavailableError) as full:
             await engine.connect()
+
         assert full.value.code == 'DB_POOL_CAPACITY'
         from starlette.exceptions import HTTPException
 
         app = FastAPI()
+
         app.exception_handler(HTTPException)(http_exception_handler)
         factory = async_sessionmaker(engine)
 
@@ -116,25 +129,31 @@ async def test_real_pool_limits_queue_timeout_cancel_and_recovery(
             base_url='http://test',
         ) as client:
             rejected = await client.get('/')
+
         assert rejected.status_code == 503
         assert rejected.json()['message'] == 'Database temporarily unavailable.'
         with pytest.raises(DatabaseUnavailableError) as expired:
             await waiter
+
         assert expired.value.code == 'DB_POOL_ACQUIRE_TIMEOUT'
         cancelled = asyncio.create_task(acquire())
+
         await wait_for_waiters(pool, 1)
         cancelled.cancel()
         with pytest.raises(asyncio.CancelledError):
             await cancelled
+
         assert not pool.admission.waiters
         await held.close()
         await acquire()
         assert pool.checkedout() == 0 and pool.admission.active == 0
         invalidated = await engine.connect()
+
         await invalidated.invalidate()
         await invalidated.close()
         await acquire()
         old = pool
+
         await engine.dispose()
         assert isinstance(engine.pool, BoundedAsyncPool)
         assert (
@@ -144,13 +163,16 @@ async def test_real_pool_limits_queue_timeout_cancel_and_recovery(
         await acquire()
         assert old.admission.closed
         current = engine.pool
+
         assert isinstance(current, BoundedAsyncPool)
         held = await engine.connect()
         closing = asyncio.create_task(acquire())
+
         await wait_for_waiters(current, 1)
         await engine.dispose()
         with pytest.raises(DatabaseUnavailableError) as closed:
             await closing
+
         assert closed.value.code == "DB_POOL_CLOSED"
         await held.close()
         assert current.admission.active == 0
@@ -185,9 +207,11 @@ async def test_socket_stalled_handshake_times_out_and_closes(deadline: str) -> N
         f'mysql+asyncmy://test:private-value-never-log@127.0.0.1:{port}/test',
         policy=policy,
     )
+
     try:
         with pytest.raises(DatabaseUnavailableError) as error:
             await engine.connect()
+
         assert error.value.code == (
             'DB_CONNECT_TIMEOUT' if deadline == 'connect' else 'DB_POOL_ACQUIRE_TIMEOUT'
         )
@@ -211,6 +235,7 @@ async def test_external_cancellation_during_handshake_closes_socket() -> None:
         reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         accepted.set()
+
         try:
             await reader.read()
         finally:
@@ -230,10 +255,12 @@ async def test_external_cancellation_during_handshake_closes_socket() -> None:
 
     try:
         task = asyncio.create_task(connect())
+
         await asyncio.wait_for(accepted.wait(), 2)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
+
         await asyncio.wait_for(disconnected.wait(), 2)
         assert (
             isinstance(engine.pool, BoundedAsyncPool)
@@ -249,6 +276,7 @@ async def test_database_rejection_uses_safe_503_envelope() -> None:
     from starlette.exceptions import HTTPException
 
     app = FastAPI()
+
     app.exception_handler(HTTPException)(http_exception_handler)
 
     @app.get('/')
@@ -259,6 +287,7 @@ async def test_database_rejection_uses_safe_503_envelope() -> None:
         transport=httpx.ASGITransport(app), base_url='http://test'
     ) as client:
         response = await client.get('/')
+
     assert (
         response.status_code == 503
         and response.json()['message'] == 'Database temporarily unavailable.'

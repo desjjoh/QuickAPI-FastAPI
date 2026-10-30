@@ -26,7 +26,7 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pip check
       - name: Check formatting
-        run: python -m black --check app tests scripts
+        run: python -m scripts.format_code --check
       - name: Lint
         run: python -m ruff check app tests scripts
       - name: Type check

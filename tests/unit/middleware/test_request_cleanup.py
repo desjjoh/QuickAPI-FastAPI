@@ -14,6 +14,7 @@ async def test_cleanup_after_success_and_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clear = Mock()
+
     monkeypatch.setattr(
         "app.common.middleware.request_cleanup.structlog.contextvars.clear_contextvars",
         clear,
@@ -24,6 +25,7 @@ async def test_cleanup_after_success_and_exception(
         async def app(scope: Scope, receive: Receive, send: Send) -> None:
             if raises:
                 raise RuntimeError
+
             await send({"type": "http.response.start", "status": 200, "headers": []})
             await send({"type": "http.response.body"})
 
@@ -32,5 +34,7 @@ async def test_cleanup_after_success_and_exception(
                 await invoke(RequestCleanupASGIMiddleware(app), http_scope())
         else:
             await invoke(RequestCleanupASGIMiddleware(app), http_scope())
+
         assert RequestContext.get() is None
+
     assert clear.call_count == 2

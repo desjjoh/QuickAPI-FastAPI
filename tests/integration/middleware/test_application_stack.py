@@ -19,6 +19,7 @@ def test_configured_order_is_explicit() -> None:
         cast(type[object], middleware.cls).__name__
         for middleware in app.user_middleware
     ]
+
     assert names[:5] == [
         "RequestAdmission",
         "RequestCleanupASGIMiddleware",
@@ -63,9 +64,11 @@ async def test_stack_context_logging_cleanup_cors_security_metrics(
     app: FastAPI = create_app()
     logger: Mock = Mock()
     count: Mock = Mock()
+
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
     monkeypatch.setattr("app.common.middleware.prometheus_metrics.REQUEST_COUNT", count)
     response = await request(app, path="/", headers={"origin": "https://client.test"})
+
     assert (
         response.status_code == 200
         and response.headers["access-control-allow-origin"] == "https://client.test"
@@ -81,6 +84,7 @@ async def test_stack_body_header_and_rate_rejections(
 ) -> None:
     monkeypatch.setattr(settings, "RATE_LIMIT_MAX", 12)
     app: FastAPI = create_app()
+
     assert (
         await request(
             app,
@@ -92,6 +96,7 @@ async def test_stack_body_header_and_rate_rejections(
     assert (await request(app, headers={"x-forwarded-for": "bad"})).status_code == 400
     for _ in range(10):
         assert (await request(app)).status_code in (200, 404)
+
     assert (await request(app)).status_code == 429
 
 
@@ -105,6 +110,7 @@ async def test_stack_downstream_exception_cleanup_and_server_error_boundary() ->
     response = await request(
         app, path="/explode", headers={"origin": "https://client.test"}
     )
+
     assert response.status_code == 500
     # Starlette's ServerErrorMiddleware is outside the configured user middleware.
     # Its fallback response therefore does not pass through CORS/security wrappers.

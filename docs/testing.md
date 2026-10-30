@@ -67,10 +67,14 @@ Test counts are recorded in [Verification](verification.md), not fixed as a cont
 ## Quality gates
 
 ```powershell
-python -m black --check app tests scripts
+python -m scripts.format_code --check
 python -m ruff check app tests scripts
 python -m mypy app scripts
 ```
+
+[Python formatting](formatting.md) defines logical statement spacing and editor
+integration. The combined check includes Black and fails for missing logical blank
+lines. Run `python -m scripts.format_code` to apply the same policy locally.
 
 The full MySQL run measures branch coverage and requires 90% overall. CI additionally
 requires 90% middleware and 95% lifecycle, database-package, and API coverage. Bash
