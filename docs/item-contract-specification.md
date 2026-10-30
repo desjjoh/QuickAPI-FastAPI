@@ -66,6 +66,9 @@ invent different behavior for already-parsed numeric inputs.
 
 Use these canonical documented routes. Accept the collection's trailing-slash
 spelling as an alias without a redirect, matching Express's non-strict routing.
+Static route text also matches without case sensitivity; item IDs retain their
+original case. GET routes support bodyless HEAD responses with the same response
+preparation. Alternate case/slash spellings retain the declared idempotency scope.
 The previous DELETE route is replaced by the versioned POST deletion
 contract rather than retained as an unversioned mutation path.
 

@@ -10,9 +10,15 @@ import pytest
 import uvicorn
 from fastapi import FastAPI, Request
 from starlette.responses import StreamingResponse
+from starlette.types import Receive, Scope, Send
 
+from app.common.handlers.flexible_router import FlexibleRouter
+from app.common.middleware.content_type_enforcement import (
+    ContentTypeEnforcementASGIMiddleware,
+)
 from app.common.middleware.request_timeout import RequestTimeoutASGIMiddleware
 from app.config.application import create_app
+from app.config.metrics import REQUEST_ABORTED, REQUEST_COUNT
 
 pytestmark = pytest.mark.integration
 
@@ -76,15 +82,48 @@ def application(total_timeout: float = 0.15) -> FastAPI:
     return app
 
 
-@pytest.mark.parametrize("protocol", ["h11", "httptools"])
-async def test_real_408_precedes_slow_cleanup_and_suppresses_late_response(
-    protocol: Literal["h11", "httptools"],
+async def test_timeout_before_cors_does_not_grant_browser_permission(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = application()
+
+    async def blocked_policy(
+        self: ContentTypeEnforcementASGIMiddleware,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(
+        ContentTypeEnforcementASGIMiddleware,
+        '_run_content_type_logic',
+        blocked_policy,
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app),
+        base_url='http://test',
+    ) as client:
+        response = await client.get('/', headers={'origin': 'https://client.test'})
+
+    assert response.status_code == 408
+    assert 'access-control-allow-origin' not in response.headers
+    assert 'vary' not in response.headers
+    assert response.headers['x-request-id']
+
+
+@pytest.mark.parametrize("protocol", ["h11", "httptools"])
+@pytest.mark.parametrize('method', ['GET', 'HEAD'])
+async def test_real_408_precedes_slow_cleanup_and_suppresses_late_response(
+    protocol: Literal["h11", "httptools"],
+    method: str,
+) -> None:
+    app = application()
+    router = FlexibleRouter()
     release = asyncio.Event()
     cleaned = asyncio.Event()
 
-    @app.get("/slow")
+    @router.get("/slow")
     async def slow() -> dict[str, bool]:
         try:
             await asyncio.Event().wait()
@@ -94,15 +133,49 @@ async def test_real_408_precedes_slow_cleanup_and_suppresses_late_response(
 
         return {"unexpected": True}
 
+    app.include_router(router)
+
     async with running(app, protocol) as port:
         try:
             async with httpx.AsyncClient(base_url=f"http://127.0.0.1:{port}") as client:
-                response = await client.get("/slow", timeout=2)
+                response = await client.request(
+                    method,
+                    '/SLOW/',
+                    timeout=2,
+                    headers={'origin': 'https://client.test'},
+                )
 
                 assert response.status_code == 408
-                assert response.json()["message"] == "Total request timeout exceeded."
+                if method == 'GET':
+                    assert (
+                        response.json()["message"]
+                        == "Application response deadline exceeded."
+                    )
+                else:
+                    assert response.content == b''
+                    assert int(response.headers['content-length']) > 0
+
                 assert response.headers["x-request-id"]
                 assert response.headers["x-frame-options"] == "DENY"
+                assert (
+                    response.headers['access-control-allow-origin']
+                    == 'https://client.test'
+                )
+                assert response.headers['vary'] == 'Origin'
+                completed = [
+                    sample
+                    for family in REQUEST_COUNT.collect()
+                    for sample in family.samples
+                    if sample.name == 'http_requests_total'
+                ]
+
+                assert len(completed) == 1 and completed[0].value == 1
+                assert completed[0].labels == {
+                    'method': method,
+                    'route': '/slow',
+                    'status': '408',
+                }
+                assert not any(family.samples for family in REQUEST_ABORTED.collect())
                 assert not cleaned.is_set()
                 release.set()
                 await asyncio.wait_for(cleaned.wait(), 1)
@@ -111,6 +184,16 @@ async def test_real_408_precedes_slow_cleanup_and_suppresses_late_response(
                 following = await client.get("/")
 
                 assert following.status_code == 200
+                assert (
+                    sum(
+                        sample.value
+                        for family in REQUEST_COUNT.collect()
+                        for sample in family.samples
+                        if sample.name == 'http_requests_total'
+                        and sample.labels['status'] == '408'
+                    )
+                    == 1
+                )
         finally:
             release.set()
             await asyncio.wait_for(cleaned.wait(), 1)

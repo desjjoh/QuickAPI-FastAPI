@@ -6,8 +6,13 @@ import time
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.common.handlers.request_activity import RequestExpired, request_activity
+from app.common.handlers.request_activity import (
+    RESPONSE_DEADLINE_MESSAGE,
+    RequestExpired,
+    request_activity,
+)
 from app.common.handlers.request_work import RequestWork
+from app.common.middleware.cors import apply_cors_response_headers
 from app.common.middleware.request_outcome import abort_request
 from app.common.models.error_model import error_response
 from app.config.logging import log
@@ -218,7 +223,7 @@ class _RequestDeadline:
                     work.cancel()
             elif self.timeout_detail is not None or not done:
                 self.closed = True
-                detail = self.timeout_detail or "Total request timeout exceeded."
+                detail = self.timeout_detail or RESPONSE_DEADLINE_MESSAGE
 
                 self.activity.abandon(detail)
                 if not self.activity.owns_mutation:
@@ -233,7 +238,12 @@ class _RequestDeadline:
 
                 response = error_response(status=408, message=detail)
 
-                await response(self.scope, self.receive_body, self.send)
+                async def send_timeout(message: Message) -> None:
+                    apply_cors_response_headers(self.scope, message)
+
+                    await self.send(message)
+
+                await response(self.scope, self.receive_body, send_timeout)
             else:
                 if reader in done:
                     await reader  # Preserve unexpected receive failures.

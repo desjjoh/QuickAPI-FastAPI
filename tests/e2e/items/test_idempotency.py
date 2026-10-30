@@ -91,7 +91,7 @@ async def test_normalized_prices_aliases_and_object_order_replay(
         '/api/v1/items/', json={'name': 'Normalized', 'price': '01.20'}, headers=KEY
     )
     replay = await client.post(
-        '/api/v1/items', json={'price': 1.2, 'name': 'Normalized'}, headers=KEY
+        '/API/V1/ITEMS', json={'price': 1.2, 'name': 'Normalized'}, headers=KEY
     )
 
     assert first.status_code == replay.status_code == 201
@@ -100,7 +100,7 @@ async def test_normalized_prices_aliases_and_object_order_replay(
         transport=httpx.ASGITransport(create_app()), base_url='http://test'
     ) as restarted:
         replay_after_restart = await restarted.post(
-            '/api/v1/items', json={'price': 1.2, 'name': 'Normalized'}, headers=KEY
+            '/Api/V1/Items/', json={'price': 1.2, 'name': 'Normalized'}, headers=KEY
         )
 
         assert (

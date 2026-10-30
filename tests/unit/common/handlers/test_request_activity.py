@@ -20,7 +20,7 @@ def test_monotonic_expiry_does_not_depend_on_timer_delivery() -> None:
     activity.assert_active()
     activity.expires_at = time.monotonic() - 1
 
-    with pytest.raises(RequestExpired, match='Total request timeout'):
+    with pytest.raises(RequestExpired, match='Application response deadline'):
         activity.assert_active()
 
     activity.expires_at = float('inf')

@@ -296,6 +296,10 @@ The application owns forwarding resolution; external Uvicorn commands must use
 `--no-proxy-headers`, as the normal entrypoint already does. Real ingress trust,
 direct-port denial, and slow-header/whole-upload protection still require deployed
 verification; application deadlines do not establish those transport guarantees.
+The selected server/ingress must bound both header receipt and the entire upload;
+keep-alive timing is insufficient. If ingress owns those limits, restrict direct
+application-port access. [The transport boundary](request-timeouts.md#server-and-ingress-boundary)
+defines the remaining configuration and real-connection evidence required under 8A.
 
 ## Limiter capacity and probe policy
 

@@ -46,7 +46,9 @@ async def test_cors_overrides_preflight_headers_and_no_origin(
         assert response.headers["access-control-allow-origin"] == "https://ui.example"
         assert response.headers["access-control-allow-methods"] == "GET, POST"
         assert response.headers["access-control-max-age"] == "90"
-        assert response.headers["vary"] == "Origin"
+        assert response.headers["vary"] == (
+            'Origin, Access-Control-Request-Method, Access-Control-Request-Headers'
+        )
         assert "access-control-allow-credentials" not in response.headers
         assert (
             await client.options(
@@ -79,7 +81,8 @@ async def test_cors_overrides_preflight_headers_and_no_origin(
         direct = await client.get("/")
 
         assert direct.status_code == 200
-        assert not any(name.startswith("access-control-") for name in direct.headers)
+        assert 'access-control-allow-origin' not in direct.headers
+        assert direct.headers['vary'] == 'Origin'
 
 
 async def test_configured_body_and_method_limits(
@@ -111,13 +114,16 @@ async def test_configured_body_and_method_limits(
 
 
 @pytest.mark.parametrize("mode", ["count", "single", "total", "preflight"])
-async def test_raw_header_limits_before_sanitization_and_cors(
-    mode: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize('retained', [False, True])
+async def test_header_limits_after_sanitization_and_before_cors(
+    mode: str, retained: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(settings, "CORS_ORIGINS", ["https://ui.example"])
     custom = {f"x-unknown-{index}": "v" for index in range(5)}
 
-    if mode in {"count", "preflight"}:
+    if mode == 'preflight':
+        monkeypatch.setattr(settings, "HTTP_MAX_HEADER_COUNT", 8)
+    elif mode == 'count':
         monkeypatch.setattr(settings, "HTTP_MAX_HEADER_COUNT", 6)
     elif mode == "single":
         monkeypatch.setattr(settings, "HTTP_MAX_SINGLE_HEADER_BYTES", 80)
@@ -126,6 +132,9 @@ async def test_raw_header_limits_before_sanitization_and_cors(
         monkeypatch.setattr(settings, "HTTP_MAX_SINGLE_HEADER_BYTES", 100)
         monkeypatch.setattr(settings, "HTTP_MAX_TOTAL_HEADER_BYTES", 250)
         custom = {f"x-unknown-{index}": "v" * 60 for index in range(4)}
+
+    if retained:
+        monkeypatch.setattr(settings, 'CORS_ALLOWED_HEADERS', list(custom))
 
     app = create_app()
 
@@ -144,8 +153,15 @@ async def test_raw_header_limits_before_sanitization_and_cors(
         else:
             result = await client.get("/", headers=custom)
 
-        assert result.status_code == 431
-        assert result.json()["status"] == 431
+        if retained:
+            assert result.status_code == 431
+            assert result.json()["status"] == 431
+            assert 'access-control-allow-origin' not in result.headers
+        else:
+            assert result.status_code == (204 if mode == 'preflight' else 200)
+
+        assert result.headers['x-frame-options'] == 'DENY'
+        assert result.headers['x-request-id']
 
 
 @pytest.mark.parametrize("protocol", ["h11", "httptools"])
@@ -224,4 +240,4 @@ async def test_real_response_deadline_uses_configured_milliseconds(
             result = await client.get(f"http://127.0.0.1:{port}/slow", timeout=2)
 
             assert result.status_code == 408
-            assert result.json()["message"] == "Total request timeout exceeded."
+            assert result.json()["message"] == "Application response deadline exceeded."

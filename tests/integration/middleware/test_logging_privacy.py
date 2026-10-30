@@ -45,7 +45,7 @@ async def test_real_server_failure_uses_safe_correlated_json(
             )
 
             assert response.status_code == 500
-            assert response.json()["message"] == "Internal server error."
+            assert response.json()["message"] == "Internal Server Error"
 
     assert SECRET not in output.getvalue()
     entries = [json.loads(line) for line in output.getvalue().splitlines()]

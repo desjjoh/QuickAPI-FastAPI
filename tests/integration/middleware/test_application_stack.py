@@ -36,11 +36,21 @@ def test_configured_order_is_explicit() -> None:
         < names.index("CustomCORSASGIMiddleware")
         < names.index("RequestBodyLimitASGIMiddleware")
     )
-    assert (
-        names.index("RequestHeaderLimitASGIMiddleware")
-        < names.index("RateLimitASGIMiddleware")
-        < names.index("RequestTimeoutASGIMiddleware")
-    )
+    expected = [
+        "SecurityHeadersMiddleware",
+        "RateLimitASGIMiddleware",
+        "HeaderSanitizationASGIMiddleware",
+        "RequestHeaderLimitASGIMiddleware",
+        "RequestTimeoutASGIMiddleware",
+        "ContentTypeEnforcementASGIMiddleware",
+        "MethodWhitelistASGIMiddleware",
+        "CustomCORSASGIMiddleware",
+        "RequestBodyLimitASGIMiddleware",
+        "RequestErrorASGIMiddleware",
+        "OperationalExposureASGIMiddleware",
+    ]
+
+    assert [name for name in names if name in expected] == expected
 
 
 async def request(
@@ -100,20 +110,75 @@ async def test_stack_body_header_and_rate_rejections(
     assert (await request(app)).status_code == 429
 
 
-async def test_stack_downstream_exception_cleanup_and_server_error_boundary() -> None:
+@pytest.mark.parametrize(
+    'origin', ['https://client.test', 'https://blocked.test', None]
+)
+async def test_stack_downstream_exception_cleanup_and_server_error_boundary(
+    origin: str | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     app: FastAPI = create_app()
+    failure_log = Mock()
+    access_log = Mock()
+    count = Mock()
+
+    monkeypatch.setattr('app.common.handlers.exception_handler.log', failure_log)
+    monkeypatch.setattr('app.common.middleware.request_logger.log', access_log)
+    monkeypatch.setattr('app.common.middleware.prometheus_metrics.REQUEST_COUNT', count)
 
     @app.get("/explode")
     async def explode() -> None:
         raise RuntimeError("boom")
 
     response = await request(
-        app, path="/explode", headers={"origin": "https://client.test"}
+        app, path="/explode", headers={'origin': origin} if origin else None
     )
 
-    assert response.status_code == 500
-    # Starlette's ServerErrorMiddleware is outside the configured user middleware.
-    # Its fallback response therefore does not pass through CORS/security wrappers.
-    assert "access-control-allow-origin" not in response.headers
-    assert "x-frame-options" not in response.headers
+    assert response.status_code == (403 if origin == 'https://blocked.test' else 500)
+    assert response.headers['x-request-id']
+    assert response.headers['x-frame-options'] == 'DENY'
+    assert response.headers.get('access-control-allow-origin') == (
+        origin if origin == 'https://client.test' else None
+    )
+    assert failure_log.error.call_count == (0 if response.status_code == 403 else 1)
+    if response.status_code == 403:
+        access_log.warning.assert_called_once()
+    else:
+        access_log.error.assert_called_once()
+
+    count.labels.return_value.inc.assert_called_once()
     assert RequestContext.get() is None
+
+
+@pytest.mark.parametrize(
+    ('method', 'headers', 'expected'),
+    [
+        ('POST', {'content-type': 'text/plain', 'origin': 'https://blocked.test'}, 415),
+        ('TRACE', {'origin': 'https://blocked.test'}, 405),
+        (
+            'POST',
+            {'content-type': 'application/json', 'origin': 'https://blocked.test'},
+            403,
+        ),
+        ('POST', {'content-type': 'application/json', 'x-forwarded-for': 'bad'}, 400),
+        (
+            'POST',
+            {'content-type': 'application/json', 'x-requested-with': 'x' * 4096},
+            431,
+        ),
+    ],
+)
+async def test_rejection_precedence_and_rate_accounting(
+    method: str,
+    headers: dict[str, str],
+    expected: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, 'RATE_LIMIT_MAX', 1)
+    app = create_app()
+    response = await request(app, method, content=b'x' * 1_048_577, headers=headers)
+
+    assert response.status_code == expected
+    assert response.headers['x-request-id']
+    assert response.headers['x-frame-options'] == 'DENY'
+    assert 'access-control-allow-origin' not in response.headers
+    assert (await request(app)).status_code == 429

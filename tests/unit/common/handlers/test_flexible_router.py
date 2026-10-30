@@ -1,11 +1,15 @@
 import httpx
 import pytest
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, Request, Response
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
+from starlette.types import Message, Scope
 
 from app.common.handlers.application_route import ApplicationRoute, transactional
-from app.common.handlers.flexible_router import FlexibleRouter
+from app.common.handlers.flexible_router import (
+    FlexibleRouter,
+    HeadResponseASGIMiddleware,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -63,13 +67,13 @@ async def test_nested_inclusion_preserves_options_without_duplicate_aliases(
         base_url='http://test',
         follow_redirects=False,
     ) as client:
-        for path in ('/api/items', '/api/items/'):
+        for path in ('/api/items', '/api/items/', '/API/ITEMS', '/Api/Items/'):
             response = await client.post(path, json={'value': 7})
 
             assert response.status_code == 201 and response.json() == {'value': 7}
             assert 'location' not in response.headers
 
-    assert calls == ['dependency', 'handler', 'dependency', 'handler']
+    assert calls == ['dependency', 'handler'] * 4
 
 
 async def test_explicit_root_remains_single_and_resource_slash_is_normalized() -> None:
@@ -116,3 +120,79 @@ def test_transaction_marker_and_hidden_routes_survive_inclusion() -> None:
         for route in routes
     )
     assert not app.openapi()['paths']
+
+
+@pytest.mark.parametrize('explicit_head', [False, True])
+async def test_head_fallback_and_explicit_handler_preserve_nested_routes(
+    explicit_head: bool,
+) -> None:
+    router = FlexibleRouter(route_class=ApplicationRoute)
+    calls: list[tuple[str, str]] = []
+
+    @router.get('/records/{record_id}', response_model=Payload)
+    async def read(
+        record_id: str, request: Request, response: Response
+    ) -> dict[str, object]:
+        calls.append((request.method, record_id))
+        response.headers['x-handler'] = 'get'
+
+        return {'value': 7, 'private': 'excluded'}
+
+    if explicit_head:
+
+        @router.head('/records/{record_id}', include_in_schema=False)
+        async def head(record_id: str, response: Response) -> None:
+            calls.append(('explicit', record_id))
+            response.headers['x-handler'] = 'head'
+
+    parent = APIRouter(prefix='/v1')
+
+    parent.include_router(router)
+    app = FastAPI()
+
+    app.include_router(parent, prefix='/api')
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app), base_url='http://test'
+    ) as client:
+        result = await client.get('/API/V1/Records/AbCd/')
+
+        assert result.json() == {'value': 7}
+
+        for path in ['/api/v1/records/AbCd', '/API/V1/RECORDS/AbCd/']:
+            result = await client.head(path)
+
+            assert result.status_code == 200 and result.content == b''
+            assert result.headers['x-handler'] == ('head' if explicit_head else 'get')
+
+    assert (
+        calls
+        == [('GET', 'AbCd')] + [('explicit' if explicit_head else 'HEAD', 'AbCd')] * 2
+    )
+    assert set(app.openapi()['paths']['/api/v1/records/{record_id}']) == {'get'}
+
+
+@pytest.mark.parametrize('method', ['GET', 'HEAD'])
+@pytest.mark.parametrize('status', [200, 404, 500])
+async def test_head_transport_suppresses_success_and_error_bodies(
+    method: str,
+    status: int,
+) -> None:
+    response = Response(
+        'representation', status_code=status, headers={'x-marker': 'kept'}
+    )
+    scope: Scope = {'type': 'http', 'method': method, 'path': '/', 'headers': []}
+    sent: list[Message] = []
+
+    async def receive() -> Message:
+        return {'type': 'http.disconnect'}
+
+    async def send(message: Message) -> None:
+        sent.append(message)
+
+    await HeadResponseASGIMiddleware(response)(scope, receive, send)
+
+    assert sent[0]['status'] == status
+    assert (b'content-length', b'14') in sent[0]['headers']
+    assert (b'x-marker', b'kept') in sent[0]['headers']
+    assert sent[1]['body'] == (b'' if method == 'HEAD' else b'representation')

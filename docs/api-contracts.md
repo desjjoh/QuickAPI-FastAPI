@@ -55,6 +55,9 @@ Successful deletion retries without a key return 404; keyed retries replay the o
 Item routes and named system endpoints accept either trailing-slash spelling through
 the shared router, without redirecting or duplicate controller declarations. OpenAPI
 lists only the canonical spelling; the application root `/` is registered once.
+Static path text matches without case sensitivity; parameter values keep their
+original case. GET endpoints also accept HEAD, returning the selected handler's
+status and headers without response body bytes. Explicit HEAD handlers take priority.
 The canonical collection route has no trailing slash. Migrate existing databases before starting this version:
 see [Migrations](migrations.md). Existing rows are initialized to revision 1.
 
@@ -95,7 +98,9 @@ share this response shape:
 
 `status` is the HTTP status, `message` is safe client-facing text, and `timestamp`
 is Unix time in milliseconds. Validation details are flattened into a deterministic
-message; unhandled exceptions return only `Internal server error.` OpenAPI replaces
+message; unhandled exceptions return only `Internal Server Error`. Malformed JSON
+returns `400` with `Malformed JSON request body.`; valid JSON with invalid fields
+continues to return `422`. OpenAPI replaces
 FastAPI's default validation schema with this contract.
 
 ## Transport and mutation boundaries

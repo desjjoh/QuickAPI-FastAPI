@@ -32,7 +32,7 @@ class Transport:
             self.finished.set()
 
     async def run(self, app: ASGIApp) -> None:
-        await asyncio.wait_for(app(SCOPE, self.receive, self.send), timeout=1)
+        await asyncio.wait_for(app(dict(SCOPE), self.receive, self.send), timeout=1)
 
 
 async def respond(send: Send) -> None:
@@ -107,7 +107,7 @@ async def test_total_timeout_cancels_work_and_runs_async_cleanup() -> None:
 
     try:
         await transport.run(middleware)
-        assert_timeout(transport, "Total request timeout exceeded.")
+        assert_timeout(transport, "Application response deadline exceeded.")
         await asyncio.wait_for(cleaning.wait(), 1)
         assert not cleaned.is_set()
     finally:
@@ -132,7 +132,7 @@ async def test_stream_timeout_never_completes_or_replaces_partial_response() -> 
             cleaned.set()
             await respond(send)
 
-    with pytest.raises(RuntimeError, match="Total request timeout exceeded"):
+    with pytest.raises(RuntimeError, match="Application response deadline exceeded"):
         await transport.run(RequestTimeoutASGIMiddleware(stream, total_timeout=0.01))
 
     await asyncio.wait_for(cleaned.wait(), 1)
@@ -180,7 +180,7 @@ async def test_completed_body_does_not_apply_chunk_timeout_to_disconnect_wait() 
     await transport.run(
         RequestTimeoutASGIMiddleware(read, chunk_timeout=0.001, total_timeout=0.03)
     )
-    assert_timeout(transport, "Total request timeout exceeded.")
+    assert_timeout(transport, "Application response deadline exceeded.")
 
 
 async def test_disconnect_cancels_handler_that_never_reads_body() -> None:
@@ -250,7 +250,7 @@ async def test_cancellation_resistant_late_work_is_observed_without_late_respons
 
     try:
         await transport.run(middleware)
-        assert_timeout(transport, "Total request timeout exceeded.")
+        assert_timeout(transport, "Application response deadline exceeded.")
     finally:
         release.set()
         # Let the retained work and its observation callback settle.

@@ -183,22 +183,30 @@ async def test_preflight_counts_and_rejection_precedes_cors(
         assert "access-control-allow-origin" not in rejected.headers
 
 
-async def test_raw_header_rejection_does_not_consume_quota(
+@pytest.mark.parametrize('retained', [False, True])
+async def test_sanitized_header_limits_follow_rate_admission(
     monkeypatch: pytest.MonkeyPatch,
+    retained: bool,
 ) -> None:
     monkeypatch.setattr(settings, "HTTP_MAX_HEADER_COUNT", 6)
+    headers = {f'x-extra-{index}': 'value' for index in range(10)}
+
+    if retained:
+        monkeypatch.setattr(settings, 'CORS_ALLOWED_HEADERS', list(headers))
+
     app, _ = application(monkeypatch, max_requests=1)
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:
-        rejected = await client.get(
-            "/", headers={f"x-extra-{index}": "value" for index in range(10)}
-        )
+        response = await client.get('/', headers=headers)
 
-        assert rejected.status_code == 431
-        assert limiter_for(app).usage.clients == 0
-        assert (await client.get("/")).status_code == 200
+        assert response.status_code == (431 if retained else 200)
+        assert response.headers['x-ratelimit-result'] == 'accepted'
+        assert response.headers['x-frame-options'] == 'DENY'
+        assert response.headers['x-request-id']
+        assert limiter_for(app).usage.clients == 1
+        assert (await client.get("/")).status_code == 429
 
 
 async def test_favicon_get_head_are_exempt_but_post_is_not(

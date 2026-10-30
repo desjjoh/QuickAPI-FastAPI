@@ -174,7 +174,10 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
                 response = await asyncio.wait_for(request, 3)
 
                 assert response.status_code == 408
-                assert response.json()['message'] == 'Total request timeout exceeded.'
+                assert (
+                    response.json()['message']
+                    == 'Application response deadline exceeded.'
+                )
             else:
                 assert writer is not None
                 writer.close()
@@ -487,7 +490,7 @@ async def test_connection_loss_during_rollback_retires_lease_and_recovers(
                 response = await asyncio.wait_for(failed, 3)
 
                 assert response.status_code == 500
-                assert response.json()['message'] == 'Internal server error.'
+                assert response.json()['message'] == 'Internal Server Error'
                 assert (await asyncio.wait_for(recovery, 3)).status_code == 201
                 await settled(app)
                 assert invalidated and all(

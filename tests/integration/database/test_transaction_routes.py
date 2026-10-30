@@ -189,7 +189,7 @@ async def test_mutation_preparation_and_precommit_failures_roll_back_mysql(
         response = await client.request(wire_method, path, json=payload)
 
     assert response.status_code == 500
-    assert response.json()['message'] == 'Internal server error.'
+    assert response.json()['message'] == 'Internal Server Error'
     assert 'private' not in response.text
     assert len(owned) == 1 and not owned[0].in_transaction()
     if failure == 'flush':

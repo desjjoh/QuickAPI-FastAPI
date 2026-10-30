@@ -7,6 +7,7 @@ from starlette.exceptions import HTTPException
 from starlette.types import Scope
 
 ACTIVITY_KEY = 'quickapi.request_activity'
+RESPONSE_DEADLINE_MESSAGE = 'Application response deadline exceeded.'
 
 
 class RequestExpired(HTTPException):
@@ -29,9 +30,9 @@ class RequestActivity:
             raise RequestExpired(self.abandoned)
 
         if time.monotonic() >= self.expires_at:
-            self.abandon('Total request timeout exceeded.')
+            self.abandon(RESPONSE_DEADLINE_MESSAGE)
 
-            raise RequestExpired(self.abandoned or 'Total request timeout exceeded.')
+            raise RequestExpired(self.abandoned or RESPONSE_DEADLINE_MESSAGE)
 
 
 def request_activity(scope: Scope) -> RequestActivity:

@@ -42,7 +42,9 @@ system boundary and session ownership.
 ## Flexible route spelling
 
 Item and system controllers use [FlexibleRouter](../app/common/handlers/flexible_router.py)
-to accept named HTTP endpoints with or without a trailing slash, without redirects.
+to accept named HTTP endpoints with or without a trailing slash, without redirects,
+and match static path text without case sensitivity. Captured parameter values retain
+their original spelling, including case-sensitive resource IDs.
 Controllers declare each operation once. The router registers the canonical path
 first and hides the alternate spelling from OpenAPI. URL generation selects the
 canonical route. Nested router inclusion copies existing routes without generating
@@ -52,8 +54,13 @@ Use `""` for a collection root mounted beneath a prefix, such as `/api/v1/items`
 An explicit `"/"` remains a single root route, as used by the system greeting.
 Named paths such as `/health` and `/items/{id}` receive both spellings. Item routes
 retain `ApplicationRoute` and their transaction markers. Operational exposure
-settings protect both spellings. Framework-provided documentation routes retain
-their normal FastAPI routing behavior.
+settings protect all spellings. Framework-provided documentation routes use the same
+case and slash matching. Logs and metrics retain canonical route labels.
+
+GET routes accept HEAD automatically without adding an OpenAPI operation. Explicit
+HEAD handlers take precedence over that fallback. HEAD executes the selected handler
+and response preparation, preserving status and representation headers; the outer
+HTTP response wrapper suppresses body bytes, including error responses.
 
 ## Request lifecycle and middleware order
 
@@ -62,10 +69,10 @@ middleware added in `create_app()` is the first to see a request. The effective
 inbound order is:
 
 ```text
-request outcome → server error handler → cleanup → trusted proxy → request context
-→ request logging → metrics → header limits → security headers → rate limit → CORS
-→ body limit → content type → header sanitization
-→ method allowlist → timeout → operational exposure → routing/controller
+request outcome → server error fallback → admission → cleanup → trusted proxy
+→ request context → request logging → metrics → security headers → rate limit
+→ header sanitization → header limits → timeout → content type → method allowlist
+→ CORS → body limit → application error boundary → operational exposure → routing/controller
 ```
 
 Responses unwind through the same layers in reverse. This is intentional:
@@ -75,8 +82,9 @@ Responses unwind through the same layers in reverse. This is intentional:
    even after failures.
 2. Explicit IP/CIDR proxy trust resolves client identity before request context.
    Request identity is established before logging and returned as `X-Request-ID`.
-3. Parsed-header budgets run before preflight responses and sanitizer filtering;
-   transport and security checks reject unsafe requests before domain code runs.
+3. Header sanitization and parsed-header budgets run before preflight responses;
+   unknown allowed-to-drop headers are removed before application size accounting.
+   Trusted-proxy interpretation retains its early raw-header bounds.
 4. Logging and metrics subscribe to the same outcome before policy checks.
    Duration ends when the final body is accepted by ASGI send, or when an abort
    is observed; downstream cleanup cannot extend it. A completed 408/500 counts as
@@ -90,8 +98,9 @@ Middleware rejections use the same error renderer as routed HTTP exceptions, so
 clients do not need separate parsing behavior for transport and application errors.
 The [bounded rolling-window limiter](rate-limiting.md) is process-local, with
 fixed-capacity timestamp rings and expiry-ordered client storage. Admission occurs
-before CORS preflights and later policy rejections, while raw-header budgets remain
-ahead of it. Shared storage is required for a global quota across workers/replicas.
+before CORS preflights and later policy rejections. Application failures are rendered
+inside the header wrappers; failures after headers start propagate without another
+response. Shared storage is required for a global quota across workers/replicas.
 
 [Metrics and request outcomes](deployment.md#metrics-and-request-outcomes) defines
 labels, exclusions, units, and the dashboard migration. Declared route templates

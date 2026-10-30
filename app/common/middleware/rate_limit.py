@@ -31,7 +31,10 @@ class RateLimitASGIMiddleware:
         if root and (path == root or path.startswith(root + "/")):
             path = path[len(root) :]
 
-        if path == "/favicon.ico" and scope["method"] in {"GET", "HEAD"}:
+        if path.lower().rstrip('/') == "/favicon.ico" and scope["method"] in {
+            "GET",
+            "HEAD",
+        }:
             await self.app(scope, receive, send)
 
             return

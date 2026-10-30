@@ -39,6 +39,11 @@ async def validation_exception_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
+    if any(error['type'] == 'json_invalid' for error in exc.errors()):
+        log.warning("HTTP request rejected.", status=400)
+
+        return error_response(status=400, message="Malformed JSON request body.")
+
     status_code: int = status.HTTP_422_UNPROCESSABLE_CONTENT
     parts: list[str] = []
 
@@ -67,7 +72,7 @@ async def unhandled_exception_handler(
     exc: Exception,
 ) -> JSONResponse:
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
-    message: str = "Internal server error."
+    message: str = "Internal Server Error"
 
     log.error(
         "HTTP request failed.",

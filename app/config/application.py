@@ -21,6 +21,10 @@ from app.common.handlers.exception_handler import (
     unhandled_exception_handler,
     validation_exception_handler,
 )
+from app.common.handlers.flexible_router import (
+    HeadResponseASGIMiddleware,
+    configure_framework_routes,
+)
 from app.common.handlers.lifecycle_handler import LifecycleHandler
 from app.common.handlers.request_work import RequestAdmission, RequestWork
 from app.common.middleware.content_type_enforcement import (
@@ -37,6 +41,7 @@ from app.common.middleware.request_body_limit import (
 )
 from app.common.middleware.request_cleanup import RequestCleanupASGIMiddleware
 from app.common.middleware.request_context import RequestContextASGIMiddleware
+from app.common.middleware.request_error import RequestErrorASGIMiddleware
 from app.common.middleware.request_header_limit import (
     HeaderLimits,
     RequestHeaderLimitASGIMiddleware,
@@ -96,7 +101,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 class ObservedFastAPI(FastAPI):
     def build_middleware_stack(self) -> ASGIApp:
         return RequestOutcomeASGIMiddleware(
-            super().build_middleware_stack(), self.router.routes
+            HeadResponseASGIMiddleware(super().build_middleware_stack()),
+            self.router.routes,
         )
 
 
@@ -123,6 +129,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    configure_framework_routes(app.router.routes)
     app.state.lifecycle = LifecycleHandler()
     app.state.request_work = RequestWork(settings.HTTP_DRAIN_TIMEOUT_MS / 1000)
 
@@ -146,28 +153,7 @@ def create_app() -> FastAPI:
         diagnostics_enabled=settings.DIAGNOSTICS_ENABLED,
         metrics_enabled=settings.METRICS_ENABLED,
     )
-    app.add_middleware(
-        RequestTimeoutASGIMiddleware,
-        first_body_timeout=settings.REQUEST_FIRST_BODY_TIMEOUT_MS / 1000,
-        chunk_timeout=settings.REQUEST_CHUNK_TIMEOUT_MS / 1000,
-        total_timeout=settings.REQUEST_TIMEOUT_MS / 1000,
-        work=app.state.request_work,
-    )
-
-    app.add_middleware(
-        MethodWhitelistASGIMiddleware,
-        allowed_methods=set(settings.HTTP_ALLOWED_METHODS),
-    )
-
-    app.add_middleware(
-        HeaderSanitizationASGIMiddleware,
-        extra_allowed=set(settings.CORS_ALLOWED_HEADERS),
-    )
-    app.add_middleware(
-        ContentTypeEnforcementASGIMiddleware,
-        default_allowed=set(settings.HTTP_ALLOWED_CONTENT_TYPES),
-        route_overrides=[],
-    )
+    app.add_middleware(RequestErrorASGIMiddleware)
 
     app.add_middleware(
         RequestBodyLimitASGIMiddleware,
@@ -186,15 +172,23 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(
-        RateLimitASGIMiddleware,
-        limiter=RateLimiter(
-            window_ms=settings.RATE_LIMIT_WINDOW_MS,
-            max_requests=settings.RATE_LIMIT_MAX,
-            max_clients=settings.RATE_LIMIT_MAX_CLIENTS,
-        ),
+        MethodWhitelistASGIMiddleware,
+        allowed_methods=set(settings.HTTP_ALLOWED_METHODS),
     )
 
-    app.add_middleware(SecurityHeadersMiddleware, docs_enabled=settings.DOCS_ENABLED)
+    app.add_middleware(
+        ContentTypeEnforcementASGIMiddleware,
+        default_allowed=set(settings.HTTP_ALLOWED_CONTENT_TYPES),
+        route_overrides=[],
+    )
+
+    app.add_middleware(
+        RequestTimeoutASGIMiddleware,
+        first_body_timeout=settings.REQUEST_FIRST_BODY_TIMEOUT_MS / 1000,
+        chunk_timeout=settings.REQUEST_CHUNK_TIMEOUT_MS / 1000,
+        total_timeout=settings.REQUEST_TIMEOUT_MS / 1000,
+        work=app.state.request_work,
+    )
 
     app.add_middleware(
         RequestHeaderLimitASGIMiddleware,
@@ -205,6 +199,22 @@ def create_app() -> FastAPI:
             allow_chunked=False,
         ),
     )
+
+    app.add_middleware(
+        HeaderSanitizationASGIMiddleware,
+        extra_allowed=set(settings.CORS_ALLOWED_HEADERS),
+    )
+
+    app.add_middleware(
+        RateLimitASGIMiddleware,
+        limiter=RateLimiter(
+            window_ms=settings.RATE_LIMIT_WINDOW_MS,
+            max_requests=settings.RATE_LIMIT_MAX,
+            max_clients=settings.RATE_LIMIT_MAX_CLIENTS,
+        ),
+    )
+
+    app.add_middleware(SecurityHeadersMiddleware, docs_enabled=settings.DOCS_ENABLED)
 
     app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestLoggingASGIMiddleware)
