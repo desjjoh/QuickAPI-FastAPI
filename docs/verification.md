@@ -2,6 +2,30 @@
 
 [Documentation index](../README.md#documentation)
 
+## Verified candidate publication tooling
+
+Implemented on 2026-10-30 against `d7baea1` plus the release changes. The combined
+selection passed 84 focused offline Windows cases: 33 release cases and 51
+existing aggregate-gate/workflow cases. Release cases cover valid and invalid OCI
+content, legacy and OCI artifact attestation binding, source/provenance mismatch,
+missing SBOM packages, unsafe archive paths, changed evidence/archives/policy,
+stale scans, failed source gates, source attempt selection, version drift,
+critical-policy re-evaluation and mocked registry publication/digest preservation.
+Both rehearsal and real-publication code paths were exercised with fake tools;
+no real registry login occurred. Subsequent focused checks passed for cleanup of
+the disposable registry on publication failure, source selection, and OCI artifact
+subject storage with inline empty configuration descriptors. Ruff, combined formatting, mypy for
+four release modules and strict editor-type checks passed.
+
+The workflow and candidate tooling are implemented; live Buildx attestation
+generation, OCI loading, MySQL qualification of this release artifact, Trivy
+scanning, disposable registry round-trip and real publication are not yet
+qualified. No local container build, live scan, Linux/TLS/full application test
+run or registry publication was performed. Hosted validation awaits GitHub
+availability and successful main-branch push CI for the exact source commit.
+No remote workflow was dispatched, code pushed or image published by this work.
+Rollback remains a separate step; hosting verification remains deferred.
+
 ## Hosted gate verification and required-check transition
 
 Verified [Quality run 41096725174](https://github.com/desjjoh/QuickAPI-FastAPI/actions/runs/41096725174)

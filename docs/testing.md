@@ -153,6 +153,12 @@ backup restoration and candidate-bound release publication remain separately sco
 
 ## Regression coverage
 
+[Release qualification](releases.md) builds one source-bound candidate and reuses
+the MySQL image checks plus critical-only scanner policy before publication.
+`tests/unit/config/test_release.py` tests source/OCI/evidence/publication failure
+boundaries offline on Windows. Live release builds, attestations, scans and the
+disposable registry round-trip run in the release workflow, including dry-runs.
+
 Place tests at the boundary that owns the behavior. Record actual source identity,
 environment, passed/failed/skipped results and limitations in
 [Verification](verification.md). Historical records describe their original source

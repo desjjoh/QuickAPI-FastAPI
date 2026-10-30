@@ -20,7 +20,7 @@ services:
     image: ${SMOKE_IMAGE:?Select the built image}
     environment: &runtime
       APP_NAME: QuickAPI
-      APP_VERSION: 1.3.0
+      APP_VERSION: ${SMOKE_APP_VERSION:-1.3.0}
       ENV: production
       LOG_LEVEL: INFO
       HOST: 0.0.0.0
