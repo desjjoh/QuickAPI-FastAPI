@@ -2,7 +2,26 @@
 
 [Documentation index](../README.md#documentation)
 
-## Source and environment
+## Focused pagination verification
+
+The pagination changes are verified locally on Windows against base commit
+`f8592799b23046a2a4c6c9136a728f038ac48bd7` plus the working changes. Focused
+checks cover query/model conversion, item controller/service boundaries, MySQL
+repository ordering and item-list HTTP behavior. All 136 selected cases passed
+across the initial run and targeted correction rerun; the initial two failures
+were assertions accessing the public sort token as an ORM attribute. OpenAPI,
+case-insensitive directions, identical duplicate rejection and boundary checks
+were also checked after schema updates. Ruff, the combined formatter, mypy and
+strict Pyright check the affected source.
+
+No full Windows, Linux, TLS or production-image qualification was repeated for
+this change. Those broader checks are delegated to CI. Hosted results have not
+been verified. The report below retains the earlier item-model qualification; its
+source identity, fingerprints and full-suite totals describe that earlier snapshot.
+
+## Prior item-model qualification
+
+### Source and environment
 
 Verified on 2026-10-30 against base commit
 `61596ef5d5d2777bda85e90d5ea9e4b76dba4b22` and the local fingerprints below.

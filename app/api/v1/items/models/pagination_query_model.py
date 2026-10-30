@@ -7,7 +7,7 @@ from app.common.models.price_model import Price
 
 
 class ItemPaginationQuery(PaginationQuery):
-    sort: Literal["name", "price", "created_at"] = Field(
+    sort: Literal["name", "price", "createdAt"] = Field(
         default="price", description="Field to sort items by", examples=["price"]
     )
 

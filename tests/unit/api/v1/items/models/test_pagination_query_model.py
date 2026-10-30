@@ -31,7 +31,7 @@ class ItemPaginationQueryTests(unittest.TestCase):
         self.assertEqual(
             result,
             ItemListQuery(
-                limit=20,
+                limit=25,
                 offset=0,
                 search=None,
                 sort=ItemSort.PRICE,
@@ -42,7 +42,7 @@ class ItemPaginationQueryTests(unittest.TestCase):
         )
 
     def test_converts_page_to_database_offset(self) -> None:
-        query = ItemPaginationQuery(page=3, limit=10, sort="created_at")
+        query = ItemPaginationQuery(page=3, limit=10, sort="createdAt")
 
         result = model_to(ItemListQuery, query)
 

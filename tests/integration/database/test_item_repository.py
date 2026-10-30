@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock
 
@@ -16,6 +17,53 @@ from app.database.repositories.item_repo import (
 )
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.mark.parametrize('sort', list(ItemSort))
+@pytest.mark.parametrize('order', list(SortOrder))
+async def test_tied_values_have_unique_order_across_pages(
+    database_engine: AsyncEngine, sort: ItemSort, order: SortOrder
+) -> None:
+    factory = async_sessionmaker(database_engine, expire_on_commit=False)
+    ids = [
+        '0000000000000003',
+        '0000000000000001',
+        '0000000000000004',
+        '0000000000000002',
+    ]
+
+    async with factory() as session, session.begin():
+        session.add_all(
+            [
+                ItemORM(
+                    id=id,
+                    name='Same',
+                    price=Decimal('1.00'),
+                    created_at=datetime(2026, 1, 1),
+                )
+                for id in ids
+            ]
+        )
+
+    repository = ItemRepository()
+
+    async with factory() as session:
+        pages = [
+            await repository.find_and_count(
+                session, ItemListQuery(limit=2, offset=offset, sort=sort, order=order)
+            )
+            for offset in (0, 2)
+        ]
+        again, total = await repository.find_and_count(
+            session, ItemListQuery(limit=4, offset=0, sort=sort, order=order)
+        )
+
+    expected = sorted(ids, reverse=order == SortOrder.desc)
+
+    assert [item.id for rows, _ in pages for item in rows] == expected
+    assert [item.id for item in again] == expected
+    assert total == 4 and all(count == 4 for _, count in pages)
+
 
 SessionFactory = async_sessionmaker[AsyncSession]
 
@@ -166,7 +214,10 @@ async def test_find_and_count_supports_every_sort_direction(
         items, total = await ItemRepository().find_and_count(
             session, ItemListQuery(limit=10, offset=0, sort=sort, order=order)
         )
-        values = [getattr(item, sort.value) for item in items]
+        values = [
+            getattr(item, "created_at" if sort == ItemSort.CREATED_AT else sort.value)
+            for item in items
+        ]
 
         assert values == sorted(values, reverse=order is SortOrder.desc)
         assert total == 3

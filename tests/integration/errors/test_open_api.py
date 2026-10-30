@@ -130,8 +130,10 @@ def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) ->
     assert query["page"]["schema"]["minimum"] == 1
     assert query["limit"]["schema"]["minimum"] == 1
     assert query["limit"]["schema"]["maximum"] == 100
-    assert query["order"]["schema"]["enum"] == ["asc", "desc"]
-    assert query["sort"]["schema"]["enum"] == ["name", "price", "created_at"]
+    assert query["sort"]["schema"]["enum"] == ["name", "price", "createdAt"]
+    assert query['limit']['schema']['default'] == 25
+    assert query['page']['schema']['maximum'] == 9007199254740991
+    assert query['order']['schema']['pattern'] == '^([Aa][Ss][Cc]|[Dd][Ee][Ss][Cc])$'
     assert collection["post"]["requestBody"] == {
         "content": {
             "application/json": {"schema": {"$ref": "#/components/schemas/ItemBase"}}

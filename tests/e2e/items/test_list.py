@@ -10,11 +10,11 @@ async def test_list_defaults_and_empty_results(client: httpx.AsyncClient) -> Non
     empty = await client.get(ITEMS_URL)
 
     assert empty.status_code == 200
-    assert empty.json() == {"data": [], "total": 0, "page": 1, "limit": 20}
+    assert empty.json() == {"data": [], "total": 0, "page": 1, "limit": 25}
     await create_item(client, "Default", 7)
     body = (await client.get(ITEMS_URL)).json()
 
-    assert body["page"] == 1 and body["limit"] == 20 and body["total"] == 1
+    assert body["page"] == 1 and body["limit"] == 25 and body["total"] == 1
 
 
 async def test_list_multiple_final_and_out_of_range_pages(
@@ -68,8 +68,8 @@ async def test_list_rejects_invalid_page_and_limit(
     assert_validation_error(await client.get(ITEMS_URL, params=params))
 
 
-@pytest.mark.parametrize("sort", ["name", "price", "created_at"])
-@pytest.mark.parametrize("order", ["asc", "desc"])
+@pytest.mark.parametrize("sort", ["name", "price", "createdAt"])
+@pytest.mark.parametrize("order", ["ASC", "dEsC"])
 async def test_list_supports_every_sort_and_order(
     client: httpx.AsyncClient, sort: str, order: str
 ) -> None:
@@ -82,9 +82,9 @@ async def test_list_supports_every_sort_and_order(
 
     assert response.status_code == 200
     actual = response.json()["data"]
-    reverse = order == "desc"
+    reverse = order.lower() == "desc"
 
-    if sort == "created_at":
+    if sort == "createdAt":
         expected = sorted(
             created, key=lambda item: (item['createdAt'], item["id"]), reverse=reverse
         )
@@ -161,3 +161,31 @@ async def test_list_rejects_inverted_price_range(client: httpx.AsyncClient) -> N
     assert_validation_error(
         await client.get(ITEMS_URL, params={"min_price": 20, "max_price": 10})
     )
+
+
+@pytest.mark.parametrize(
+    'name', ['page', 'limit', 'sort', 'order', 'search', 'min_price', 'max_price']
+)
+async def test_list_rejects_repeated_parameters(
+    client: httpx.AsyncClient, name: str
+) -> None:
+    response = await client.get(ITEMS_URL, params=[(name, '1'), (name, '1')])
+
+    assert_validation_error(response)
+    assert f'query.{name}' in response.json()['message']
+
+
+@pytest.mark.parametrize(
+    'params',
+    [
+        {'page': '9007199254740992'},
+        {'page': '9007199254740991', 'limit': '2'},
+        {'sort': 'created_at'},
+        {'order': 'sideways'},
+        {'min_price': '2', 'max_price': '1'},
+    ],
+)
+async def test_list_rejects_invalid_contract_queries(
+    client: httpx.AsyncClient, params: dict[str, str]
+) -> None:
+    assert_validation_error(await client.get(ITEMS_URL, params=params))

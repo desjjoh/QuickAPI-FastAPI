@@ -24,7 +24,7 @@ class ItemUpdateData(TypedDict, total=False):
 
 
 class ItemSort(StrEnum):
-    CREATED_AT = "created_at"
+    CREATED_AT = "createdAt"
     ITEM_NAME = "name"
     PRICE = "price"
 
@@ -92,11 +92,20 @@ class ItemRepository:
         if payload.max_price is not None:
             filters.append(ItemORM.price <= payload.max_price)
 
-        sort_column = getattr(ItemORM, payload.sort)
+        sort_column = {
+            ItemSort.CREATED_AT: ItemORM.created_at,
+            ItemSort.ITEM_NAME: ItemORM.name,
+            ItemSort.PRICE: ItemORM.price,
+        }[payload.sort]
         sort_expr = sort_column.desc() if payload.order == "desc" else sort_column.asc()
 
         base_query: Select[tuple[ItemORM]] = (
-            select(ItemORM).where(*filters).order_by(sort_expr)
+            select(ItemORM)
+            .where(*filters)
+            .order_by(
+                sort_expr,
+                ItemORM.id.desc() if payload.order == 'desc' else ItemORM.id.asc(),
+            )
         )
 
         count_query: Select[tuple[int]] = select(func.count()).select_from(

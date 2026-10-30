@@ -37,15 +37,23 @@ the API. Development data is never reset automatically.
 
 | Query       | Default | Constraint                                         |
 | ----------- | ------- | -------------------------------------------------- |
-| `page`      | 1       | Integer ≥ 1                                        |
-| `limit`     | 20      | Integer 1–100                                      |
-| `sort`      | `price` | `name`, `price`, or `created_at`                   |
-| `order`     | `asc`   | `asc` or `desc`                                    |
+| `page`      | 1       | Integer 1–9007199254740991; calculated offset must also fit this range |
+| `limit`     | 25      | Integer 1–100                                      |
+| `sort`      | `price` | `name`, `price`, or `createdAt`                     |
+| `order`     | `ASC`   | Case-insensitive `ASC` or `DESC`; normalized internally |
 | `search`    | Absent  | Case-insensitive SQL LIKE over name or description |
 | `min_price` | Absent  | Same exact price rules; cannot exceed `max_price` |
 | `max_price` | Absent  | Same exact price rules                            |
 
-Both price bounds are inclusive. The JSON envelope contains `data`, `total`, `page`, and `limit`. `total_pages` is a Python property, not a serialized field. Search includes SQL LIKE `%` and `_` wildcard semantics. Sorting has no unique tie-breaker, so equal values do not guarantee stable page ordering. The current sort query token remains `created_at`, even though response timestamps use camelCase.
+Both price bounds are inclusive. The JSON envelope contains `data`, `total`, `page`, and `limit`. `total_pages` is a Python property, not a serialized field. Search trims surrounding whitespace and includes SQL LIKE `%` and `_` wildcard semantics.
+
+Sort by the selected column followed by item ID in the same direction. Equal-value
+pages are deterministic while data is unchanged; concurrent writes can still move
+items between offset-based pages. The public `createdAt` sort token maps to the ORM
+`created_at` attribute; the old `created_at` query token is rejected.
+
+Repeated query parameters return 422, even when both values are identical, rather
+than silently choosing one. Invalid page/offset bounds are rejected before SQL.
 
 ## Error contract
 

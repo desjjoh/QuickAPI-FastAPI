@@ -7,6 +7,7 @@ from app.api.v1.items.models.item_update_model import UpdateItemRequest
 from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
 from app.api.v1.items.services.item_service import ItemService, get_item_service
 from app.common.handlers.application_route import ApplicationRoute, transactional
+from app.common.handlers.query_validation import reject_repeated_query_parameters
 from app.common.models.error_model import ErrorResponse
 from app.common.models.pagination import PaginatedResult
 from app.common.models.parameters_model import EntityId
@@ -35,6 +36,7 @@ async def create(
 @router.get(
     "/",
     summary="Get a list of items",
+    dependencies=[Depends(reject_repeated_query_parameters)],
     description="Retrieves a paginated list of items. Supports page, limit, sorting, and optional filtering.",
     response_model=PaginatedResult[ItemResponse],
     status_code=status.HTTP_200_OK,
