@@ -28,10 +28,31 @@ a body-message deadline, not slow-header protection. Server/ingress header-recei
 protection requires separate configuration. The response deadline starts at timeout
 middleware entry, not TCP acceptance, and does not cover outer middleware rejections.
 
+## Server and ingress boundary
+
+Application response deadlines do not establish transport parity with Express's
+HTTP server receive deadlines. ASGI delivers the request scope after header parsing;
+the application cannot time incomplete headers that have not reached it. Body-read
+deadlines apply when downstream code requests body messages, not to an independently
+enforced maximum duration for receiving the entire upload. Keep-alive timing governs
+idle connection reuse and does not replace either protection.
+
+The selected server/ingress must enforce bounded header-receive and whole-upload
+durations. If those guarantees depend on ingress, direct application-port access
+must be restricted so clients cannot bypass them. Hosting verification must exercise
+slow/incomplete headers and stalled/trickled uploads over real connections, including
+the direct-port restriction, and retain evidence of timely rejection or closure and
+successful normal requests afterward. An early transport rejection may close the
+connection without the application's JSON error envelope or request ID.
+
+This remains open under [hosting verification, 8A](milestones.md#milestone-8--hosting-dependent-verification-deferred).
+Application and loopback tests do not qualify an undeployed ingress. No ineffective
+header-receive environment setting is exposed for the current Uvicorn entrypoint.
+
 ## Response and error behavior
 
 - Normal completion retires the response deadline. Dependency/background cleanup after the final response body does not change an already-completed response.
-- Expiry before headers returns exactly one 408 with the `{ status, message, timestamp }` envelope. Total expiry uses `Total request timeout exceeded.`; body waits identify first-body or chunk expiry.
+- Expiry before headers returns exactly one 408 with the `{ status, message, timestamp }` envelope. Total expiry uses `Application response deadline exceeded.`; body waits identify first-body or chunk expiry. A timeout preserves CORS policy already established for the request, along with outer security and correlation headers. Expiry before CORS validation does not grant browser permission. HEAD retains the status and representation headers without body bytes.
 - Expiry after headers raises a dedicated internal stream-abort error. Uvicorn closes the incomplete HTTP response; there is no replacement JSON/408 and no synthetic final chunk that would falsely mark the stream complete. A client can observe its original status and partial bytes followed by an incomplete-body/connection error. Uvicorn/the outer error boundary may log the exception even though the wire contains no 500 response.
 - Late sends are suppressed after expiry, disconnect, or response completion. Downstream exceptions, including unrelated `TimeoutError`, follow normal exception handling. External server cancellation propagates rather than being converted to 408.
 - Explicit ASGI disconnects and transport `OSError` close the sending boundary and mark the request abandoned. Unmarked handlers receive cooperative cancellation; owned mutations retain their task until transaction cleanup settles. A receive-side `TimeoutError` is preserved, since its being an `OSError` subclass does not establish client disconnection.
@@ -59,7 +80,7 @@ the transaction guide defines these uncertainty boundaries and retry limitations
 
 [Unit checks](../tests/unit/middleware/test_request_timeout.py) cover response state, normal completion beyond the cleanup deadline, owned versus downstream timeouts, body delivery/backpressure, disconnect/transport failures, external cancellation, and cancellation-resistant late work.
 
-[Loopback Uvicorn tests](../tests/integration/middleware/test_timeout_server.py) use the real application middleware stack and both `h11` and `httptools`. They verify pre-header 408 delivery before cleanup finishes, truncated streams without replacement responses, disconnect cleanup for ordinary handlers and stream generators, stalled-body JSON 408 behavior, and keep-alive reuse after earlier deadlines. Endpoints and listeners exist only in tests. These are HTTP tests; their fixture disables WebSockets and database lifespan startup.
+[Loopback Uvicorn tests](../tests/integration/middleware/test_timeout_server.py) use the real application middleware stack and both `h11` and `httptools`. They verify GET/HEAD pre-header 408 delivery before cleanup finishes, preserved correlation/security/CORS headers, one canonical timeout outcome even after late cleanup, truncated streams without replacement responses, disconnect cleanup for ordinary handlers and stream generators, stalled-body JSON 408 behavior, and keep-alive reuse after earlier deadlines. Endpoints and listeners exist only in tests. These are HTTP tests; their fixture disables WebSockets and database lifespan startup.
 
 ```sh
 python -m pytest -q --no-cov tests/unit/middleware/test_request_timeout.py tests/integration/middleware/test_timeout_server.py tests/integration/errors/test_middleware_rejections.py

@@ -82,7 +82,7 @@ CI and release qualification remain separate.
 Retained here as deferred backlog. It is outside the current delivery scope and
 will be reconsidered when hosting is selected.
 
-- **8A — Ingress and access:** real proxy/client-IP trust, browser CORS, authorized operational access, and direct-port denial.
+- **8A — Ingress and access:** real proxy/client-IP trust, browser CORS, authorized operational access, direct-port denial, and server/ingress header-receive and whole-upload deadlines. Qualify slow/incomplete headers and stalled/trickled uploads over real connections, including prevention of direct-port bypass; application response/body-read deadlines and keep-alive settings do not establish these guarantees. See [the transport boundary](request-timeouts.md#server-and-ingress-boundary).
 - **8B — Platform lifecycle:** traffic withdrawal, termination grace, database outages, and failover/recovery.
 - **8C — Database operations:** deployment CA/DNS, certificate rotation, fleet connection capacity, durable storage, backups, and restore exercises.
 - **8D — Observability:** log access/retention, dashboards, alerting, and deployment diagnostics.

@@ -174,7 +174,10 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
                 response = await asyncio.wait_for(request, 3)
 
                 assert response.status_code == 408
-                assert response.json()['message'] == 'Total request timeout exceeded.'
+                assert (
+                    response.json()['message']
+                    == 'Application response deadline exceeded.'
+                )
             else:
                 assert writer is not None
                 writer.close()

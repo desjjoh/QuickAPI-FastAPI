@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import cast
 
 from starlette.datastructures import MutableHeaders
 from starlette.exceptions import HTTPException
@@ -9,6 +10,36 @@ from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.common.handlers.exception_handler import http_exception_handler
+
+_RESPONSE_HEADERS = 'quickapi.cors_response_headers'
+
+
+def apply_cors_response_headers(scope: Scope, message: Message) -> None:
+    """Reuse policy already reached by this request, including outer deadline replies."""
+    response_headers = cast(dict[str, str] | None, scope.get(_RESPONSE_HEADERS))
+
+    if message['type'] != 'http.response.start' or response_headers is None:
+        return
+
+    outgoing = MutableHeaders(scope=message)
+    vary = {
+        token.strip().lower(): token.strip()
+        for value in outgoing.getlist('vary')
+        for token in value.split(',')
+        if token.strip()
+    }
+
+    for name in ['Origin'] + (
+        ['Access-Control-Request-Method', 'Access-Control-Request-Headers']
+        if scope['method'] == 'OPTIONS'
+        else []
+    ):
+        vary.setdefault(name.lower(), name)
+
+    outgoing['vary'] = '*' if '*' in vary else ', '.join(vary.values())
+
+    for name, value in response_headers.items():
+        outgoing[name] = value
 
 
 class CustomCORSASGIMiddleware:
@@ -37,28 +68,10 @@ class CustomCORSASGIMiddleware:
             return await self.app(scope, receive, send)
 
         response_headers: dict[str, str] = {}
+        scope[_RESPONSE_HEADERS] = response_headers
 
         async def send_wrapper(message: Message) -> None:
-            if message['type'] == 'http.response.start':
-                outgoing = MutableHeaders(scope=message)
-                vary = {
-                    token.strip().lower(): token.strip()
-                    for value in outgoing.getlist('vary')
-                    for token in value.split(',')
-                    if token.strip()
-                }
-
-                for name in ['Origin'] + (
-                    ['Access-Control-Request-Method', 'Access-Control-Request-Headers']
-                    if scope['method'] == 'OPTIONS'
-                    else []
-                ):
-                    vary.setdefault(name.lower(), name)
-
-                outgoing['vary'] = '*' if '*' in vary else ', '.join(vary.values())
-
-                for name, value in response_headers.items():
-                    outgoing[name] = value
+            apply_cors_response_headers(scope, message)
 
             await send(message)
 

@@ -240,4 +240,4 @@ async def test_real_response_deadline_uses_configured_milliseconds(
             result = await client.get(f"http://127.0.0.1:{port}/slow", timeout=2)
 
             assert result.status_code == 408
-            assert result.json()["message"] == "Total request timeout exceeded."
+            assert result.json()["message"] == "Application response deadline exceeded."
