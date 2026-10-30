@@ -9,12 +9,15 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 
 import uvicorn
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.handlers.application_route import ApplicationRoute, transactional
 from app.common.handlers.http_server import ApplicationServer
 from app.config.application import create_app
-from app.config.database import SessionLocal
+from app.config.database import SessionLocal, get_session
 
 
 def main() -> None:
@@ -32,6 +35,13 @@ def main() -> None:
             return True
 
         async def stop(self) -> None:
+            if (
+                mode == 'transaction-expired'
+                and not (directory / 'dependency-closed').exists()
+            ):
+                raise RuntimeError(
+                    'Services stopped before transaction dependency cleanup'
+                )
             (directory / 'cleanup').touch()
             if mode in {'cleanup-stuck', 'repeated'}:
                 await asyncio.Event().wait()
@@ -43,6 +53,39 @@ def main() -> None:
     async def release() -> None:
         while not (directory / 'release').exists():
             await asyncio.sleep(0.01)
+
+    async def tracked_session(
+        session: AsyncSession = Depends(get_session),
+    ) -> AsyncGenerator[AsyncSession, None]:
+        try:
+            yield session
+        finally:
+            (directory / 'dependency-closed').touch()
+
+    router = APIRouter(route_class=ApplicationRoute)
+
+    @router.post('/mutation')
+    @transactional
+    async def mutation(db: AsyncSession = Depends(tracked_session)) -> dict[str, bool]:
+        identifier = await db.scalar(text('SELECT CONNECTION_ID()'))
+        (directory / 'connection-id').write_text(str(identifier))
+        await db.execute(
+            text(
+                "INSERT INTO items (id,name,price) VALUES ('shutdown-test','Shutdown',1.00)"
+            )
+        )
+        (directory / 'entered').touch()
+        if mode == 'transaction-stuck':
+            while True:
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    pass  # Final process deadline must bound an owned mutation.
+        await release()
+        (directory / 'finished').touch()
+        return {'done': True}
+
+    app.include_router(router)
 
     @app.get('/work')
     async def work() -> dict[str, bool]:

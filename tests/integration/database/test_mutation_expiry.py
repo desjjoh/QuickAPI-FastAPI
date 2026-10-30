@@ -12,7 +12,7 @@ import httpx
 import pytest
 import uvicorn
 from fastapi import APIRouter, Depends, FastAPI, Request
-from sqlalchemy import event, select
+from sqlalchemy import event, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.common.handlers.application_route import ApplicationRoute, transactional
@@ -271,6 +271,7 @@ class QueryGate:
         self.reached, self.release = asyncio.Event(), asyncio.Event()
         self.drop = False
         self.used = False
+        self.armed = True
         self.tasks: set[asyncio.Task[None]] = set()
 
     async def barrier(self) -> None:
@@ -299,6 +300,7 @@ class QueryGate:
                 body = await source.readexactly(int.from_bytes(header[:3], 'little'))
                 if (
                     not downstream
+                    and self.armed
                     and not self.used
                     and body.startswith(b'\x03')
                     and body[1:].upper().startswith(self.query)
@@ -336,6 +338,124 @@ class QueryGate:
                     except OSError:
                         pass
             self.tasks.discard(task)
+
+
+@pytest.mark.parametrize('phase', ['before', 'after'])
+async def test_connection_loss_during_rollback_retires_lease_and_recovers(
+    database_engine: AsyncEngine,
+    monkeypatch: pytest.MonkeyPatch,
+    phase: str,
+) -> None:
+    gate = QueryGate(database_engine, b'ROLLBACK', phase)
+    # SQLAlchemy's first-connection setup performs its own rollback. Arm only
+    # after setup so the fault targets rollback of an actual application write.
+    gate.armed = False
+    relay = await asyncio.start_server(gate.accept, '127.0.0.1', 0)
+    engine = build_database_engine(
+        database_engine.url.set(
+            host='127.0.0.1', port=relay.sockets[0].getsockname()[1]
+        ),
+        policy=DatabasePolicy(connection_limit=1, acquire_timeout_ms=3000),
+    )
+    pool = cast(BoundedAsyncPool, engine.pool)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    sessions: list[AsyncSession] = []
+    invalidated: list[bool] = []
+
+    def owned(**kwargs: Any) -> AsyncSession:
+        session = factory(**kwargs)
+        sessions.append(session)
+        return session
+
+    def invalidate(*_: object) -> None:
+        invalidated.append(True)
+
+    event.listen(engine.sync_engine, 'invalidate', invalidate)
+    monkeypatch.setattr(database, 'SessionLocal', owned)
+    connection_id: int | None = None
+    router = APIRouter(route_class=ApplicationRoute)
+
+    @router.post('/rollback-fault')
+    @transactional
+    async def operation(
+        db: AsyncSession = Depends(database.get_session),
+    ) -> dict[str, bool]:
+        nonlocal connection_id
+        connection_id = int(
+            (await db.execute(text('SELECT CONNECTION_ID()'))).scalar_one()
+        )
+        await repo.create(db, item_in={'name': 'Discarded', 'price': 1})
+        raise RuntimeError('Injected preparation failure after a real write')
+
+    app = application(5)
+    app.include_router(router)
+    try:
+        async with engine.connect() as warm:
+            await warm.execute(text('SELECT 1'))
+        gate.armed = True
+        async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
+            failed = asyncio.create_task(client.post('/rollback-fault', json={}))
+            recovery: asyncio.Task[httpx.Response] | None = None
+            try:
+                await asyncio.wait_for(gate.reached.wait(), 3)
+                assert connection_id is not None
+                assert pool.admission.active == 1 and not failed.done()
+                async with database_engine.connect() as observer:
+                    assert not list(await observer.scalars(select(ItemORM.name)))
+                recovery = asyncio.create_task(
+                    client.post(
+                        '/api/v1/items/', json={'name': 'Recovered', 'price': 1}
+                    )
+                )
+                async with asyncio.timeout(3):
+                    while not pool.admission.waiters:
+                        await asyncio.sleep(0.001)
+                # No reuse or capacity release while rollback still owns the lease.
+                assert pool.admission.active == 1 and not recovery.done()
+                gate.drop = True
+                gate.release.set()
+                response = await asyncio.wait_for(failed, 3)
+                assert response.status_code == 500
+                assert response.json()['message'] == 'Internal server error.'
+                assert (await asyncio.wait_for(recovery, 3)).status_code == 201
+                await settled(app)
+                assert invalidated and all(
+                    not session.in_transaction() for session in sessions
+                )
+                assert pool.admission.active == 0 and not pool.admission.waiters
+                async with asyncio.timeout(3):
+                    while True:
+                        async with database_engine.connect() as observer:
+                            processes = (
+                                (await observer.execute(text('SHOW PROCESSLIST')))
+                                .mappings()
+                                .all()
+                            )
+                        if not any(
+                            int(row['Id']) == connection_id for row in processes
+                        ):
+                            break
+                        await asyncio.sleep(0.01)
+                async with database_engine.connect() as observer:
+                    assert list(await observer.scalars(select(ItemORM.name))) == [
+                        'Recovered'
+                    ]
+            finally:
+                gate.release.set()
+                await asyncio.gather(
+                    failed,
+                    *([recovery] if recovery is not None else []),
+                    return_exceptions=True,
+                )
+                await settled(app)
+    finally:
+        gate.release.set()
+        await engine.dispose()
+        relay.close()
+        await relay.wait_closed()
+        async with asyncio.timeout(3):
+            while gate.tasks:
+                await asyncio.sleep(0.001)
 
 
 @pytest.mark.parametrize('cleanup_error', [False, True])

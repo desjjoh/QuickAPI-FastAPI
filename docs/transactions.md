@@ -149,6 +149,12 @@ caught cancellation, post-commit cleanup failure, and recovery. A packet-framed
 test relay holds real INSERT results and COMMIT commands/acknowledgements; separate
 observer sessions prove when rows are committed. Connection loss checks verify
 invalidation, owner cleanup, capacity recovery, and absence of automatic replay.
+Rollback-specific barriers drop the connection before MySQL receives ROLLBACK or
+after MySQL processes it but before the acknowledgement reaches the driver. They
+verify that an already-written mutation remains absent, the broken server session
+disappears, and a queued request receives a replacement lease only after rollback
+settles. [Process checks](shutdown.md#verification) also combine an expired marked
+mutation with shutdown and verify dependency lifetime and final-deadline behavior.
 
 This boundary does not guarantee delivery, implement idempotency, add optimistic
 concurrency, or establish query cancellation. No database migration or environment

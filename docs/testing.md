@@ -205,5 +205,9 @@ separate observer sessions and a test-owned MySQL packet relay to distinguish
 pre-commit rollback, lost acknowledgement, and committed data without a delivered
 success response. Checks include disconnect/server cancellation, caught
 cancellation, expired acquisition, cleanup failure, invalidation and pool recovery.
+Rollback-command and acknowledgement loss verify retirement of the broken lease,
+unchanged data, disappearance of the server session, and recovery of a queued caller.
+The [shutdown process checks](shutdown.md#verification) exercise expired marked
+transactions during graceful termination and forced termination of stuck work.
 The regular MySQL integration job and full-suite wrapper include these tests.
 See [Mutation transactions](transactions.md#expiry-and-commit-outcomes) for limits.

@@ -90,6 +90,8 @@ async def wait_file(path: Path) -> None:
         'cleanup-failure',
         'cleanup-stuck',
         'repeated',
+        'transaction-expired',
+        'transaction-stuck',
     ],
 )
 async def test_shutdown_process_contract(
@@ -109,7 +111,11 @@ async def test_shutdown_process_contract(
         'SHUTDOWN_TEST_DIR': str(tmp_path),
         'HTTP_DRAIN_TIMEOUT_MS': '700',
         'SHUTDOWN_TIMEOUT_MS': '2000',
-        'REQUEST_TIMEOUT_MS': '150' if mode == 'late' else '10000',
+        'REQUEST_TIMEOUT_MS': (
+            '150'
+            if mode in {'late', 'transaction-expired', 'transaction-stuck'}
+            else '10000'
+        ),
         'REQUEST_FIRST_BODY_TIMEOUT_MS': '100',
         'REQUEST_CHUNK_TIMEOUT_MS': '100',
     }
@@ -147,14 +153,20 @@ async def test_shutdown_process_contract(
                     'disconnect',
                     'stuck',
                     'blocked',
+                    'transaction-expired',
+                    'transaction-stuck',
                 }:
                     request = asyncio.create_task(
-                        client.get('/stream' if mode == 'stream' else '/work')
+                        client.post('/mutation', json={})
+                        if mode.startswith('transaction-')
+                        else client.get('/stream' if mode == 'stream' else '/work')
                     )
                     await wait_file(tmp_path / 'entered')
-                if mode == 'late':
+                if mode in {'late', 'transaction-expired', 'transaction-stuck'}:
                     assert request is not None and (await request).status_code == 408
                     assert not (tmp_path / 'finished').exists()
+                    if mode.startswith('transaction-'):
+                        assert not (tmp_path / 'dependency-closed').exists()
                 if mode == 'disconnect':
                     assert request is not None
                     request.cancel()
@@ -167,8 +179,17 @@ async def test_shutdown_process_contract(
                         # Windows terminate() is a hard kill, not a graceful SIGTERM.
                         (tmp_path / 'stop').touch()
                 await asyncio.sleep(0.15)
-                if mode in {'mutation', 'stream', 'late'}:
+                if mode in {
+                    'mutation',
+                    'stream',
+                    'late',
+                    'transaction-expired',
+                    'transaction-stuck',
+                }:
                     assert not (tmp_path / 'cleanup').exists()
+                    if mode.startswith('transaction-'):
+                        assert not (tmp_path / 'dependency-closed').exists()
+                if mode in {'mutation', 'stream', 'late', 'transaction-expired'}:
                     # A fresh connection is refused or rejected while accepted
                     # work still owns the database and is allowed to finish.
                     rejected = asyncio.create_task(
@@ -208,10 +229,15 @@ async def test_shutdown_process_contract(
                 'cleanup-failure',
                 'cleanup-stuck',
                 'repeated',
+                'transaction-stuck',
             }
             if forced:
                 assert process.returncode == 1, logs
                 assert 'Application exited cleanly' not in logs
+                if mode == 'transaction-stuck':
+                    assert 'Final shutdown deadline exceeded' in logs
+                    assert not (tmp_path / 'dependency-closed').exists()
+                    assert not (tmp_path / 'cleanup').exists()
             else:
                 assert process.returncode in (0, -signal.SIGTERM), logs
                 assert 'Application exited cleanly' in logs
@@ -220,6 +246,23 @@ async def test_shutdown_process_contract(
                     text("SELECT COUNT(*) FROM items WHERE id='shutdown-test'")
                 )
             assert count == (1 if mode == 'mutation' else 0)
+            if mode.startswith('transaction-'):
+                connection_id = int((tmp_path / 'connection-id').read_text())
+                async with asyncio.timeout(3):
+                    while True:
+                        async with database_engine.connect() as connection:
+                            processes = (
+                                (await connection.execute(text('SHOW PROCESSLIST')))
+                                .mappings()
+                                .all()
+                            )
+                        if not any(
+                            int(row['Id']) == connection_id for row in processes
+                        ):
+                            break
+                        await asyncio.sleep(0.01)
+                if mode == 'transaction-expired':
+                    assert (tmp_path / 'dependency-closed').exists()
         finally:
             if process.poll() is None:
                 process.kill()

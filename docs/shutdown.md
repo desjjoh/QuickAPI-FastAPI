@@ -57,6 +57,8 @@ grace period can kill the process before application cleanup finishes.
 Repeated shutdown signals request immediate failure termination. A thread watchdog
 enforces the overall budget independently of the asyncio event loop, including its
 final task cleanup. On expiry it writes a fixed diagnostic and exits with status 1.
+Failure to write the diagnostic, including a closed stderr or broken pipe, cannot
+prevent forced termination. The repeated-signal path uses the same exit boundary.
 The watchdog cannot replace an external supervisor for a process frozen in native
 code that prevents Python threads from running, or an OS-level failure.
 
@@ -88,7 +90,11 @@ Process tests use isolated fixtures and test-only routes. They exercise idle sto
 an accepted database mutation, streaming, client disconnect, timed-out work that
 continues cleanup, uncooperative handlers, a blocked event loop, cleanup failure,
 stuck cleanup, and repeated stop requests. MySQL selection checks persistence after
-the child exits. Linux additionally qualifies real SIGTERM against production and
+the child exits. Marked transaction cases combine a real write, HTTP timeout and
+shutdown: released work rolls back before dependency cleanup; work that ignores
+cancellation reaches the final failure deadline. Both verify that the original
+MySQL server session disappears. Unit checks cover diagnostic-write failure for
+both forced-exit paths. Linux additionally qualifies real SIGTERM against production and
 development-reload entrypoints. Windows uses a file-triggered programmatic stop for
 process tests; these are not represented as POSIX signal or console-event evidence.
 

@@ -81,6 +81,34 @@ def test_runner_failure_and_watchdog_cleanup(monkeypatch: pytest.MonkeyPatch) ->
     cast(Mock, http_server.threading.Timer).return_value.cancel.assert_called_once()
 
 
+@pytest.mark.parametrize('repeated', [False, True])
+@pytest.mark.parametrize(
+    'failure', [OSError('stderr closed'), BrokenPipeError('pipe closed')]
+)
+def test_forced_exit_survives_diagnostic_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    repeated: bool,
+    failure: OSError,
+) -> None:
+    value = server(monkeypatch)
+    if repeated:
+        value.request_shutdown()
+    monkeypatch.setattr(http_server.os, 'write', Mock(side_effect=failure))
+
+    def exit_failure(code: int) -> None:
+        raise SystemExit(code)
+
+    terminate = Mock(side_effect=exit_failure)
+    monkeypatch.setattr(http_server.os, '_exit', terminate)
+    with pytest.raises(SystemExit) as error:
+        if repeated:
+            value.handle_exit(signal.SIGTERM, None)
+        else:
+            value._force_exit()  # pyright: ignore[reportPrivateUsage] - final watchdog entrypoint
+    assert error.value.code == 1
+    terminate.assert_called_once_with(1)
+
+
 async def test_interrupted_startup_closes_resources(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -65,17 +65,19 @@ class ApplicationServer(uvicorn.Server):
             await self.shutdown(sockets)
 
     @staticmethod
-    def _force_exit() -> None:
-        os.write(
-            2,
-            b'Final shutdown deadline exceeded; unfinished work may have an unknown outcome.\n',
-        )
-        os._exit(1)
+    def _force_exit(
+        diagnostic: bytes = b'Final shutdown deadline exceeded; unfinished work may have an unknown outcome.\n',
+    ) -> None:
+        try:
+            os.write(2, diagnostic)
+        finally:
+            # Diagnostic output is best effort. A closed/broken stderr must not
+            # defeat the final process deadline or repeated-signal termination.
+            os._exit(1)
 
     def handle_exit(self, sig: int, frame: FrameType | None) -> None:
         if self._watchdog is not None:
-            os.write(2, b'Repeated shutdown signal; forcing termination.\n')
-            os._exit(1)
+            self._force_exit(b'Repeated shutdown signal; forcing termination.\n')
         self._begin_shutdown()
         super().handle_exit(sig, frame)
 
