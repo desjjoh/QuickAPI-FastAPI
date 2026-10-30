@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# Python 3.12 on Debian Bookworm; update the readable tag and digest together.
+# Python 3.12 on Debian Trixie; update the readable tag and digest together.
 # See docs/deployment.md for the base-image update and qualification process.
-ARG PYTHON_IMAGE=python:3.12.16-slim-bookworm@sha256:e697c81897302a4c4333bade000d98038fbb21eb064f8ee1fd42d02ebcd9d337
+ARG PYTHON_IMAGE=python:3.12.16-slim-trixie@sha256:8523d6abeb48ceae0b7240d30c5808fc26cb79c1a635bacdf19cf3baecfbec07
 
 # ---------- Build stage ----------
 FROM ${PYTHON_IMAGE} AS builder

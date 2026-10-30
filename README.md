@@ -49,6 +49,7 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Request deadlines](docs/request-timeouts.md) | Timeout, streaming, disconnect, and cleanup behavior |
 | [Testing](docs/testing.md) | Test layers, isolation, coverage gates, CI, and verification limits |
 | [Branch protections](docs/branch-protection.md) | Major-branch policy, check contexts, and required-check configuration |
+| [Dependency and image security](docs/security.md) | Critical-only gates, scanner evidence, warnings and expiring exceptions |
 | [Deployment and operations](docs/deployment.md) | Container commands, probes, diagnostics, persistence, and recovery |
 | [Milestones](docs/milestones.md) | Implementation scope, status and deferred work |
 

@@ -99,11 +99,18 @@ An unavailable service is a failure to execute the persistence suite, never a pa
 
 ## CI and image qualification
 
-The Quality workflow runs static analysis, unit checks, MySQL integration/E2E jobs,
+The Quality workflow runs dependency security, static analysis, unit checks, MySQL integration/E2E jobs,
 a full MySQL coverage run, and built-image MySQL qualification. Database jobs own
 independent disposable infrastructure. Layer collection must be nonempty; failures
 collect bounded logs and cleanup is attempted. Dedicated TLS checks remain in the
 MySQL integration job.
+
+[Security](security.md) defines runtime/full requirement auditing and scanning of
+the exact image ID passed to container qualification. Critical production/image
+findings block; high/medium findings warn and development-only findings remain
+nonblocking. Invalid evidence and scanner failures block independently. Offline
+Windows regressions use synthetic reports and fake tool runners; live scans run
+in CI and retain reports even on failure.
 
 ```powershell
 docker build -t quickapi-fastapi:ci .

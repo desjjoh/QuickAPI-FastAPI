@@ -2,6 +2,52 @@
 
 [Documentation index](../README.md#documentation)
 
+## Hosted security findings and corrections
+
+Inspected [Quality run 41089796696](https://github.com/desjjoh/QuickAPI-FastAPI/actions/runs/41089796696)
+at `9adf2b0a8c80b1328ad6539bc42c5483c6ce1fbf` on 2026-10-30. Static analysis,
+unit/MySQL suites, TLS and combined coverage passed. The built-image MySQL
+qualification step passed, including API replacement/persistence. The overall
+run failed in dependency security, image-report validation and the broad
+diagnostics upload; this is not a successful security qualification.
+
+Downloaded security artifacts established the causes. Debian package inventory
+versions separate epoch/release from upstream version, while vulnerability records
+use the full installed version. The corrected validator reconstructs it exactly.
+The original image report now validates offline and still blocks its four unique
+critical package/advisory pairs. This verifies parsing without suppressing findings.
+The root-owned Trivy cache moved to `.cache/trivy/`, outside artifact paths;
+production diagnostics now upload only their log. Artifact actions use v6.
+
+The runtime pins are updated to AnyIO 4.14.2 and asyncmy 0.2.17; development
+Certifi is updated to 2026.10.23. Upstream asyncmy release notes confirm removal
+of the vulnerable dictionary escaping path despite the scan's absent fixed-version
+field. With maintainer approval, the pinned Python 3.12.16 base moves to Debian
+13 Trixie, whose SQLite/zlib versions resolve the reported Debian 12 findings.
+The registry index digest was verified. Both exception registers remain empty.
+
+With updated local pins, 79 focused Windows security/timeout tests and 65 MySQL
+repository/transaction tests passed. `pip check`, formatting, Ruff and targeted
+mypy passed. No full local suite, TLS run, image build or live rescan was repeated.
+Fresh CI must qualify the new base, dependency pins, artifact upload and security
+findings; the downloaded old reports do not establish a clean updated candidate.
+
+## Dependency and image security gates
+
+Implemented on 2026-10-30 against `0b24b5d` plus the security changes. Forty-five
+focused offline Windows tests passed: severity/runtime/development policy,
+exact exception matching and expiry, missing/invalid inventories, wrong image
+identity, exported configuration hashes, scanner failure, temporary cleanup,
+malformed JSON and unsupported requirement declarations. The combined formatter,
+Ruff and targeted mypy checks passed. Strict editor-type checks cover both new
+scripts and the policy tests.
+
+No live dependency audit, container build or image scan was run locally. These
+are delegated to hosted CI; no claim is made that the current pins or image have
+no critical findings. Empty exception registers grant no exemptions. Application
+requirements, environment settings and schema are unchanged. The aggregate CI
+gate and remote required-check enforcement remain separately tracked.
+
 ## Container replacement and persistence
 
 Implemented against `813feb8` plus the working changes on 2026-10-30. Eighteen

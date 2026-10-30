@@ -3,8 +3,8 @@
 alembic==1.20.1
 annotated-doc==0.0.3
 annotated-types==0.7.0
-anyio==4.11.0
-asyncmy==0.2.10
+anyio==4.14.2
+asyncmy==0.2.17
 cffi==2.0.0
 click==8.3.0
 colorama==0.4.6
