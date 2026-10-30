@@ -25,7 +25,7 @@ jobs:
           python-version: "3.12"
       - name: Audit pinned runtime and development requirements
         run: python -m scripts.security_scan dependencies
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: dependency-security-${{ github.run_attempt }}
@@ -97,7 +97,7 @@ jobs:
         run: |
           mkdir -p test-artifacts
           python -m scripts.test_db logs > test-artifacts/mysql.log 2>&1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: mysql-${{ matrix.layer }}-diagnostics
@@ -131,7 +131,7 @@ jobs:
         run: |
           mkdir -p test-artifacts
           python -m scripts.test_db logs > test-artifacts/mysql-coverage.log 2>&1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: mysql-coverage-diagnostics
@@ -160,7 +160,7 @@ jobs:
         run: python -m scripts.test_image --image '${{ steps.runtime.outputs.image }}'
       - name: Scan the exact qualified runtime image
         run: python -m scripts.security_scan image --image '${{ steps.runtime.outputs.image }}'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: runtime-image-security-${{ github.run_attempt }}
@@ -169,11 +169,11 @@ jobs:
             security/container-vulnerability-exceptions.json
           retention-days: 14
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: production-mysql-diagnostics
-          path: test-artifacts/
+          path: test-artifacts/production-mysql.log
       - name: Remove disposable image-qualification resources
         if: always()
         run: python -m scripts.test_image --cleanup

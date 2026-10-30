@@ -202,6 +202,50 @@ def test_image_evidence_requires_identity_and_both_inventories(failure: str) -> 
         evaluate(value, image_id=IMAGE_ID)
 
 
+@pytest.mark.parametrize('epoch', [0, 1])
+@pytest.mark.parametrize('release', [None, '2+deb13u1'])
+def test_debian_versions_match_full_installed_version(
+    epoch: int, release: str | None
+) -> None:
+    value = report(image=True)
+    result = value['Results'][1]
+    package: dict[str, Any] = {'Name': 'libc6', 'Version': '2.41', 'Epoch': epoch}
+
+    if release:
+        package['Release'] = release
+
+    installed = ('1:' if epoch else '') + '2.41' + ('-' + release if release else '')
+    result['Packages'] = [package]
+    result['Vulnerabilities'] = [
+        {
+            'VulnerabilityID': 'CVE-DEBIAN-TEST',
+            'PkgName': 'libc6',
+            'InstalledVersion': installed,
+            'Severity': 'CRITICAL',
+        }
+    ]
+
+    decision = evaluate(value, image_id=IMAGE_ID)
+
+    assert not decision['allowed']
+    assert decision['blocked'][0]['installedVersion'] == installed
+
+    result['Vulnerabilities'][0]['InstalledVersion'] = installed + '-other'
+
+    with pytest.raises(ValueError, match='outside debian inventory'):
+        evaluate(value, image_id=IMAGE_ID)
+
+
+@pytest.mark.parametrize('epoch', [-1, '1', True])
+def test_invalid_debian_epoch_is_rejected(epoch: Any) -> None:
+    value = report(image=True)
+
+    value['Results'][1]['Packages'][0]['Epoch'] = epoch
+
+    with pytest.raises(ValueError, match='epoch'):
+        evaluate(value, image_id=IMAGE_ID)
+
+
 def write_archive(path: Path) -> None:
     with tarfile.open(path, 'w') as archive:
         for name, body in [
@@ -290,6 +334,11 @@ def test_scan_commands_and_fail_closed_evidence(
     assert not list(output.glob('security-*'))
     assert not any(
         'docker.sock' in argument or argument == '--ignore-unfixed'
+        for call in calls
+        for argument in call
+    )
+    assert any(
+        '.cache' in argument and ':/root/.cache/trivy' in argument
         for call in calls
         for argument in call
     )

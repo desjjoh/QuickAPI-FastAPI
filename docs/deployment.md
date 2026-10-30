@@ -20,7 +20,7 @@ Domain routes and any enabled operational endpoints have no application authenti
 
 ## Production container validation
 
-The runtime uses the digest-pinned Python 3.12 Bookworm base declared in the
+The runtime uses the digest-pinned Python 3.12 Trixie base declared in the
 Dockerfile. Builder and runtime share that base. Only the builder installs
 `build-essential`; runtime requirements live in `/opt/venv`. The API and migration
 command run as UID/GID `10001:10001`, with root-owned application code and
@@ -31,7 +31,7 @@ application directory. Curl remains installed for Compose readiness probes.
 
 1. Select a supported Python 3.12 patch tag with the same Debian variant. Inspect
    its official registry manifest with
-   `docker buildx imagetools inspect python:<patch>-slim-bookworm`.
+   `docker buildx imagetools inspect python:<patch>-slim-trixie`.
 2. Update the Dockerfile's `PYTHON_IMAGE` tag and index digest together. Retain the
    digest in source control; changing a moving tag alone does not update the base.
 3. Submit the update through CI. Require a fresh image build and the runtime

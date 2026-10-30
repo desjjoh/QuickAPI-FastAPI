@@ -114,7 +114,7 @@ def scan(mode: str, image_id: str | None = None) -> bool:
         if not DIGEST.fullmatch(scanner_id):
             raise ValueError('Invalid scanner identity.')
 
-        cache = ROOT / 'test-artifacts' / 'security' / 'trivy-cache'
+        cache = ROOT / '.cache' / 'trivy'
 
         cache.mkdir(parents=True, exist_ok=True)
 

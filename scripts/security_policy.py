@@ -42,6 +42,25 @@ def normalize(name: str) -> str:
     return re.sub(r'[-_.]+', '-', name).lower()
 
 
+def package_version(package: dict[str, Any], kind: str) -> str:
+    version = text(package.get('Version'))
+
+    if kind == 'debian':
+        epoch = package.get('Epoch', 0)
+        release = package.get('Release')
+
+        if type(epoch) is not int or epoch < 0:
+            raise ValueError('Invalid Debian package epoch.')
+
+        if release is not None:
+            version += '-' + text(release)
+
+        if epoch:
+            version = f'{epoch}:{version}'
+
+    return version
+
+
 def requirements(path: Path) -> dict[str, str]:
     result: dict[str, str] = {}
 
@@ -155,7 +174,7 @@ def evaluate(
         for raw_package in packages:
             package = mapping(raw_package)
 
-            entries.add((text(package.get('Name')), text(package.get('Version'))))
+            entries.add((text(package.get('Name')), package_version(package, kind)))
 
         if result.get('Class') == 'lang-pkgs' and kind == (
             'python-pkg' if image_id else 'pip'
@@ -171,8 +190,13 @@ def evaluate(
             version = text(vulnerability.get('InstalledVersion'))
             severity = text(vulnerability.get('Severity'))
 
-            if severity not in SEVERITIES or (name, version) not in entries:
-                raise ValueError('Invalid severity or vulnerability outside inventory.')
+            if severity not in SEVERITIES:
+                raise ValueError(f'Invalid vulnerability severity in {kind}.')
+
+            if (name, version) not in entries:
+                raise ValueError(
+                    f'Vulnerability outside {kind} inventory: {name}@{version}.'
+                )
 
             package_path = vulnerability.get('PkgPath')
 

@@ -51,6 +51,12 @@ Scanner defaults update the vulnerability database; the gate does not enable
 offline, ignore-unfixed, severity-filter or database-update-skipping options.
 Security scans require Docker and registry/database network access. The local
 verification policy uses offline Windows fixture tests; actual scans run in CI.
+The scanner's root-owned cache lives under ignored `.cache/trivy/`, outside all
+artifact upload paths. Uploads select reports and logs, never scanner caches.
+
+Debian inventory versions are reconstructed from upstream version, release and
+epoch before matching vulnerability records. Matching remains exact; another
+release or epoch cannot satisfy a finding's installed-version requirement.
 
 Ignored `test-artifacts/security/dependencies/` and `image/` retain raw reports,
 `result.json`, `identity.json`, command diagnostics and `summary.md`. CI uploads
