@@ -235,7 +235,12 @@ pytest -q
 
 Apply `python -m alembic upgrade head` before starting the API; startup checks revision compatibility without changing the schema. See [Migrations](migrations.md) for native/container commands. Automated persistence and built-image checks use disposable MySQL; verify the actual deployment separately.
 
-Retain the tested commit and image digest, inject production configuration, and verify readiness plus a disposable API workflow in the target environment. Configure durable storage, backups, retention, and restore for the selected database. Compose supplies a one-shot local migration step. No hosted promotion, backup/restore, or application rollback workflow is supplied.
+The [release pipeline](releases.md) publishes a qualified image by digest without
+rebuilding. Retain that reference and source commit, inject production
+configuration, and verify readiness plus a disposable API workflow in the target
+environment. Configure durable storage, backups, retention and restore for the
+selected database. Compose supplies a one-shot local migration step. Hosted
+deployment, backup/restore and application rollback remain separately scoped.
 
 During incidents inspect structured logs/request IDs, check `/health` separately from `/ready`, and investigate dependency reachability when readiness fails. Restrict diagnostics to the intended audience. Roll back to a retained image only after checking schema compatibility; restore data using the database operator's tested recovery procedure. Neither image rollback nor an available backup establishes recoverability on its own.
 

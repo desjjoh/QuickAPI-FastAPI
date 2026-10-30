@@ -1,0 +1,153 @@
+name: Release image
+
+on:
+  workflow_run:
+    workflows: [Quality]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      git-ref:
+        description: Full commit SHA on main with successful push Quality CI
+        required: true
+        type: string
+      dry-run:
+        description: Qualify and rehearse publication without a real registry login
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: release-image
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}
+  IMAGE_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY || github.repository }}
+  TRIVY_SCANNER_IMAGE: aquasec/trivy:latest
+  REGCTL_IMAGE: ghcr.io/regclient/regctl:latest
+
+jobs:
+  release:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    steps:
+      - name: Prepare isolated release paths
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-candidate" "$RUNNER_TEMP/release-evidence"
+          echo "RELEASE_EVIDENCE=$RUNNER_TEMP/release-evidence" >> "$GITHUB_ENV"
+          echo "RELEASE_ARCHIVE=$RUNNER_TEMP/release-candidate/image.tar" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Require successful main CI for the exact source
+        id: source
+        env:
+          REQUESTED_SHA: ${{ github.event.workflow_run.head_sha || inputs.git-ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: python -m scripts.release_source
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          persist-credentials: false
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip check
+      - name: Verify release tooling
+        run: python -m pytest -q tests/unit/config/test_release.py --no-cov
+      - name: Read the tracked release version
+        id: metadata
+        run: |
+          mkdir -p "$(dirname "$RELEASE_ARCHIVE")" "$RELEASE_EVIDENCE"
+          version="$(python -c 'from pathlib import Path; from scripts.release_source import release_version; print(release_version(Path.cwd()))')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-docker-action@v5
+        with:
+          daemon-config: '{"features":{"containerd-snapshotter":true}}'
+      - uses: docker/setup-buildx-action@v4
+      - name: Build one unpublished candidate with SBOM and provenance
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          pull: true
+          push: false
+          platforms: linux/amd64
+          outputs: type=oci,dest=${{ runner.temp }}/release-candidate/image.tar
+          provenance: mode=max,version=v1
+          sbom: true
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+            org.opencontainers.image.version=${{ steps.metadata.outputs.version }}
+      - name: Qualify the exact unpublished candidate
+        env:
+          RELEASE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+          SMOKE_APP_VERSION: ${{ steps.metadata.outputs.version }}
+        run: python -m scripts.release_candidate qualify "$RELEASE_ARCHIVE" "$RELEASE_EVIDENCE"
+      - name: Remove disposable qualification resources
+        if: always() && steps.build.outcome == 'success'
+        run: python -m scripts.test_image --cleanup
+      - name: Rehearse digest-preserving publication in a disposable registry
+        env:
+          RELEASE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+        run: python -m scripts.release_publish registry-test "$RELEASE_ARCHIVE" "$RELEASE_EVIDENCE"
+      - name: Recheck exact-source CI before registry login
+        env:
+          REQUESTED_SHA: ${{ steps.source.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          python -m scripts.release_source
+          python -m scripts.release_candidate verify "$RELEASE_ARCHIVE" "$RELEASE_EVIDENCE"
+      - name: Log in only after candidate approval
+        if: github.event_name == 'workflow_run' || inputs.dry-run == false
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME || github.actor }}
+          password: ${{ secrets.REGISTRY_PASSWORD || github.token }}
+      - name: Publish the verified archive without rebuilding
+        id: publication
+        if: github.event_name == 'workflow_run' || inputs.dry-run == false
+        env:
+          RELEASE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+          RELEASE_IMAGE: ${{ steps.source.outputs.image }}
+        run: python -m scripts.release_publish publish "$RELEASE_ARCHIVE" "$RELEASE_EVIDENCE"
+      - name: Retain release and failure evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/release-evidence/
+            test-artifacts/production-mysql.log
+            security/container-vulnerability-exceptions.json
+            security/container-vulnerability-exceptions.md
+          retention-days: 90
+          if-no-files-found: error

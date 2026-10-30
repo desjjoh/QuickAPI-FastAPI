@@ -68,8 +68,9 @@ Reports are time-specific advisory evidence, not proof of exploitability.
 The jobs fail on prohibited findings or unusable evidence. The always-running
 Deployment gate requires dependency security and production-container success;
 remote branch enforcement is tracked separately in [Milestones](milestones.md).
-Release candidates require their own bound scan; a passing PR scan does not
-approve an image rebuilt later.
+[Release candidates](releases.md) receive their own bound scan and policy
+re-evaluation before publication; a passing PR scan does not approve an image
+rebuilt later. Candidate publication does not rebuild the qualified artifact.
 
 ## Exceptions
 

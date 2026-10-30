@@ -72,16 +72,15 @@ CI and release qualification remain separate.
 
 ### Milestone 7 — Verified release pipeline
 
-| Phase                                        | Scope                                                                                   | Completion check                                                                          |
-| -------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **7A — Candidate identity and attestations** | Exact-source CI requirement; build one candidate with SBOM/provenance                   | Source, image, and attestations are bound and validated                                   |
-| **7B — Candidate qualification**             | MySQL smoke and security scan of that same candidate; retained evidence                 | Failed candidates or mismatched/incomplete evidence cannot publish                        |
-| **7C — Digest-preserving publication**       | Publish without rebuilding; retain commit/digest identity; exercise dry-run/publication | Published digest matches the verified candidate                                           |
-| **7D — Release rollback procedure**          | Retained image selection, schema compatibility, release ordering                        | Supported rollback procedure is documented and exercised within disposable infrastructure |
+| Step | Scope | Completion check |
+| --- | --- | --- |
+| **7A–7C — Verified candidate publication (implemented; hosted qualification pending)** | Exact-source main CI; one OCI candidate with SBOM/provenance; MySQL/security qualification; disposable registry rehearsal; digest-preserving publication and retained evidence | Offline Windows identity/evidence/publication tests pass; live attestation/build/scan/registry dry-run and real publication require hosted qualification |
+| **7D — Release rollback procedure** | Retained image selection, schema compatibility and release ordering | Supported rollback procedure is documented and exercised within disposable infrastructure |
 
-### Milestone 8 — Hosting-dependent verification
+### Milestone 8 — Hosting-dependent verification (deferred)
 
-Tracked now, executed when hosting is selected.
+Retained here as deferred backlog. It is outside the current delivery scope and
+will be reconsidered when hosting is selected.
 
 - **8A — Ingress and access:** real proxy/client-IP trust, browser CORS, authorized operational access, and direct-port denial.
 - **8B — Platform lifecycle:** traffic withdrawal, termination grace, database outages, and failover/recovery.
