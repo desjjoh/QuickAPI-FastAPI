@@ -71,8 +71,10 @@ stop and supported console signal handling are different operations.
 Draining allows accepted work to complete; it does not replay mutations. A cancelled
 or forcibly terminated operation can have an uncertain outcome, especially around
 commit. Request timeouts and database disposal do not prove rollback. Transaction
-ownership, pre-commit activity checks, and commit uncertainty have separate
-acceptance criteria. Streaming already in progress is not replaced by a second JSON
+ownership, pre-commit activity checks, and commit uncertainty follow the
+[mutation contract](transactions.md#expiry-and-commit-outcomes). Owned mutation tasks
+remain tracked after their HTTP timeout or disconnect; drain cancellation and the
+final watchdog still bound shutdown. Streaming already in progress is not replaced by a second JSON
 response when interrupted.
 
 ## Verification

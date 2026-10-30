@@ -104,16 +104,24 @@ Full traffic withdrawal and request draining remain shutdown requirements.
 [Mutation transactions](transactions.md) keeps one request-owned transaction around
 controller/repository work and native FastAPI response preparation. Repositories
 participate through the supplied session, without independent commits. Controllers
-retain their logic; services are deferred. Expiry and commit uncertainty retain
-separate acceptance criteria.
+retain their logic; services are deferred.
+
+## 4C. Expiry and uncertain outcomes
+
+[Mutation transactions](transactions.md#expiry-and-commit-outcomes) defines shared
+monotonic activity checks before work, after acquisition, and immediately before
+commit. HTTP timeout/disconnect retains the mutation task through settlement and
+cleanup, while suppressing late output. Real MySQL packet barriers and HTTP socket
+tests distinguish pre-commit rollback, commit acknowledgement loss, cancellation,
+post-commit failure, invalidation and recovery. No SQL-cancellation or retry-safety
+guarantee is implied; durable idempotency remains a separate contract.
 
 ## Working decisions
 
 [Graceful shutdown](shutdown.md) defines early readiness withdrawal, closed HTTP
 admission, accepted-work draining, reverse dependency cleanup, and final process
 termination. The supported entrypoint coordinates Uvicorn and development reload;
-transaction ownership and expiry/commit uncertainty retain separate acceptance
-criteria in the milestone list.
+transaction ownership and request activity share that accepted-work lifetime.
 
 - Use Express and NestJS as references for behavior and quality. Prefer native FastAPI/Pydantic/SQLAlchemy/Uvicorn mechanisms where they satisfy the same requirements.
 - Use pip with manually maintained requirements; no uv adoption or generated lockfile is planned.

@@ -40,7 +40,8 @@ transaction for their queries.
    and response-model conversion inside the transaction.
 4. Let FastAPI's normal handler perform response-model validation, serialization,
    alias/exclusion handling, status/header preparation, and JSON rendering.
-5. Commit only after a buffered JSON response has been prepared. On successful
+5. Flush any remaining writes and check request activity immediately before
+   entering commit. Commit only after a buffered JSON response has been prepared. On successful
    commit, close the session and return that response to ASGI for delivery.
 
 No response bytes are sent by the route owner before commit. Existing route
@@ -89,6 +90,45 @@ transaction boundary. Tests can inject the session factory to point transactiona
 routes at their guarded MySQL engine; a separate session dependency must not replace
 the owner with an independently managed transaction.
 
+## Expiry and commit outcomes
+
+Timeout middleware and the route owner share a monotonic deadline and abandonment
+state. The owner checks activity before allocating a session, after logical begin,
+after actual connection acquisition/BEGIN, and after response preparation and final
+flush, immediately before commit. The acquisition check runs through SQLAlchemy's
+session `after_begin` event, before the first business statement. An expired pool
+waiter cannot acquire a connection later and begin its mutation.
+
+For a marked mutation, HTTP timeout or disconnect closes the sending boundary but
+does not cancel the owned application task. In-flight driver/controller work settles
+before the route checks activity and rolls back. The whole ASGI application task
+remains tracked, keeping FastAPI dependencies and the transaction owner alive until
+cleanup completes. Ordinary unmarked handlers retain cooperative cancellation.
+Checking the monotonic clock also prevents a delayed timer or a controller that
+catches cancellation from bypassing the pre-commit boundary.
+
+| Interruption boundary | Database outcome |
+| --- | --- |
+| Before work or after delayed acquisition | Reject before business SQL |
+| After writes, before the final activity check | Roll back when owned work settles |
+| After commit has begun | Unconfirmed until the database/driver settles; it may commit |
+| MySQL committed but acknowledgement was lost | Data can be committed despite a client error or 408 |
+| Commit confirmed, then cleanup or HTTP delivery failed | Data remains committed; suppress late responses |
+
+There is no atomic boundary between checking the deadline and the database
+receiving COMMIT. An expiry or disconnect after the final check cannot revoke an
+already-started commit. The application never retries a mutation automatically and
+never interprets 408, disconnect, or driver failure as proof of rollback. Clients
+must not assume retry safety; durable idempotency is a separate contract.
+
+Database errors propagate through SQLAlchemy's rollback/close paths. A broken
+connection is invalidated rather than returned as a usable lease. A subsequent
+request owns a fresh session. Rollback/close failures remain errors, not evidence
+of successful cleanup or rollback. Cleanup is not rejected merely because the
+request deadline expired. Server cancellation and the final
+[shutdown deadline](shutdown.md) still apply; request expiry does not promise to
+cancel a SQL statement or bound how long an unresponsive driver takes to settle.
+
 ## Verification and limits
 
 ```powershell
@@ -102,12 +142,16 @@ Fresh observer sessions verify persisted outcomes. Other cases cover response
 contracts, missing resources, shared dependencies, concurrent independent owners,
 repository composition, rejection of deferred responses, and session cleanup.
 
-A controlled failure before COMMIT is sent establishes rollback for that case. A
-lost commit acknowledgement, cancellation during commit, post-commit cleanup or middleware failure, or
-commit, or lost HTTP response can leave a committed mutation without client
-confirmation. This boundary does not guarantee delivery, retry mutations, implement
-idempotency, add optimistic concurrency, or establish query cancellation. Request
-expiry and uncertain outcomes retain separate acceptance criteria. No database
-migration or environment setting is introduced by transaction ownership.
+[Expiry and uncertainty tests](../tests/integration/database/test_mutation_expiry.py)
+use loopback Uvicorn and the guarded disposable MySQL database. They cover all four
+mutation methods after writes, real HTTP disconnects, delayed pool acquisition,
+caught cancellation, post-commit cleanup failure, and recovery. A packet-framed
+test relay holds real INSERT results and COMMIT commands/acknowledgements; separate
+observer sessions prove when rows are committed. Connection loss checks verify
+invalidation, owner cleanup, capacity recovery, and absence of automatic replay.
+
+This boundary does not guarantee delivery, implement idempotency, add optimistic
+concurrency, or establish query cancellation. No database migration or environment
+setting is introduced by transaction ownership or request activity checks.
 
 See [Verification](verification.md) for candidate-specific results.

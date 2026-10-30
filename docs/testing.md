@@ -191,8 +191,19 @@ complete suite also protects request/timeout outcome semantics and public error 
 
 ## Disposable MySQL commands
 
-`python -m scripts.test_db test` starts and migrates isolated MySQL, runs integration/E2E tests, and cleans up. Use `--layer integration` or `--layer e2e` for the separate CI selections. [Disposable MySQL testing](mysql-testing.md) documents `.env.test`, migration generation/application, safety checks, and inspection/reset commands.
+`python -m scripts.test_db test` starts and migrates isolated MySQL, runs unit/integration/E2E tests with coverage, and cleans up. Use `--layer integration` or `--layer e2e` for the separate CI selections. [Disposable MySQL testing](mysql-testing.md) documents `.env.test`, migration generation/application, safety checks, and inspection/reset commands.
 
 ## Database capacity and TLS
 
 [Database transport tests](database-settings.md#verification-commands) exercise actual pool saturation, queue expiry/cancellation, invalidation/disposal, and stalled connection setup. Dedicated TLS cases run through `python -m scripts.test_db tls` and are part of the MySQL integration CI job. They are explicitly deselected from default compatibility runs, with their results recorded separately.
+
+## Mutation expiry and uncertain outcomes
+
+`python -m pytest -q tests/integration/database/test_mutation_expiry.py --no-cov`
+requires the started, migrated disposable MySQL server. It uses real HTTP sockets,
+separate observer sessions and a test-owned MySQL packet relay to distinguish
+pre-commit rollback, lost acknowledgement, and committed data without a delivered
+success response. Checks include disconnect/server cancellation, caught
+cancellation, expired acquisition, cleanup failure, invalidation and pool recovery.
+The regular MySQL integration job and full-suite wrapper include these tests.
+See [Mutation transactions](transactions.md#expiry-and-commit-outcomes) for limits.
