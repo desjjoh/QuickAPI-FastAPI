@@ -197,5 +197,6 @@ async def clear_application_rows(
             "Refusing reset: connected database/user is not the test identity."
         )
 
+    await connection.execute(text("DELETE FROM request_idempotency"))
     await connection.execute(text("DELETE FROM items"))
     await connection.commit()

@@ -1,29 +1,34 @@
 from datetime import UTC, datetime
-from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+
+from app.common.models.parameters_model import ENTITY_ID_PATTERN
 
 
 class BaseResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, serialize_by_alias=True)
 
     id: str = Field(
         ...,
         min_length=16,
         max_length=16,
-        pattern=r"^[0-9a-f]{16}$",
-        description="Globally unique identifier of the entity (16-character hex).",
-        examples=[uuid4().hex[:16]],
+        pattern=ENTITY_ID_PATTERN,
+        description="Globally unique identifier of the entity (16 ASCII letters or digits).",
+        examples=['A1b2C3d4E5f6G7h8'],
     )
 
     created_at: datetime = Field(
         ...,
+        validation_alias=AliasChoices('createdAt', 'created_at'),
+        serialization_alias='createdAt',
         description="Timestamp when the entity was first created (UTC).",
         examples=[datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC).isoformat()],
     )
 
     updated_at: datetime = Field(
         ...,
+        validation_alias=AliasChoices('updatedAt', 'updated_at'),
+        serialization_alias='updatedAt',
         description="Timestamp of the most recent update to the entity (UTC).",
         examples=[datetime(2025, 1, 1, 12, 5, 0, tzinfo=UTC).isoformat()],
     )

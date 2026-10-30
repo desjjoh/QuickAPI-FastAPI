@@ -6,6 +6,7 @@ import socket
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from decimal import Decimal
 from typing import Any, Literal, cast
 
 import httpx
@@ -95,7 +96,7 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
 
     monkeypatch.setattr(database, 'SessionLocal', factory)
     async with factory() as seed, seed.begin():
-        item = ItemORM(name='Before', price=1)
+        item = ItemORM(name='Before', price=Decimal('1'))
 
         seed.add(item)
         await seed.flush()
@@ -137,14 +138,23 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
 
     async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
         path = '/api/v1/items/' if method == 'POST' else f'/api/v1/items/{identifier}'
-        payload = None if method == 'DELETE' else {'name': 'After', 'price': 2}
+        payload = (
+            {'expected_version': 1}
+            if method == 'DELETE'
+            else {'name': 'After', 'price': 2, 'expected_version': 1}
+        )
+
+        if method == 'DELETE':
+            path += '/delete'
+
+        wire_method = 'POST' if method == 'DELETE' else method
         request: asyncio.Task[httpx.Response] | None = None
         writer: asyncio.StreamWriter | None = None
 
         try:
             if ending == 'timeout':
                 request = asyncio.create_task(
-                    client.request(method, path, json=payload)
+                    client.request(wire_method, path, json=payload)
                 )
             else:
                 body = json.dumps(payload).encode() if payload else b''
@@ -154,7 +164,7 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
                 content_type = 'Content-Type: application/json\r\n' if payload else ''
 
                 writer.write(
-                    f'{method} {path} HTTP/1.1\r\nHost: localhost\r\n{content_type}Content-Length: {len(body)}\r\n\r\n'.encode()
+                    f'{wire_method} {path} HTTP/1.1\r\nHost: localhost\r\n{content_type}Content-Length: {len(body)}\r\n\r\n'.encode()
                     + body
                 )
                 await writer.drain()
@@ -266,7 +276,7 @@ async def test_clock_guard_rolls_back_even_without_timeout_callback(
     async def clock(
         request: Request, db: AsyncSession = Depends(database.get_session)
     ) -> dict[str, bool]:
-        await repo.create(db, item_in={'name': 'Expired', 'price': 1})
+        await repo.create(db, item_in={'name': 'Expired', 'price': Decimal('1')})
         if catch_cancellation:
             task = asyncio.current_task()
 
@@ -434,7 +444,7 @@ async def test_connection_loss_during_rollback_retires_lease_and_recovers(
             (await db.execute(text('SELECT CONNECTION_ID()'))).scalar_one()
         )
 
-        await repo.create(db, item_in={'name': 'Discarded', 'price': 1})
+        await repo.create(db, item_in={'name': 'Discarded', 'price': Decimal('1')})
 
         raise RuntimeError('Injected preparation failure after a real write')
 

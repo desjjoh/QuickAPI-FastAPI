@@ -25,7 +25,7 @@ async def create(
     return ItemResponse.model_validate(item)
 ```
 
-The item create, PATCH, PUT, and DELETE endpoints use this boundary. Unmarked
+The item create, PATCH, PUT, and POST deletion endpoints use this boundary. Unmarked
 routes retain their normal FastAPI handler and dependency behavior. GET requests
 are not wrapped in a mutation transaction; SQLAlchemy can still use a read
 transaction for their queries.
@@ -47,9 +47,9 @@ transaction for their queries.
 
 No response bytes are sent by the route owner before commit. Existing route
 declarations remain the source for response models, status codes, and OpenAPI.
-There is no copied serializer or second framework response pipeline. The original
-item routes, fields, PATCH/PUT distinctions, DELETE confirmation, and error messages
-retain their existing contracts.
+There is no copied serializer or second framework response pipeline. Item revision
+checks and conditional writes participate in this same transaction; response
+validation failures roll back both changed fields and the revision increment.
 
 ## Failure and cleanup
 
@@ -78,11 +78,13 @@ for mutations and never commit, roll back, or open a transaction independently.
 Callers outside the HTTP route boundary must own the transaction explicitly:
 
 ```python
+from decimal import Decimal
+
 async with SessionLocal(autobegin=False) as db:
     async with db.begin():
-        first = await repo.create(db, item_in={"name": "First", "price": 1})
-        await repo.update(db, first, {"description": "Saved together"})
-        await repo.create(db, item_in={"name": "Second", "price": 2})
+        first = await repo.create(db, item_in={"name": "First", "price": Decimal("1.00")})
+        await repo.update(db, first, {"description": "Saved together"}, first.version)
+        await repo.create(db, item_in={"name": "Second", "price": Decimal("2.00")})
 ```
 
 All operations above commit together on context exit. A repository return value is
@@ -120,7 +122,8 @@ There is no atomic boundary between checking the deadline and the database
 receiving COMMIT. An expiry or disconnect after the final check cannot revoke an
 already-started commit. The application never retries a mutation automatically and
 never interprets 408, disconnect, or driver failure as proof of rollback. Clients
-must not assume retry safety; durable idempotency is a separate contract.
+must retain the original key/input for [durable retries](idempotency.md); unkeyed
+mutations have no replay guarantee.
 
 Database errors propagate through SQLAlchemy's rollback/close paths. A broken
 connection is invalidated rather than returned as a usable lease. A subsequent
@@ -157,8 +160,19 @@ disappears, and a queued request receives a replacement lease only after rollbac
 settles. [Process checks](shutdown.md#verification) also combine an expired marked
 mutation with shutdown and verify dependency lifetime and final-deadline behavior.
 
-This boundary does not guarantee delivery, implement idempotency, add optimistic
-concurrency, or establish query cancellation. No database migration or environment
-setting is introduced by transaction ownership or request activity checks.
+Transaction ownership alone does not guarantee delivery or establish query
+cancellation. Revision preconditions and the optional durable retry policy build on
+this boundary; see [API contracts](api-contracts.md) and [Durable mutation retries](idempotency.md).
 
 See [Verification](verification.md) for candidate-specific results.
+
+## Durable keyed mutations
+
+Routes opt in with an explicit `@idempotent` policy alongside `@transactional`.
+FastAPI still validates inputs and prepares responses. The route wrapper acquires
+the key claim after validation, before controller execution, and stores the exact
+prepared successful response in the same transaction as the domain write. Matching
+replays return stored bytes without calling the controller or checking current item
+versions. Keyed execution pins a connection through commit and advisory-lock release;
+uncertain ownership is retired rather than returned to the pool. See
+[Durable mutation retries](idempotency.md) for the shared contract.

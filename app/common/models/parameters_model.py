@@ -1,19 +1,18 @@
 from typing import Annotated
-from uuid import uuid4
 
 from fastapi import Path
 
-HEX16_PATTERN = r"^[0-9a-f]{16}$"
+ENTITY_ID_PATTERN = r"^[A-Za-z0-9]{16}$"
 
 
-HexId = Annotated[
+EntityId = Annotated[
     str,
     Path(
-        title="16-character hex ID",
-        description="Must be exactly 16 hex characters (0-9, a-f).",
-        pattern=HEX16_PATTERN,
+        title="16-character alphanumeric ID",
+        description="Must be exactly 16 ASCII letters or digits (A-Z, a-z, 0-9).",
+        pattern=ENTITY_ID_PATTERN,
         min_length=16,
         max_length=16,
-        examples=[uuid4().hex[:16]],
+        examples=['A1b2C3d4E5f6G7h8'],
     ),
 ]

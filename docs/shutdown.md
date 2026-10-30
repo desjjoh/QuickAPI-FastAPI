@@ -51,7 +51,7 @@ grace period can kill the process before application cleanup finishes.
 5. Stop registered services in reverse order. Database shutdown stops its shared
    readiness probe and then disposes the engine. Cleanup failures are recorded;
    remaining services still receive their stop call.
-6. A completed, successful shutdown logs `Application exited cleanly`. Failed startup,
+6. A completed, successful shutdown logs `Application exited (code 0)`. Failed startup,
    failed draining, or failed cleanup does not receive that success message.
 
 Repeated shutdown signals request immediate failure termination. A thread watchdog

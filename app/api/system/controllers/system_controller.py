@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import Depends, Response, status
 from fastapi.responses import FileResponse
 from prometheus_client import CONTENT_TYPE_LATEST
 
@@ -15,10 +15,11 @@ from app.api.system.services.system_service import (
     get_system_info_service,
     get_system_service,
 )
+from app.common.handlers.flexible_router import FlexibleRouter
 
-router: APIRouter = APIRouter(tags=["System"])
-diagnostics_router: APIRouter = APIRouter(tags=["System"])
-metrics_router: APIRouter = APIRouter(tags=["System"])
+router = FlexibleRouter(tags=["System"])
+diagnostics_router = FlexibleRouter(tags=["System"])
+metrics_router = FlexibleRouter(tags=["System"])
 
 
 ## GET /favicon.ico

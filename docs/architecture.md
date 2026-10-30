@@ -18,6 +18,7 @@ app/
 │   ├── handlers/                     # exception and lifecycle behavior
 │   ├── middleware/                   # transport/security/observability policies
 │   ├── models/                       # shared errors, parameters, pagination
+│   ├── services/                     # shared idempotency execution and cleanup
 │   └── store/                        # request context and rate-limit state
 ├── config/                           # app assembly, settings, DB, logging, metrics
 ├── database/
@@ -37,6 +38,22 @@ results; repositories perform SQL using
 the caller's session. Application assembly is centralized in
 `app/config/application.py`. [Services](services.md) describes the shared item and
 system boundary and session ownership.
+
+## Flexible route spelling
+
+Item and system controllers use [FlexibleRouter](../app/common/handlers/flexible_router.py)
+to accept named HTTP endpoints with or without a trailing slash, without redirects.
+Controllers declare each operation once. The router registers the canonical path
+first and hides the alternate spelling from OpenAPI. URL generation selects the
+canonical route. Nested router inclusion copies existing routes without generating
+another pair; response models, status codes, dependencies and route classes survive.
+
+Use `""` for a collection root mounted beneath a prefix, such as `/api/v1/items`.
+An explicit `"/"` remains a single root route, as used by the system greeting.
+Named paths such as `/health` and `/items/{id}` receive both spellings. Item routes
+retain `ApplicationRoute` and their transaction markers. Operational exposure
+settings protect both spellings. Framework-provided documentation routes retain
+their normal FastAPI routing behavior.
 
 ## Request lifecycle and middleware order
 
@@ -125,7 +142,7 @@ data/rollback compatibility need separate evidence.
 
 Keep HTTP declarations and response-model validation in controllers, application logic in services, queries in repositories, and transport policies in middleware. Mutation commit/rollback belongs to the shared route owner. Register resources requiring startup/cleanup with the lifecycle handler and test readiness and cleanup failures.
 
-Update [API contracts](api-contracts.md) when routes/models change, [Development](development.md) when configuration changes, and [Deployment](deployment.md) when runtime behavior changes. Track unresolved limitations in [Backlog](backlog.md).
+Update [API contracts](api-contracts.md) when routes/models change, [Development](development.md) when configuration changes, and [Deployment](deployment.md) when runtime behavior changes. Track unresolved limitations in [Milestones](milestones.md).
 
 ## Request deadlines
 
@@ -136,7 +153,7 @@ See [Request deadlines and streaming](request-timeouts.md) for the pure-ASGI res
 Reference guides describe the current supported behavior in the present tense.
 Document configuration, contracts, commands, and limitations directly, without
 implementation chronology, phase-completion notes, or descriptions of superseded
-behavior. Keep implementation plans/status in the roadmap, milestones, and backlog;
+behavior. Keep implementation plans/status in Milestones;
 write verification reports as final documents organized by scope, source identity,
 results, and limitations. Verification reports also avoid phase-completion narratives.
 Update related examples and links when a contract changes.

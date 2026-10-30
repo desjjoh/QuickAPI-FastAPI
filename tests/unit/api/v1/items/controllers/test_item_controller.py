@@ -1,5 +1,6 @@
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import cast
 from unittest.mock import AsyncMock, Mock
 
@@ -8,9 +9,11 @@ from pydantic import ValidationError
 
 from app.api.v1.items.controllers import item_controller
 from app.api.v1.items.models.item_model import ItemBase
+from app.api.v1.items.models.item_replace_model import ReplaceItemRequest
 from app.api.v1.items.models.item_update_model import UpdateItemRequest
 from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
 from app.api.v1.items.services.item_service import ItemService
+from app.common.models.version_model import VersionInput
 
 pytestmark = pytest.mark.unit
 
@@ -18,6 +21,7 @@ pytestmark = pytest.mark.unit
 def item_data(price: float = 1) -> dict[str, object]:
     return {
         'id': '0123456789abcdef',
+        'version': 1,
         'name': 'Item',
         'price': price,
         'description': None,
@@ -39,16 +43,20 @@ async def test_controller_validates_service_results(operation: str) -> None:
     args: tuple[object, ...]
 
     if operation == 'create':
-        args = (ItemBase(name='Item', price=1, description=None),)
+        args = (ItemBase(name='Item', price=Decimal('1'), description=None),)
     elif operation == 'get_all':
         args = (ItemPaginationQuery(),)
     elif operation in {'update', 'replace'}:
         payload = (
-            UpdateItemRequest.model_validate({'price': 1})
+            UpdateItemRequest.model_validate({'expected_version': 1, 'price': 1})
             if operation == 'update'
-            else ItemBase(name='Item', price=1, description=None)
+            else ReplaceItemRequest(
+                expected_version=1, name='Item', price=Decimal('1'), description=None
+            )
         )
         args = ('0123456789abcdef', payload)
+    elif operation == 'delete':
+        args = ('0123456789abcdef', VersionInput(expected_version=1))
     else:
         args = ('0123456789abcdef',)
 

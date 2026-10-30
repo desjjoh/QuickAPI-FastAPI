@@ -49,7 +49,7 @@ class ApplicationServer(uvicorn.Server):
 
         return application
 
-    def _begin_shutdown(self) -> None:
+    def _begin_shutdown(self, reason: str = 'Shutdown requested') -> None:
         # Also covers a blocked event loop and asyncio runner's final task cleanup.
         if self._watchdog is None:
             self._watchdog = threading.Timer(
@@ -58,9 +58,11 @@ class ApplicationServer(uvicorn.Server):
             self._watchdog.daemon = True
 
             self._watchdog.start()
+            log.warning(f'{reason} — initiating shutdown')
 
         if self.config.loaded:
             app = self._application()
+            app.state.shutdown_notice_logged = True
 
             app.state.lifecycle.quiesce()
             app.state.request_work.quiesce()
@@ -71,6 +73,10 @@ class ApplicationServer(uvicorn.Server):
         # Close any listener/resources that completed startup after that signal.
         if self.should_exit and self.started:
             await self.shutdown(sockets)
+        elif self.started:
+            port = self.config.port
+
+            log.info(f'HTTP server running on port {port} — http://localhost:{port}')
 
     @staticmethod
     def _force_exit(
@@ -87,7 +93,7 @@ class ApplicationServer(uvicorn.Server):
         if self._watchdog is not None:
             self._force_exit(b'Repeated shutdown signal; forcing termination.\n')
 
-        self._begin_shutdown()
+        self._begin_shutdown(f'{signal.Signals(sig).name} received')
         super().handle_exit(sig, frame)
 
     def request_shutdown(self) -> None:
@@ -129,7 +135,7 @@ class ApplicationServer(uvicorn.Server):
             if not self.started:
                 raise RuntimeError('HTTP server did not start.')
 
-            log.info('Application exited cleanly')
+            log.info('Application exited (code 0)')
         finally:
             if self._watchdog is not None:
                 self._watchdog.cancel()

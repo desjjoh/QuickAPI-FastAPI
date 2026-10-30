@@ -1,0 +1,119 @@
+{
+  "format": "quickapi-json-v1",
+  "vectors": [
+    {
+      "name": "empty",
+      "input": {
+        "body": null,
+        "params": null,
+        "query": null
+      },
+      "canonical": "{\"body\":null,\"params\":null,\"query\":null}",
+      "sha256": "e2557c87554de04e856af54d24a9b69643a88301037c4360abd80af611b32b68",
+      "decimal_paths": []
+    },
+    {
+      "name": "unicode-price",
+      "input": {
+        "query": null,
+        "params": {
+          "id": "A1b2C3d4E5f6G7h8"
+        },
+        "body": {
+          "price": 12.34,
+          "name": "café",
+          "active": true
+        }
+      },
+      "canonical": "{\"body\":{\"active\":true,\"name\":\"café\",\"price\":1234e-2},\"params\":{\"id\":\"A1b2C3d4E5f6G7h8\"},\"query\":null}",
+      "sha256": "362d4ae7c96583248a07cadcc00b399134f6b6c1cfa4c717c22dbe99854af20f",
+      "decimal_paths": []
+    },
+    {
+      "name": "nested-numbers",
+      "input": {
+        "body": {
+          "b": {
+            "z": "line\nnext",
+            "a": "x"
+          },
+          "a": [
+            null,
+            false,
+            -0.0,
+            100,
+            1.0
+          ]
+        },
+        "params": null,
+        "query": {
+          "page": 1
+        }
+      },
+      "canonical": "{\"body\":{\"a\":[null,false,0,1e2,1],\"b\":{\"a\":\"x\",\"z\":\"line\\nnext\"}},\"params\":null,\"query\":{\"page\":1}}",
+      "sha256": "f2f92072bdc5c43c0ac5752bc0cce06bba3f0479500ecd91bb6a995e9f7c8221",
+      "decimal_paths": []
+    },
+    {
+      "name": "optional-omitted",
+      "input": {
+        "body": {
+          "name": "Item",
+          "price": 12.34
+        },
+        "params": null,
+        "query": null
+      },
+      "canonical": "{\"body\":{\"name\":\"Item\",\"price\":1234e-2},\"params\":null,\"query\":null}",
+      "sha256": "9448f1f49eaace0d914eb0a35fe0bc5c3632b4b29eda57dfeb51b4fc84bc0f88",
+      "decimal_paths": []
+    },
+    {
+      "name": "optional-null",
+      "input": {
+        "body": {
+          "description": null,
+          "name": "Item",
+          "price": 12.34
+        },
+        "params": null,
+        "query": null
+      },
+      "canonical": "{\"body\":{\"description\":null,\"name\":\"Item\",\"price\":1234e-2},\"params\":null,\"query\":null}",
+      "sha256": "461302f232825afd31c0ac15540bed4a7d2022648b082bbd832a0e13912644bb",
+      "decimal_paths": []
+    },
+    {
+      "name": "secret-fields",
+      "input": {
+        "body": {
+          "password": "test-first",
+          "private_input": "one"
+        },
+        "params": null,
+        "query": null
+      },
+      "canonical": "{\"body\":{\"password\":\"test-first\",\"private_input\":\"one\"},\"params\":null,\"query\":null}",
+      "sha256": "ca26f6ea4ae60c50046eced1f809143e7a423be8305762d767e6e4768bf3af75",
+      "decimal_paths": []
+    },
+    {
+      "name": "exact-decimal",
+      "input": {
+        "body": {
+          "amount": "0.123456789123456789"
+        },
+        "params": null,
+        "query": null
+      },
+      "canonical": "{\"body\":{\"amount\":123456789123456789e-18},\"params\":null,\"query\":null}",
+      "sha256": "feaee315d5b5c062c75a1bf5beedd2e0c26f2385228c4f3b56ee3fa3d30efa30",
+      "decimal_paths": [
+        [
+          "body",
+          "amount"
+        ]
+      ]
+    }
+  ]
+}

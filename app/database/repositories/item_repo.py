@@ -1,29 +1,43 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import StrEnum
 from typing import NotRequired, TypedDict
 
-from sqlalchemy import ColumnElement, Result, Select, func, or_, select
+from fastapi import HTTPException
+from sqlalchemy import (
+    ColumnElement,
+    CursorResult,
+    Result,
+    Select,
+    delete,
+    func,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import SQLColumnExpression, UnaryExpression
 
-from app.common.models.parameters_model import HexId
+from app.common.models.parameters_model import EntityId
+from app.common.models.version_model import MAX_VERSION
 from app.database.entities.item_orm import ItemORM
 
 
 class ItemCreateData(TypedDict):
     name: str
     description: NotRequired[str | None]
-    price: float
+    price: Decimal
 
 
 class ItemUpdateData(TypedDict, total=False):
     name: str
     description: str | None
-    price: float
+    price: Decimal
 
 
 class ItemSort(StrEnum):
-    CREATED_AT = "created_at"
+    CREATED_AT = "createdAt"
     ITEM_NAME = "name"
     PRICE = "price"
 
@@ -40,8 +54,8 @@ class ItemListQuery:
     search: str | None = None
     sort: ItemSort = ItemSort.CREATED_AT
     order: SortOrder = SortOrder.desc
-    min_price: float | None = None
-    max_price: float | None = None
+    min_price: Decimal | None = None
+    max_price: Decimal | None = None
 
 
 class ItemRepository:
@@ -91,11 +105,23 @@ class ItemRepository:
         if payload.max_price is not None:
             filters.append(ItemORM.price <= payload.max_price)
 
-        sort_column = getattr(ItemORM, payload.sort)
-        sort_expr = sort_column.desc() if payload.order == "desc" else sort_column.asc()
+        sort_columns: dict[ItemSort, SQLColumnExpression[object]] = {
+            ItemSort.CREATED_AT: ItemORM.created_at,
+            ItemSort.ITEM_NAME: ItemORM.name,
+            ItemSort.PRICE: ItemORM.price,
+        }
+        sort_column: SQLColumnExpression[object] = sort_columns[payload.sort]
+        sort_expr: UnaryExpression[object] = (
+            sort_column.desc() if payload.order == "desc" else sort_column.asc()
+        )
 
         base_query: Select[tuple[ItemORM]] = (
-            select(ItemORM).where(*filters).order_by(sort_expr)
+            select(ItemORM)
+            .where(*filters)
+            .order_by(
+                sort_expr,
+                ItemORM.id.desc() if payload.order == 'desc' else ItemORM.id.asc(),
+            )
         )
 
         count_query: Select[tuple[int]] = select(func.count()).select_from(
@@ -111,9 +137,22 @@ class ItemRepository:
 
         return data, total
 
-    async def get_by_id(self, session: AsyncSession, id: HexId) -> ItemORM | None:
+    async def get_by_id(self, session: AsyncSession, id: EntityId) -> ItemORM | None:
         result: Result[tuple[ItemORM]] = await session.execute(
             select(ItemORM).where(ItemORM.id == id)
+        )
+
+        return result.scalar_one_or_none()
+
+    async def get_by_id_for_update(
+        self, session: AsyncSession, id: EntityId
+    ) -> ItemORM | None:
+        self.require_transaction(session)
+        result = await session.execute(
+            select(ItemORM)
+            .where(ItemORM.id == id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
 
         return result.scalar_one_or_none()
@@ -123,10 +162,24 @@ class ItemRepository:
         session: AsyncSession,
         obj: ItemORM,
         new_data: ItemUpdateData,
+        expected_version: int,
     ) -> ItemORM:
         self.require_transaction(session)
-        for field, value in new_data.items():
-            setattr(obj, field, value)
+        result = await session.execute(
+            update(ItemORM)
+            .where(
+                ItemORM.id == obj.id,
+                ItemORM.version == expected_version,
+                ItemORM.version < MAX_VERSION,
+            )
+            .values(**new_data, version=ItemORM.version + 1)
+            .execution_options(synchronize_session=False)
+        )
+
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
+            raise HTTPException(
+                409, 'Item version conflict; reload the item before retrying.'
+            )
 
         await session.flush()
         await session.refresh(obj)
@@ -134,12 +187,21 @@ class ItemRepository:
         return obj
 
     async def delete(
-        self,
-        session: AsyncSession,
-        obj: ItemORM,
+        self, session: AsyncSession, obj: ItemORM, expected_version: int
     ) -> ItemORM:
         self.require_transaction(session)
-        await session.delete(obj)
+        result = await session.execute(
+            delete(ItemORM)
+            .where(ItemORM.id == obj.id, ItemORM.version == expected_version)
+            .execution_options(synchronize_session=False)
+        )
+
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
+            raise HTTPException(
+                409, 'Item version conflict; reload the item before retrying.'
+            )
+
+        session.expunge(obj)
         await session.flush()
 
         return obj

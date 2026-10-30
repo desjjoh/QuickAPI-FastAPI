@@ -38,10 +38,53 @@ def test_valid_settings_and_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert result.APP_NAME == "QuickAPI"
     assert result.LOG_LEVEL == "INFO"
+    assert 'idempotency-key' in result.CORS_ALLOWED_HEADERS
+    assert result.IDEMPOTENCY_MAX_RESPONSE_BYTES == 65536
+    assert result.IDEMPOTENCY_CLEANUP_BATCH_SIZE == 100
+    assert result.IDEMPOTENCY_CLEANUP_MAX_BATCHES == 10
     assert result.HOST == "0.0.0.0"
     assert result.TIMEZONE == "Etc/UTC"
     assert result.API_PUBLISHED_PORT == 8000
     assert result.MYSQL_PUBLISHED_PORT == 3310
+
+
+@pytest.mark.parametrize(
+    'key,value',
+    [
+        ('IDEMPOTENCY_MAX_RESPONSE_BYTES', '0'),
+        ('IDEMPOTENCY_MAX_RESPONSE_BYTES', '65537'),
+        ('IDEMPOTENCY_MAX_RESPONSE_BYTES', '1.5'),
+        ('IDEMPOTENCY_CLEANUP_BATCH_SIZE', '0'),
+        ('IDEMPOTENCY_CLEANUP_BATCH_SIZE', '1001'),
+        ('IDEMPOTENCY_CLEANUP_MAX_BATCHES', '0'),
+        ('IDEMPOTENCY_CLEANUP_MAX_BATCHES', '101'),
+        ('IDEMPOTENCY_CLEANUP_MAX_BATCHES', 'true'),
+    ],
+)
+def test_idempotency_configuration_rejects_invalid_values(
+    monkeypatch: pytest.MonkeyPatch, key: str, value: str
+) -> None:
+    with pytest.raises(ValidationError):
+        settings(monkeypatch, **{key: value})
+
+
+def test_idempotency_cleanup_has_a_combined_work_bound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert (
+        settings(
+            monkeypatch,
+            IDEMPOTENCY_CLEANUP_BATCH_SIZE='1000',
+            IDEMPOTENCY_CLEANUP_MAX_BATCHES='10',
+        ).IDEMPOTENCY_CLEANUP_BATCH_SIZE
+        == 1000
+    )
+    with pytest.raises(ValidationError):
+        settings(
+            monkeypatch,
+            IDEMPOTENCY_CLEANUP_BATCH_SIZE='1000',
+            IDEMPOTENCY_CLEANUP_MAX_BATCHES='11',
+        )
 
 
 def test_published_port_overrides_do_not_change_listener(

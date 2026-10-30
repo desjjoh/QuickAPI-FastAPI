@@ -17,6 +17,10 @@ value to status 200 or 503, favicon uses a file response, and metrics uses the
 Prometheus media type. File paths and metrics bytes come from the system service.
 FastAPI retains its normal input validation, response validation and serialization.
 
+Idempotency is declared on transactional routes, after normal request validation.
+The shared execution layer handles claims, replay and atomic response storage; domain
+services remain responsible for their operation rules. See [Durable mutation retries](idempotency.md).
+
 ## Item operations
 
 `ItemService` owns create, list, fetch, PATCH, PUT and delete behavior. It converts
@@ -31,6 +35,11 @@ existing route-owned transaction session; ordinary reads use the normal read
 session. Services and repositories never independently commit or roll back an
 HTTP mutation. A new request gets a new service/session; no mutable session is
 stored on an application-wide item singleton.
+
+Item prices remain `Decimal` through request validation, services and repositories.
+Controllers validate the returned ORM values, and response models serialize prices
+as JSON numbers with `createdAt`/`updatedAt` timestamp aliases. No service-side
+float conversion is needed.
 
 ```python
 @router.post("/", response_model=ItemResponse, status_code=201)

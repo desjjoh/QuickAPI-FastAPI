@@ -49,6 +49,7 @@ from app.common.middleware.request_outcome import RequestOutcomeASGIMiddleware
 from app.common.middleware.request_timeout import RequestTimeoutASGIMiddleware
 from app.common.middleware.security_headers import SecurityHeadersMiddleware
 from app.common.middleware.trusted_proxy import TrustedProxyASGIMiddleware
+from app.common.services.idempotency_cleanup_service import IdempotencyCleanupService
 from app.config.database import DatabaseService
 from app.config.environment import settings
 from app.config.logging import log
@@ -63,10 +64,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.request_work.resume()
         await app.state.lifecycle.startup()
 
-        port: int = settings.PORT
-
-        log.info(f"HTTP server running on port {port} — http://localhost:{port}")
-
         yield
 
     except Exception as exc:
@@ -80,7 +77,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         raise
 
     finally:
-        log.warning("Shutdown signal received — initiating shutdown")
+        if not runtime_failed and not getattr(
+            app.state, 'shutdown_notice_logged', False
+        ):
+            log.warning('Shutdown requested — initiating shutdown')
 
         app.state.lifecycle.quiesce()
         await app.state.request_work.drain()
@@ -91,8 +91,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             or app.state.lifecycle.shutdown_failed
         ):
             log.error("Application shutdown did not complete cleanly.")
-        else:
-            log.debug("Application services stopped")
 
 
 class ObservedFastAPI(FastAPI):
@@ -128,7 +126,7 @@ def create_app() -> FastAPI:
     app.state.lifecycle = LifecycleHandler()
     app.state.request_work = RequestWork(settings.HTTP_DRAIN_TIMEOUT_MS / 1000)
 
-    app.state.lifecycle.register([DatabaseService()])
+    app.state.lifecycle.register([DatabaseService(), IdempotencyCleanupService()])
     app.state.initialization_timestamp = started_at
     app.state.system_info = SystemInfoService(started_at=started_at)
     app.state.monotonic_start = time.perf_counter()

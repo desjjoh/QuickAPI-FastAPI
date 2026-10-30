@@ -1,6 +1,7 @@
 import os
 import unittest
 from datetime import UTC, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, patch
@@ -19,10 +20,12 @@ os.environ.setdefault(
 from fastapi import HTTPException
 
 from app.api.v1.items.models.item_model import ItemBase
+from app.api.v1.items.models.item_replace_model import ReplaceItemRequest
 from app.api.v1.items.models.item_update_model import UpdateItemRequest
 from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
 from app.api.v1.items.services import item_service
 from app.api.v1.items.services.item_service import ItemService
+from app.common.models.version_model import VersionInput
 from app.database.entities.item_orm import ItemORM
 from app.database.repositories.item_repo import ItemUpdateData
 
@@ -36,8 +39,9 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
             ItemORM,
             SimpleNamespace(
                 id="0123456789abcdef",
+                version=1,
                 name="Iron Sword",
-                price=49.99,
+                price=Decimal('49.99'),
                 description="A finely crafted steel blade.",
                 created_at=timestamp,
                 updated_at=timestamp,
@@ -46,7 +50,10 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def _update(self, payload: UpdateItemRequest) -> tuple[ItemORM, AsyncMock]:
         async def apply_update(
-            db: AsyncSession, obj: ItemORM, new_data: ItemUpdateData
+            db: AsyncSession,
+            obj: ItemORM,
+            new_data: ItemUpdateData,
+            expected_version: int,
         ) -> ItemORM:
             for field, value in new_data.items():
                 setattr(obj, field, value)
@@ -56,7 +63,7 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(
                 item_service.repo,
-                "get_by_id",
+                "get_by_id_for_update",
                 new=AsyncMock(return_value=self.item),
             ),
             patch.object(
@@ -70,27 +77,31 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
         return response, update
 
     async def test_patch_changes_only_explicitly_supplied_field(self) -> None:
-        payload = UpdateItemRequest.model_validate({"price": 59.99})
+        payload = UpdateItemRequest.model_validate(
+            {'expected_version': 1, 'price': 59.99}
+        )
         response, update = await self._update(payload)
 
         update.assert_awaited_once()
-        self.assertEqual(update.await_args_list[0].args[2], {"price": 59.99})
-        self.assertEqual(response.price, 59.99)
+        self.assertEqual(update.await_args_list[0].args[2], {"price": Decimal('59.99')})
+        self.assertEqual(response.price, Decimal('59.99'))
         self.assertEqual(response.name, "Iron Sword")
         self.assertEqual(response.description, "A finely crafted steel blade.")
 
     async def test_patch_explicit_null_clears_nullable_description(self) -> None:
-        payload = UpdateItemRequest.model_validate({"description": None})
+        payload = UpdateItemRequest.model_validate(
+            {'expected_version': 1, 'description': None}
+        )
         response, update = await self._update(payload)
 
         update.assert_awaited_once()
         self.assertEqual(update.await_args_list[0].args[2], {"description": None})
         self.assertIsNone(response.description)
         self.assertEqual(response.name, "Iron Sword")
-        self.assertEqual(response.price, 49.99)
+        self.assertEqual(response.price, Decimal('49.99'))
 
     async def test_create_converts_payload_and_returns_created_item(self) -> None:
-        payload = ItemBase(name="Iron Sword", price=49.99, description=None)
+        payload = ItemBase(name="Iron Sword", price=Decimal('49.99'), description=None)
         db = AsyncMock(spec=AsyncSession)
 
         with patch.object(
@@ -133,25 +144,33 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_patch_reports_missing_item(self) -> None:
         with (
             patch.object(
-                item_service.repo, "get_by_id", new=AsyncMock(return_value=None)
+                item_service.repo,
+                "get_by_id_for_update",
+                new=AsyncMock(return_value=None),
             ),
             self.assertRaises(HTTPException) as error,
         ):
             await ItemService(AsyncMock()).update(
-                'ffffffffffffffff', UpdateItemRequest.model_validate({'price': 1})
+                'ffffffffffffffff',
+                UpdateItemRequest.model_validate({'expected_version': 1, 'price': 1}),
             )
 
         self.assertEqual(error.exception.status_code, 404)
 
     async def test_replace_updates_all_fields_and_reports_missing_item(self) -> None:
-        payload = ItemBase(name="Replacement", price=10, description=None)
+        payload = ReplaceItemRequest(
+            expected_version=1,
+            name="Replacement",
+            price=Decimal('10'),
+            description=None,
+        )
         db = AsyncMock(spec=AsyncSession)
         update = AsyncMock(return_value=self.item)
 
         with (
             patch.object(
                 item_service.repo,
-                "get_by_id",
+                "get_by_id_for_update",
                 new=AsyncMock(side_effect=[self.item, None]),
             ),
             patch.object(item_service.repo, "update", new=update),
@@ -159,7 +178,9 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
             response = await ItemService(db).replace(self.item.id, payload)
 
             self.assertEqual(response.id, self.item.id)
-            update.assert_awaited_once_with(db, self.item, payload.model_dump())
+            update.assert_awaited_once_with(
+                db, self.item, payload.model_dump(exclude={"expected_version"}), 1
+            )
 
             with self.assertRaises(HTTPException) as error:
                 await ItemService(AsyncMock()).replace('ffffffffffffffff', payload)
@@ -172,18 +193,22 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(
                 item_service.repo,
-                "get_by_id",
+                "get_by_id_for_update",
                 new=AsyncMock(side_effect=[self.item, None]),
             ),
             patch.object(item_service.repo, "delete", new=delete),
         ):
-            response = await ItemService(AsyncMock()).delete(self.item.id)
+            response = await ItemService(AsyncMock()).delete(
+                self.item.id, VersionInput(expected_version=1)
+            )
 
             self.assertEqual(response.id, self.item.id)
             delete.assert_awaited_once()
 
             with self.assertRaises(HTTPException) as error:
-                await ItemService(AsyncMock()).delete('ffffffffffffffff')
+                await ItemService(AsyncMock()).delete(
+                    'ffffffffffffffff', VersionInput(expected_version=1)
+                )
 
         self.assertEqual(error.exception.status_code, 404)
 

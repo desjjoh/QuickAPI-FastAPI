@@ -20,7 +20,9 @@ async def test_put_replaces_every_field_and_optional_description(
     description: str | None,
 ) -> None:
     item = await create_item(client, "Old", 1, "old")
-    response = await client.put(f"{ITEMS_URL}{item['id']}", json=replacement)
+    response = await client.put(
+        f"{ITEMS_URL}{item['id']}", json={'expected_version': 1, **(replacement)}
+    )
 
     assert response.status_code == 200
     assert response.json()["name"] == "Replacement"
@@ -47,13 +49,16 @@ async def test_put_validation_failures_are_independent(
     item = await create_item(client)
 
     assert_validation_error(
-        await client.put(f"{ITEMS_URL}{item['id']}", json=replacement)
+        await client.put(
+            f"{ITEMS_URL}{item['id']}", json={'expected_version': 1, **(replacement)}
+        )
     )
 
 
 async def test_put_missing_resource(client: httpx.AsyncClient) -> None:
     response = await client.put(
-        f"{ITEMS_URL}{MISSING_ID}", json={"name": "Missing", "price": 1}
+        f"{ITEMS_URL}{MISSING_ID}",
+        json={'expected_version': 1, 'name': 'Missing', 'price': 1},
     )
 
     assert response.status_code == 404
@@ -63,7 +68,12 @@ async def test_put_persists_to_subsequent_get(client: httpx.AsyncClient) -> None
     item = await create_item(client)
     replaced = await client.put(
         f"{ITEMS_URL}{item['id']}",
-        json={"name": "Persisted", "price": 99, "description": "replacement"},
+        json={
+            'expected_version': 1,
+            'name': 'Persisted',
+            'price': 99,
+            'description': 'replacement',
+        },
     )
     fetched = await client.get(f"{ITEMS_URL}{item['id']}")
 

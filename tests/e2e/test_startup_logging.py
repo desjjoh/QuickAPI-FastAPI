@@ -39,8 +39,18 @@ async def test_boot_banner_precedes_registration_and_service_startup(
             lines.index("Lifecycle registration completed")
             < lines.index("Starting services")
             < lines.index("Service started")
-            < lines.index("HTTP server running")
+            < lines.index("All services started")
         )
+        assert "HTTP server running" not in lines
         start.assert_awaited_once()
 
     stop.assert_awaited_once()
+    lines = output.getvalue()
+
+    assert (
+        lines.index("Shutdown requested")
+        < lines.index("Stopping services")
+        < lines.index("Service stopped")
+        < lines.index("Shutdown completed")
+    )
+    assert "Application services stopped" not in lines

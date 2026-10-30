@@ -40,3 +40,21 @@ def test_models_are_frozen() -> None:
 
     with pytest.raises(ValidationError):
         result.__setattr__("total", 1)
+
+
+@pytest.mark.parametrize('order', ['ASC', 'aSc', 'DESC', 'dEsC'])
+def test_order_is_case_insensitive(order: str) -> None:
+    query = PaginationQuery.model_validate({'order': order})
+
+    assert query.order == order.lower()
+
+
+def test_defaults_and_safe_integer_boundaries() -> None:
+    maximum = 9007199254740991
+
+    assert PaginationQuery().limit == 25
+    assert PaginationQuery(page=maximum, limit=1).offset == maximum - 1
+    assert PaginationQuery(page=maximum // 2 + 1, limit=2).offset == maximum - 1
+    for values in ({'page': maximum + 1}, {'page': maximum, 'limit': 2}):
+        with pytest.raises(ValidationError):
+            PaginationQuery.model_validate(values)

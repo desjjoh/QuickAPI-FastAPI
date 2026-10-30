@@ -68,5 +68,5 @@ Check names belong to this repository. Express's `Deployment gate` and NestJS's
 Require all eight checks. The final job depends on earlier jobs, and an earlier failure
 can leave dependent jobs skipped. Requiring only the final dependent job does not
 provide a fail-closed aggregate gate. An aggregate check must run and be verified
-before it can replace this list; that requirement is tracked in [Backlog](backlog.md).
+before it can replace this list; that requirement is tracked in [Milestones](milestones.md).
 Local tests and Compose startup do not verify remote branch enforcement.

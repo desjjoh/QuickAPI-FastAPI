@@ -113,7 +113,26 @@ def test_validation_error_names_alias_the_shared_envelope(
 
 
 def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) -> None:
-    collection = schema["paths"]["/api/v1/items/"]
+    collection = schema["paths"]["/api/v1/items"]
+
+    for path, method in [
+        ('/api/v1/items', 'post'),
+        ('/api/v1/items/{id}', 'patch'),
+        ('/api/v1/items/{id}', 'put'),
+        ('/api/v1/items/{id}/delete', 'post'),
+    ]:
+        operation = schema['paths'][path][method]
+        keys = [
+            parameter
+            for parameter in operation.get('parameters', [])
+            if parameter['name'] == 'Idempotency-Key'
+        ]
+
+        assert len(keys) == 1 and keys[0]['required'] is False
+        assert keys[0]['schema']['maxLength'] == 128
+        assert response_schema(operation['responses']['400']) == ERROR_REF
+        assert response_schema(operation['responses']['409']) == ERROR_REF
+
     query = {
         parameter["name"]: parameter for parameter in collection["get"]["parameters"]
     }
@@ -130,8 +149,10 @@ def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) ->
     assert query["page"]["schema"]["minimum"] == 1
     assert query["limit"]["schema"]["minimum"] == 1
     assert query["limit"]["schema"]["maximum"] == 100
-    assert query["order"]["schema"]["enum"] == ["asc", "desc"]
-    assert query["sort"]["schema"]["enum"] == ["name", "price", "created_at"]
+    assert query["sort"]["schema"]["enum"] == ["name", "price", "createdAt"]
+    assert query['limit']['schema']['default'] == 25
+    assert query['page']['schema']['maximum'] == 9007199254740991
+    assert query['order']['schema']['pattern'] == '^([Aa][Ss][Cc]|[Dd][Ee][Ss][Cc])$'
     assert collection["post"]["requestBody"] == {
         "content": {
             "application/json": {"schema": {"$ref": "#/components/schemas/ItemBase"}}
@@ -141,7 +162,7 @@ def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) ->
 
     member = schema["paths"]["/api/v1/items/{id}"]
 
-    for method in ("get", "patch", "put", "delete"):
+    for method in ("get", "patch", "put"):
         parameter = member[method]["parameters"][0]
 
         assert (parameter["name"], parameter["in"], parameter["required"]) == (
@@ -149,7 +170,7 @@ def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) ->
             "path",
             True,
         )
-        assert parameter["schema"]["pattern"] == "^[0-9a-f]{16}$"
+        assert parameter["schema"]["pattern"] == "^[A-Za-z0-9]{16}$"
         assert (
             parameter["schema"]["minLength"] == parameter["schema"]["maxLength"] == 16
         )
@@ -167,12 +188,12 @@ def test_success_and_pagination_schemas(schema: dict[str, Any]) -> None:
         ("/ready", "get", "200"): "ReadyResponse",
         ("/info", "get", "200"): "InfoResponse",
         ("/system", "get", "200"): "SystemResponse",
-        ("/api/v1/items/", "post", "201"): "ItemResponse",
-        ("/api/v1/items/", "get", "200"): "PaginatedResult_ItemResponse_",
+        ("/api/v1/items", "post", "201"): "ItemResponse",
+        ("/api/v1/items", "get", "200"): "PaginatedResult_ItemResponse_",
         ("/api/v1/items/{id}", "get", "200"): "ItemResponse",
         ("/api/v1/items/{id}", "patch", "200"): "ItemResponse",
         ("/api/v1/items/{id}", "put", "200"): "ItemResponse",
-        ("/api/v1/items/{id}", "delete", "200"): "ItemResponse",
+        ("/api/v1/items/{id}/delete", "post", "200"): "ItemResponse",
     }
 
     for (path, method, status), model in expected.items():
@@ -190,6 +211,34 @@ def test_success_and_pagination_schemas(schema: dict[str, Any]) -> None:
         pagination["properties"][key]["type"] == "integer"
         for key in ("total", "page", "limit")
     )
+
+
+def test_item_price_input_and_output_schemas_and_timestamp_aliases(
+    schema: dict[str, Any],
+) -> None:
+    schemas = schema['components']['schemas']
+    numeric = {
+        'type': 'number',
+        'minimum': 0.01,
+        'maximum': 99999999.99,
+        'multipleOf': 0.01,
+    }
+
+    for model in ['ItemBase', 'UpdateItemRequest']:
+        price = schemas[model]['properties']['price']
+
+        assert numeric in price['anyOf']
+        assert any(
+            option.get('type') == 'string' and option.get('pattern')
+            for option in price['anyOf']
+        )
+
+    output = schemas['ItemResponse']['properties']
+
+    assert all(output['price'][key] == value for key, value in numeric.items())
+    assert {'createdAt', 'updatedAt'} <= output.keys()
+    assert not {'created_at', 'updated_at'} & output.keys()
+    assert output['id']['pattern'] == '^[A-Za-z0-9]{16}$'
 
 
 def test_operational_json_contracts_are_strict_and_complete(
@@ -314,9 +363,12 @@ def test_patch_nullable_and_required_representation(schema: dict[str, Any]) -> N
     }
     update = schema["components"]["schemas"]["UpdateItemRequest"]
 
-    assert "required" not in update
+    assert update["required"] == ["expected_version"]
     assert update["properties"]["name"]["type"] == "string"
-    assert update["properties"]["price"]["type"] == "number"
+    assert {entry['type'] for entry in update['properties']['price']['anyOf']} == {
+        'number',
+        'string',
+    }
     assert {
         entry["type"] for entry in update["properties"]["description"]["anyOf"]
     } == {"string", "null"}

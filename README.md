@@ -34,8 +34,10 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Controllers and services](docs/services.md) | Controller response validation, service-owned logic, dependency injection, and session ownership |
 | [Python formatting](docs/formatting.md) | Logical spacing, Black, format-on-save, CLI commands and CI enforcement |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
+| [Item API specification](docs/item-contract-specification.md) | Agreed Express contract for item alignment and compatibility decisions |
 | [Database settings](docs/database-settings.md) | Connection/queue limits, deadlines, TLS, and transport tests |
 | [Mutation transactions](docs/transactions.md) | Decorator, session ownership, response preparation, and rollback boundaries |
+| [Durable mutation retries](docs/idempotency.md) | Idempotency keys, replay, shared domain policies and cleanup |
 | [Graceful shutdown](docs/shutdown.md) | Request draining, cleanup order, shutdown budgets, and process tests |
 | [Database readiness and recovery](docs/database-lifecycle.md) | Shared probes, startup verification, outages, and connection cleanup |
 | [MySQL testing](docs/mysql-testing.md) | Disposable test infrastructure, .env.test, migrations, and CI |
@@ -48,9 +50,9 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | [Testing](docs/testing.md) | Test layers, isolation, coverage gates, CI, and verification limits |
 | [Branch protections](docs/branch-protection.md) | Major-branch policy, check contexts, and required-check configuration |
 | [Deployment and operations](docs/deployment.md) | Container commands, probes, diagnostics, persistence, and recovery |
-| [Technical backlog](docs/backlog.md) | Confirmed gaps and deliberately deferred work |
+| [Milestones](docs/milestones.md) | Implementation scope, status and deferred work |
 
-Implementation plans and status are maintained in the [roadmap](docs/roadmap.md), [milestone list](docs/milestones.md), and [technical backlog](docs/backlog.md). Dated execution evidence is recorded in [Verification](docs/verification.md).
+Implementation scope, status and outstanding work are maintained in [Milestones](docs/milestones.md). Dated execution evidence is recorded in [Verification](docs/verification.md).
 
 Configuration examples live in [.env.example](.env.example), validation in [app/config/environment.py](app/config/environment.py), dependencies in [requirements.txt](requirements.txt), and CI commands in [.github/workflows/tests.yml](.github/workflows/tests.yml).
 

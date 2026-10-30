@@ -1,5 +1,5 @@
 from datetime import datetime
-from uuid import uuid4
+from secrets import choice
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -9,7 +9,9 @@ from app.config.database import Base
 
 
 def generate_id() -> str:
-    return uuid4().hex[:16]
+    alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+
+    return ''.join(choice(alphabet) for _ in range(16))
 
 
 class BaseEntity(Base):
@@ -19,7 +21,7 @@ class BaseEntity(Base):
         String(16),
         primary_key=True,
         default=generate_id,
-        doc="Primary identifier for the entity (16-char UUID).",
+        doc="Primary identifier for the entity (16 ASCII letters or digits).",
     )
 
     created_at: Mapped[datetime] = mapped_column(

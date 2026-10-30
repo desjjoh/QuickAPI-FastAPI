@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -101,7 +102,7 @@ async def test_mutation_preparation_and_precommit_failures_roll_back_mysql(
     )
 
     async with factory() as seed, seed.begin():
-        before = ItemORM(name='Before', price=1, description='Original')
+        before = ItemORM(name='Before', price=Decimal('1'), description='Original')
 
         seed.add(before)
         await seed.flush()
@@ -175,8 +176,17 @@ async def test_mutation_preparation_and_precommit_failures_roll_back_mysql(
         base_url='http://test',
     ) as client:
         path = '/api/v1/items/' if method == 'POST' else f'/api/v1/items/{identifier}'
-        payload = None if method == 'DELETE' else {'name': 'After', 'price': 2.5}
-        response = await client.request(method, path, json=payload)
+        payload = (
+            {'expected_version': 1}
+            if method == 'DELETE'
+            else {'name': 'After', 'price': 2.5, 'expected_version': 1}
+        )
+
+        if method == 'DELETE':
+            path += '/delete'
+
+        wire_method = 'POST' if method == 'DELETE' else method
+        response = await client.request(wire_method, path, json=payload)
 
     assert response.status_code == 500
     assert response.json()['message'] == 'Internal server error.'
@@ -193,13 +203,18 @@ async def test_mutation_preparation_and_precommit_failures_roll_back_mysql(
         rows = list(
             (
                 await observer.execute(
-                    select(ItemORM.name, ItemORM.price, ItemORM.description)
+                    select(
+                        ItemORM.name,
+                        ItemORM.price,
+                        ItemORM.description,
+                        ItemORM.version,
+                    )
                 )
             ).all()
         )
 
-        assert [(row[0], float(row[1]), row[2]) for row in rows] == [
-            ('Before', 1.0, 'Original')
+        assert [(row[0], float(row[1]), row[2], row[3]) for row in rows] == [
+            ('Before', 1.0, 'Original', 1)
         ]
 
 
@@ -216,21 +231,26 @@ async def test_transactional_crud_preserves_status_and_response_contract(
 
     assert set(first) == {
         'id',
+        'version',
         'name',
         'description',
         'price',
-        'created_at',
-        'updated_at',
+        'createdAt',
+        'updatedAt',
     }
     path = '/api/v1/items/' + first['id']
-    patched = await client.patch(path, json={'description': 'Changed'})
+    patched = await client.patch(
+        path, json={'description': 'Changed', 'expected_version': 1}
+    )
 
     assert patched.status_code == 200 and patched.json()['name'] == 'Created'
-    replaced = await client.put(path, json={'name': 'Replaced', 'price': 3})
+    replaced = await client.put(
+        path, json={'name': 'Replaced', 'price': 3, 'expected_version': 2}
+    )
 
     assert replaced.status_code == 200 and replaced.json()['description'] is None
     assert (await client.get(path)).json() == replaced.json()
-    deleted = await client.delete(path)
+    deleted = await client.post(path + '/delete', json={'expected_version': 3})
 
     assert deleted.status_code == 200 and deleted.json() == replaced.json()
     assert (await client.get(path)).status_code == 404
@@ -241,15 +261,17 @@ async def test_missing_mutation_keeps_404_contract(
     transaction_client: httpx.AsyncClient, method: str
 ) -> None:
     response = await transaction_client.request(
-        method,
-        '/api/v1/items/' + '0' * 16,
-        json=None if method == 'DELETE' else {'name': 'Absent', 'price': 1},
+        'POST' if method == 'DELETE' else method,
+        '/api/v1/items/' + '0' * 16 + ('/delete' if method == 'DELETE' else ''),
+        json=(
+            {'expected_version': 1}
+            if method == 'DELETE'
+            else {'name': 'Absent', 'price': 1, 'expected_version': 1}
+        ),
     )
 
     assert response.status_code == 404
-    assert (
-        response.json()['message'] == "Resource with ID '0000000000000000' not found."
-    )
+    assert response.json()['message'] == "No item exists with the provided identifier."
 
 
 @pytest.mark.parametrize('kind', ['stream', 'background', 'error'])
@@ -265,7 +287,7 @@ async def test_transaction_route_rejects_deferred_work_and_rolls_back_error_resp
     @router.post('/transaction-test')
     @transactional
     async def operation(db: AsyncSession = Depends(database.get_session)) -> Response:
-        await repo.create(db, item_in={'name': 'Discarded', 'price': 1})
+        await repo.create(db, item_in={'name': 'Discarded', 'price': Decimal('1')})
         if kind == 'stream':
 
             async def stream() -> AsyncIterator[bytes]:
@@ -316,7 +338,9 @@ async def test_dependencies_share_one_owner_and_cannot_autobegin_after_commit(
     ) -> dict[str, bool]:
         assert service.db is first is second and first.in_transaction()
         sessions.append(first)
-        await service.create(ItemBase(name='Committed', price=1, description=None))
+        await service.create(
+            ItemBase(name='Committed', price=Decimal('1'), description=None)
+        )
 
         return {'done': True}
 

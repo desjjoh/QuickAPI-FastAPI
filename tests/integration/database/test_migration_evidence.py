@@ -286,7 +286,9 @@ async def test_application_rejects_incompatible_history_before_readiness(
     finally:
         async with database_engine.begin() as connection:
             await connection.execute(
-                text("UPDATE alembic_version SET version_num='0001_create_items'")
+                text(
+                    "UPDATE alembic_version SET version_num='0003_request_idempotency'"
+                )
             )
 
     await lifecycle.startup()

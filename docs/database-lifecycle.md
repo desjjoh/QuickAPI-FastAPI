@@ -72,7 +72,8 @@ Cached success can briefly report readiness during an outage. Detection time inc
 the remaining cache lifetime, probe deadline, deployment polling interval, and failure
 thresholds. Readiness is evidence of current connectivity, not a guarantee that the
 next business operation will succeed. Business requests are not automatically retried,
-and a failed in-flight mutation is not replayed.
+and a failed in-flight mutation is not replayed automatically. A caller can reconcile
+an uncertain keyed result through [durable mutation retries](idempotency.md).
 
 Stopping the database service clears the cache, cancels and awaits its active probe,
 then disposes the engine. Readiness remains unavailable afterward. This does not

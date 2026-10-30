@@ -3,19 +3,24 @@ from typing import Literal, Self
 from pydantic import Field, model_validator
 
 from app.common.models.pagination import PaginationQuery
+from app.common.models.price_model import Price
 
 
 class ItemPaginationQuery(PaginationQuery):
-    sort: Literal["name", "price", "created_at"] = Field(
+    sort: Literal["name", "price", "createdAt"] = Field(
         default="price", description="Field to sort items by", examples=["price"]
     )
 
-    min_price: float | None = Field(
-        default=None, ge=0, description="Minimum price filter", examples=[50.00]
+    min_price: Price | None = Field(
+        default=None,
+        description="Inclusive minimum price; same exact two-decimal price contract.",
+        examples=[50.00],
     )
 
-    max_price: float | None = Field(
-        default=None, ge=0, description="Maximum price filter", examples=[100.00]
+    max_price: Price | None = Field(
+        default=None,
+        description="Inclusive maximum price; same exact two-decimal price contract.",
+        examples=[100.00],
     )
 
     @model_validator(mode="after")

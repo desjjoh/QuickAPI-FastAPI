@@ -10,8 +10,9 @@ files describe how to create or change that schema. Each revision contains an
 `alembic_version` table records its applied revision; `head` means the latest
 revision in the checked-out application, and `base` means no applied revisions.
 
-The initial revision creates the current `items` table and its name index. IDs,
-timestamps, prices, and the HTTP contract retain their existing behavior. The
+The baseline creates `items` with 16-character IDs, timestamps, exact prices and
+a name index. Later revisions add item versions and shared durable-response storage
+for the [current item contract](api-contracts.md). The
 database itself and its MySQL user are created by Docker's MySQL initialization;
 Alembic creates the tables inside that database.
 
@@ -50,8 +51,30 @@ running a write command. Migration commands use the shared [database transport p
 the API; no database URL or credentials are stored in `alembic.ini`.
 
 `upgrade head` may finish without additional output when successful. `current`
-should report `0001_create_items (head)` for the initial schema. A nonzero command
+should report `0003_request_idempotency (head)`. A nonzero command
 exit means failure; resolve it before starting the API. Only MySQL through `mysql+asyncmy` is supported.
+
+## Item revisions
+
+`0002_item_versions` adds unsigned `items.version` with a non-null database default
+of 1, initializing existing rows without changing their other fields. Apply it with
+`python -m alembic upgrade head` before starting the updated app. For the guarded
+disposable test database, use `python -m scripts.test_db migrate` instead.
+
+Downgrading to `0001_create_items` drops only the version column and preserves
+other item data. Revision history is lost; reapplying initializes versions to 1.
+Do not mix the versioned API and an older writer. Stop the application before
+migration or downgrade, and pair the schema with matching application code.
+Development data is never reset or migrated automatically.
+
+## Durable response storage
+
+`0003_request_idempotency` creates the shared `request_idempotency` table and expiry
+index without changing item data or revisions. Apply pending revisions with
+`python -m alembic upgrade head`, or `python -m scripts.test_db migrate` for the
+guarded disposable test target. Downgrading to `0002_item_versions` drops replay
+history only; reapplying starts with an empty replay table. Stop the API and pair
+application/schema versions when upgrading or downgrading.
 
 ## Commands and their effects
 

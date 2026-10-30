@@ -10,7 +10,9 @@ async def test_delete_existing_item_and_persisted_absence(
     client: httpx.AsyncClient,
 ) -> None:
     item = await create_item(client, "Disposable", 1)
-    deleted = await client.delete(f"{ITEMS_URL}{item['id']}")
+    deleted = await client.post(
+        f"{ITEMS_URL}{item['id']}" + '/delete', json={'expected_version': 1}
+    )
 
     assert deleted.status_code == 200
     assert deleted.json() == item
@@ -20,15 +22,21 @@ async def test_delete_existing_item_and_persisted_absence(
     assert listing["total"] == 0 and listing["data"] == []
 
 
-@pytest.mark.parametrize("item_id", ["bad", "z" * 16, "0" * 15])
+@pytest.mark.parametrize("item_id", ["bad", "_" * 16, "0" * 15])
 async def test_delete_rejects_syntactically_invalid_ids(
     client: httpx.AsyncClient, item_id: str
 ) -> None:
-    assert_validation_error(await client.delete(f"{ITEMS_URL}{item_id}"))
+    assert_validation_error(
+        await client.post(
+            f"{ITEMS_URL}{item_id}" + '/delete', json={'expected_version': 1}
+        )
+    )
 
 
 async def test_delete_valid_missing_id(client: httpx.AsyncClient) -> None:
-    response = await client.delete(f"{ITEMS_URL}{MISSING_ID}")
+    response = await client.post(
+        f"{ITEMS_URL}{MISSING_ID}" + '/delete', json={'expected_version': 1}
+    )
 
     assert response.status_code == 404
 
@@ -36,7 +44,13 @@ async def test_delete_valid_missing_id(client: httpx.AsyncClient) -> None:
 async def test_repeated_delete_returns_not_found(client: httpx.AsyncClient) -> None:
     item = await create_item(client)
 
-    assert (await client.delete(f"{ITEMS_URL}{item['id']}")).status_code == 200
-    repeated = await client.delete(f"{ITEMS_URL}{item['id']}")
+    assert (
+        await client.post(
+            f"{ITEMS_URL}{item['id']}" + '/delete', json={'expected_version': 1}
+        )
+    ).status_code == 200
+    repeated = await client.post(
+        f"{ITEMS_URL}{item['id']}" + '/delete', json={'expected_version': 1}
+    )
 
     assert repeated.status_code == 404

@@ -41,7 +41,7 @@ os.environ.update(
         "DB_SSL": "false",
         "CORS_ORIGINS": "http://localhost:3000,https://client.test,https://client.example",
         "CORS_METHODS": "GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS",
-        "CORS_ALLOWED_HEADERS": "content-type,authorization,x-requested-with",
+        "CORS_ALLOWED_HEADERS": "content-type,authorization,x-requested-with,idempotency-key",
         "CORS_EXPOSED_HEADERS": "authorization,set-cookie",
         "CORS_CREDENTIALS": "true",
         "CORS_MAX_AGE_SECONDS": "86400",
@@ -49,6 +49,9 @@ os.environ.update(
         "RATE_LIMIT_WINDOW_MS": "60000",
         "RATE_LIMIT_MAX": "200",
         "RATE_LIMIT_MAX_CLIENTS": "10000",
+        "IDEMPOTENCY_MAX_RESPONSE_BYTES": "65536",
+        "IDEMPOTENCY_CLEANUP_BATCH_SIZE": "100",
+        "IDEMPOTENCY_CLEANUP_MAX_BATCHES": "10",
         "REQUEST_TIMEOUT_MS": "10000",
         "HTTP_DRAIN_TIMEOUT_MS": "25000",
         "SHUTDOWN_TIMEOUT_MS": "30000",
@@ -164,6 +167,7 @@ async def migration_engine() -> AsyncIterator[AsyncEngine]:
 
             async def reset() -> None:
                 for table in (
+                    "request_idempotency",
                     "migration_evidence_partial",
                     "migration_evidence_version",
                     "items",
