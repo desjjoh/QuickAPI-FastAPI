@@ -51,8 +51,21 @@ running a write command. Migration commands use the shared [database transport p
 the API; no database URL or credentials are stored in `alembic.ini`.
 
 `upgrade head` may finish without additional output when successful. `current`
-should report `0001_create_items (head)` for the initial schema. A nonzero command
+should report `0002_item_versions (head)`. A nonzero command
 exit means failure; resolve it before starting the API. Only MySQL through `mysql+asyncmy` is supported.
+
+## Item revisions
+
+`0002_item_versions` adds unsigned `items.version` with a non-null database default
+of 1, initializing existing rows without changing their other fields. Apply it with
+`python -m alembic upgrade head` before starting the updated app. For the guarded
+disposable test database, use `python -m scripts.test_db migrate` instead.
+
+Downgrading to `0001_create_items` drops only the version column and preserves
+other item data. Revision history is lost; reapplying initializes versions to 1.
+Do not mix the versioned API and an older writer. Stop the application before
+migration or downgrade, and pair the schema with matching application code.
+Development data is never reset or migrated automatically.
 
 ## Commands and their effects
 

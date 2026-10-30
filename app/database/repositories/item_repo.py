@@ -4,10 +4,22 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import NotRequired, TypedDict
 
-from sqlalchemy import ColumnElement, Result, Select, func, or_, select
+from fastapi import HTTPException
+from sqlalchemy import (
+    ColumnElement,
+    CursorResult,
+    Result,
+    Select,
+    delete,
+    func,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.models.parameters_model import EntityId
+from app.common.models.version_model import MAX_VERSION
 from app.database.entities.item_orm import ItemORM
 
 
@@ -128,15 +140,42 @@ class ItemRepository:
 
         return result.scalar_one_or_none()
 
+    async def get_by_id_for_update(
+        self, session: AsyncSession, id: EntityId
+    ) -> ItemORM | None:
+        self.require_transaction(session)
+        result = await session.execute(
+            select(ItemORM)
+            .where(ItemORM.id == id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
+        return result.scalar_one_or_none()
+
     async def update(
         self,
         session: AsyncSession,
         obj: ItemORM,
         new_data: ItemUpdateData,
+        expected_version: int,
     ) -> ItemORM:
         self.require_transaction(session)
-        for field, value in new_data.items():
-            setattr(obj, field, value)
+        result = await session.execute(
+            update(ItemORM)
+            .where(
+                ItemORM.id == obj.id,
+                ItemORM.version == expected_version,
+                ItemORM.version < MAX_VERSION,
+            )
+            .values(**new_data, version=ItemORM.version + 1)
+            .execution_options(synchronize_session=False)
+        )
+
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
+            raise HTTPException(
+                409, 'Item version conflict; reload the item before retrying.'
+            )
 
         await session.flush()
         await session.refresh(obj)
@@ -144,12 +183,21 @@ class ItemRepository:
         return obj
 
     async def delete(
-        self,
-        session: AsyncSession,
-        obj: ItemORM,
+        self, session: AsyncSession, obj: ItemORM, expected_version: int
     ) -> ItemORM:
         self.require_transaction(session)
-        await session.delete(obj)
+        result = await session.execute(
+            delete(ItemORM)
+            .where(ItemORM.id == obj.id, ItemORM.version == expected_version)
+            .execution_options(synchronize_session=False)
+        )
+
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
+            raise HTTPException(
+                409, 'Item version conflict; reload the item before retrying.'
+            )
+
+        session.expunge(obj)
         await session.flush()
 
         return obj

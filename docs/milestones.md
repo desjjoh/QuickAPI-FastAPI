@@ -51,13 +51,13 @@ and verification requirements.
 The [item specification](item-contract-specification.md) records the agreed Express
 contract. Runtime alignment is delivered and verified by the remaining phases.
 
-| Phase                                                             | Scope                                                                                                                             | Completion check                                                                                                   |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **5A — Compatibility decisions (complete locally)**               | Express IDs, timestamp/sort names, page defaults, price rules, deletion route, versions and retry contract                        | Item specification accepted; runtime implementation remains tracked below                                          |
-| **5B — Item models, exact prices and filters (complete locally)** | Alphanumeric IDs, response timestamp aliases, Decimal precision/range, accepted inputs, response validation and inclusive filters | Identity/model and price-boundary tests pass; rejected mutations leave MySQL unchanged; hosted CI remains separate |
-| **5C — Deterministic pagination (complete locally)**              | Unique sorting tie-breaker, safe offsets, agreed query names/defaults, repeated/crossed query validation                          | Equal-sort-value pages are deterministic for unchanged data; pagination limits are documented                      |
-| **5D — Optimistic concurrency**                                   | Revision migration/backfill, required `expected_version`, stale-write protection and agreed deletion route                        | Concurrent writes, missing rows, overflow, rollback, and upgrade compatibility tests pass                          |
-| **5E — Durable idempotency**                                      | Optional keys, fingerprinting, atomic replay, conflicts, retention, bounded cleanup                                               | MySQL/HTTP tests cover duplicate concurrency, replay, failure rollback, expiry, cleanup, and later item changes    |
+| Phase                                                             | Scope                                                                                                                             | Completion check                                                                                                                |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **5A — Compatibility decisions (complete locally)**               | Express IDs, timestamp/sort names, page defaults, price rules, deletion route, versions and retry contract                        | Item specification accepted; runtime implementation remains tracked below                                                       |
+| **5B — Item models, exact prices and filters (complete locally)** | Alphanumeric IDs, response timestamp aliases, Decimal precision/range, accepted inputs, response validation and inclusive filters | Identity/model and price-boundary tests pass; rejected mutations leave MySQL unchanged; hosted CI remains separate              |
+| **5C — Deterministic pagination (complete locally)**              | Unique sorting tie-breaker, safe offsets, agreed query names/defaults, repeated/crossed query validation                          | Equal-sort-value pages are deterministic for unchanged data; pagination limits are documented                                   |
+| **5D — Optimistic concurrency (complete locally)**                | Revision migration/backfill, required `expected_version`, stale-write protection and agreed deletion route                        | Focused Windows concurrency, missing/stale versions, overflow, rollback and migration checks passed; hosted CI remains separate |
+| **5E — Durable idempotency**                                      | Optional keys, fingerprinting, atomic replay, conflicts, retention, bounded cleanup                                               | MySQL/HTTP tests cover duplicate concurrency, replay, failure rollback, expiry, cleanup, and later item changes                 |
 
 ### Milestone 6 — Production container and CI enforcement
 
@@ -90,6 +90,7 @@ Tracked now, executed when hosting is selected.
 Full authentication/authorization remains a separate scope decision. Shared Redis rate limiting remains deferred until deployment-wide enforcement is needed.
 
 Each phase includes implementation, relevant tests, documentation, and recorded evidence. Reassess estimates when dependency or environment constraints change.
+Update its completion status here when finishing the work, alongside the verification record.
 
 ## Planning and verification boundaries
 

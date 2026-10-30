@@ -176,8 +176,17 @@ async def test_mutation_preparation_and_precommit_failures_roll_back_mysql(
         base_url='http://test',
     ) as client:
         path = '/api/v1/items/' if method == 'POST' else f'/api/v1/items/{identifier}'
-        payload = None if method == 'DELETE' else {'name': 'After', 'price': 2.5}
-        response = await client.request(method, path, json=payload)
+        payload = (
+            {'expected_version': 1}
+            if method == 'DELETE'
+            else {'name': 'After', 'price': 2.5, 'expected_version': 1}
+        )
+
+        if method == 'DELETE':
+            path += '/delete'
+
+        wire_method = 'POST' if method == 'DELETE' else method
+        response = await client.request(wire_method, path, json=payload)
 
     assert response.status_code == 500
     assert response.json()['message'] == 'Internal server error.'
@@ -194,13 +203,18 @@ async def test_mutation_preparation_and_precommit_failures_roll_back_mysql(
         rows = list(
             (
                 await observer.execute(
-                    select(ItemORM.name, ItemORM.price, ItemORM.description)
+                    select(
+                        ItemORM.name,
+                        ItemORM.price,
+                        ItemORM.description,
+                        ItemORM.version,
+                    )
                 )
             ).all()
         )
 
-        assert [(row[0], float(row[1]), row[2]) for row in rows] == [
-            ('Before', 1.0, 'Original')
+        assert [(row[0], float(row[1]), row[2], row[3]) for row in rows] == [
+            ('Before', 1.0, 'Original', 1)
         ]
 
 
@@ -217,6 +231,7 @@ async def test_transactional_crud_preserves_status_and_response_contract(
 
     assert set(first) == {
         'id',
+        'version',
         'name',
         'description',
         'price',
@@ -224,14 +239,18 @@ async def test_transactional_crud_preserves_status_and_response_contract(
         'updatedAt',
     }
     path = '/api/v1/items/' + first['id']
-    patched = await client.patch(path, json={'description': 'Changed'})
+    patched = await client.patch(
+        path, json={'description': 'Changed', 'expected_version': 1}
+    )
 
     assert patched.status_code == 200 and patched.json()['name'] == 'Created'
-    replaced = await client.put(path, json={'name': 'Replaced', 'price': 3})
+    replaced = await client.put(
+        path, json={'name': 'Replaced', 'price': 3, 'expected_version': 2}
+    )
 
     assert replaced.status_code == 200 and replaced.json()['description'] is None
     assert (await client.get(path)).json() == replaced.json()
-    deleted = await client.delete(path)
+    deleted = await client.post(path + '/delete', json={'expected_version': 3})
 
     assert deleted.status_code == 200 and deleted.json() == replaced.json()
     assert (await client.get(path)).status_code == 404
@@ -242,15 +261,17 @@ async def test_missing_mutation_keeps_404_contract(
     transaction_client: httpx.AsyncClient, method: str
 ) -> None:
     response = await transaction_client.request(
-        method,
-        '/api/v1/items/' + '0' * 16,
-        json=None if method == 'DELETE' else {'name': 'Absent', 'price': 1},
+        'POST' if method == 'DELETE' else method,
+        '/api/v1/items/' + '0' * 16 + ('/delete' if method == 'DELETE' else ''),
+        json=(
+            {'expected_version': 1}
+            if method == 'DELETE'
+            else {'name': 'Absent', 'price': 1, 'expected_version': 1}
+        ),
     )
 
     assert response.status_code == 404
-    assert (
-        response.json()['message'] == "Resource with ID '0000000000000000' not found."
-    )
+    assert response.json()['message'] == "No item exists with the provided identifier."
 
 
 @pytest.mark.parametrize('kind', ['stream', 'background', 'error'])

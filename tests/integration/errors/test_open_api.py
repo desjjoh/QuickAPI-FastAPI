@@ -113,7 +113,7 @@ def test_validation_error_names_alias_the_shared_envelope(
 
 
 def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) -> None:
-    collection = schema["paths"]["/api/v1/items/"]
+    collection = schema["paths"]["/api/v1/items"]
     query = {
         parameter["name"]: parameter for parameter in collection["get"]["parameters"]
     }
@@ -143,7 +143,7 @@ def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) ->
 
     member = schema["paths"]["/api/v1/items/{id}"]
 
-    for method in ("get", "patch", "put", "delete"):
+    for method in ("get", "patch", "put"):
         parameter = member[method]["parameters"][0]
 
         assert (parameter["name"], parameter["in"], parameter["required"]) == (
@@ -169,12 +169,12 @@ def test_success_and_pagination_schemas(schema: dict[str, Any]) -> None:
         ("/ready", "get", "200"): "ReadyResponse",
         ("/info", "get", "200"): "InfoResponse",
         ("/system", "get", "200"): "SystemResponse",
-        ("/api/v1/items/", "post", "201"): "ItemResponse",
-        ("/api/v1/items/", "get", "200"): "PaginatedResult_ItemResponse_",
+        ("/api/v1/items", "post", "201"): "ItemResponse",
+        ("/api/v1/items", "get", "200"): "PaginatedResult_ItemResponse_",
         ("/api/v1/items/{id}", "get", "200"): "ItemResponse",
         ("/api/v1/items/{id}", "patch", "200"): "ItemResponse",
         ("/api/v1/items/{id}", "put", "200"): "ItemResponse",
-        ("/api/v1/items/{id}", "delete", "200"): "ItemResponse",
+        ("/api/v1/items/{id}/delete", "post", "200"): "ItemResponse",
     }
 
     for (path, method, status), model in expected.items():
@@ -344,7 +344,7 @@ def test_patch_nullable_and_required_representation(schema: dict[str, Any]) -> N
     }
     update = schema["components"]["schemas"]["UpdateItemRequest"]
 
-    assert "required" not in update
+    assert update["required"] == ["expected_version"]
     assert update["properties"]["name"]["type"] == "string"
     assert {entry['type'] for entry in update['properties']['price']['anyOf']} == {
         'number',

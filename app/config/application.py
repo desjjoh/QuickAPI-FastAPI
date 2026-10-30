@@ -63,10 +63,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.request_work.resume()
         await app.state.lifecycle.startup()
 
-        port: int = settings.PORT
-
-        log.info(f"HTTP server running on port {port} — http://localhost:{port}")
-
         yield
 
     except Exception as exc:
@@ -80,7 +76,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         raise
 
     finally:
-        log.warning("Shutdown signal received — initiating shutdown")
+        if not runtime_failed and not getattr(
+            app.state, 'shutdown_notice_logged', False
+        ):
+            log.warning('Shutdown requested — initiating shutdown')
 
         app.state.lifecycle.quiesce()
         await app.state.request_work.drain()
@@ -91,8 +90,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             or app.state.lifecycle.shutdown_failed
         ):
             log.error("Application shutdown did not complete cleanly.")
-        else:
-            log.debug("Application services stopped")
 
 
 class ObservedFastAPI(FastAPI):

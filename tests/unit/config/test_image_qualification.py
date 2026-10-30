@@ -24,7 +24,7 @@ def test_image_failure_always_removes_disposable_project(
                 1, arguments, output='Test failure', stderr='Test diagnostic'
             )
 
-        result = 'Application exited cleanly'
+        result = 'Application exited (code 0)'
 
         if 'inspect' in arguments:
             result = '0'

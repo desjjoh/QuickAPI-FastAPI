@@ -17,7 +17,9 @@ async def test_item_crud_patch_omission_and_not_found(
     fetched = await client.get(f"/api/v1/items/{item['id']}")
 
     assert fetched.json()["name"] == "Sword"
-    patched = await client.patch(f"/api/v1/items/{item['id']}", json={"price": 15})
+    patched = await client.patch(
+        f"/api/v1/items/{item['id']}", json={"price": 15, "expected_version": 1}
+    )
 
     assert patched.status_code == 200
     assert (
@@ -25,11 +27,18 @@ async def test_item_crud_patch_omission_and_not_found(
     )
     replaced = await client.put(
         f"/api/v1/items/{item['id']}",
-        json={"name": "Shield", "price": 20, "description": None},
+        json={
+            "name": "Shield",
+            "price": 20,
+            "description": None,
+            "expected_version": 2,
+        },
     )
 
     assert replaced.status_code == 200 and replaced.json()["name"] == "Shield"
-    deleted = await client.delete(f"/api/v1/items/{item['id']}")
+    deleted = await client.post(
+        f"/api/v1/items/{item['id']}" + '/delete', json={'expected_version': 3}
+    )
 
     assert deleted.status_code == 200
     missing = await client.get(f"/api/v1/items/{item['id']}")

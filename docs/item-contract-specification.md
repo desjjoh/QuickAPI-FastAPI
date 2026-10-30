@@ -15,8 +15,9 @@ implemented and verified. Agreement on this specification does not mean those
 runtime changes have already shipped. [Milestones](milestones.md) tracks delivery.
 
 The current implementation includes alphanumeric IDs, response timestamp aliases,
-exact price validation, inclusive price filters and deterministic pagination. Revisions, deletion
-and idempotency differences remain described in the current contract guide.
+exact price validation, inclusive price filters, deterministic pagination, mutation
+revisions and versioned deletion. Idempotency differences remain described in the
+current contract guide.
 
 ## Identity and resource shape
 

@@ -33,11 +33,11 @@ identifier = json.loads(data)['id']
 path = '/api/v1/items/' + identifier
 assert json.loads(call(path)[1])['name'] == 'Smoke'
 assert call('/api/v1/items/')[0] == 200
-code, data = call(path, 'PATCH', {'name':'Updated'})
+code, data = call(path, 'PATCH', {'name':'Updated','expected_version':1})
 assert code == 200 and json.loads(data)['name'] == 'Updated'
-code, data = call(path, 'PUT', {'name':'Replaced','description':None,'price':9.99})
+code, data = call(path, 'PUT', {'name':'Replaced','description':None,'price':9.99,'expected_version':2})
 assert code == 200 and json.loads(data)['name'] == 'Replaced'
-assert call(path, 'DELETE')[0] == 200
+assert call(path + '/delete', 'POST', {'expected_version':3})[0] == 200
 assert call(path)[0] == 404
 print('Built-image MySQL CRUD, probes, static asset and exposure checks passed.')
 '''
@@ -98,7 +98,7 @@ def qualify(image: str, *, cleanup_only: bool = False) -> None:
             text=True,
         )
 
-        if result.stdout.strip() != '0' or 'Application exited cleanly' not in compose(
+        if result.stdout.strip() != '0' or 'Application exited (code 0)' not in compose(
             'logs', '--no-color', 'api'
         ):
             raise RuntimeError('Built-image graceful shutdown failed.')

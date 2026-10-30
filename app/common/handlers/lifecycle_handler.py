@@ -224,6 +224,6 @@ class LifecycleHandler:
             except Exception as exc:
                 self.shutdown_failed = True
 
-                log.error("Service shutdown failed.", error=exc)
+                log.error("Service cleanup failed.", error=exc)
 
-                log.warning(f"Failed to stop service ← {svc.name}")
+                log.warning(f"Failed to stop service → {svc.name}")

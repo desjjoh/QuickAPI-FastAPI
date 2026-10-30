@@ -25,7 +25,7 @@ async def create(
     return ItemResponse.model_validate(item)
 ```
 
-The item create, PATCH, PUT, and DELETE endpoints use this boundary. Unmarked
+The item create, PATCH, PUT, and POST deletion endpoints use this boundary. Unmarked
 routes retain their normal FastAPI handler and dependency behavior. GET requests
 are not wrapped in a mutation transaction; SQLAlchemy can still use a read
 transaction for their queries.
@@ -47,9 +47,9 @@ transaction for their queries.
 
 No response bytes are sent by the route owner before commit. Existing route
 declarations remain the source for response models, status codes, and OpenAPI.
-There is no copied serializer or second framework response pipeline. The original
-item routes, fields, PATCH/PUT distinctions, DELETE confirmation, and error messages
-retain their existing contracts.
+There is no copied serializer or second framework response pipeline. Item revision
+checks and conditional writes participate in this same transaction; response
+validation failures roll back both changed fields and the revision increment.
 
 ## Failure and cleanup
 
@@ -83,7 +83,7 @@ from decimal import Decimal
 async with SessionLocal(autobegin=False) as db:
     async with db.begin():
         first = await repo.create(db, item_in={"name": "First", "price": Decimal("1.00")})
-        await repo.update(db, first, {"description": "Saved together"})
+        await repo.update(db, first, {"description": "Saved together"}, first.version)
         await repo.create(db, item_in={"name": "Second", "price": Decimal("2.00")})
 ```
 

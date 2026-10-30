@@ -1,23 +1,28 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import Depends, Query, status
 
 from app.api.v1.items.models.item_model import ItemBase, ItemResponse
+from app.api.v1.items.models.item_replace_model import ReplaceItemRequest
 from app.api.v1.items.models.item_update_model import UpdateItemRequest
 from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
 from app.api.v1.items.services.item_service import ItemService, get_item_service
 from app.common.handlers.application_route import ApplicationRoute, transactional
+from app.common.handlers.flexible_router import FlexibleRouter
 from app.common.handlers.query_validation import reject_repeated_query_parameters
 from app.common.models.error_model import ErrorResponse
 from app.common.models.pagination import PaginatedResult
 from app.common.models.parameters_model import EntityId
+from app.common.models.version_model import VersionInput
 
-router: APIRouter = APIRouter(route_class=ApplicationRoute)
+router = FlexibleRouter(route_class=ApplicationRoute)
 
 
 ## POST /
+
+
 @router.post(
-    "/",
+    "",
     summary="Create a new item",
     description="Creates a new item using validated input. Returns the fully normalized item resource after persistence.",
     response_model=ItemResponse,
@@ -33,8 +38,10 @@ async def create(
 
 
 ## GET /
+
+
 @router.get(
-    "/",
+    "",
     summary="Get a list of items",
     dependencies=[Depends(reject_repeated_query_parameters)],
     description="Retrieves a paginated list of items. Supports page, limit, sorting, and optional filtering.",
@@ -56,6 +63,8 @@ async def get_all(
 
 
 ## GET /:id
+
+
 @router.get(
     "/{id}",
     summary="Get a single item by ID",
@@ -78,13 +87,19 @@ async def get(
 
 
 ## PATCH /:id
+
+
 @router.patch(
     "/{id}",
     summary="Update an item by ID",
-    description="Applies a partial update to an existing item. Only provided fields are modified. Returns the updated resource.",
+    description="Applies a partial update to an existing item. Requires expected_version and an editable field. Only provided fields are modified; each accepted update increments version once.",
     response_model=ItemResponse,
     status_code=status.HTTP_200_OK,
     responses={
+        409: {
+            "description": "Item version conflict; reload the item before retrying.",
+            "model": ErrorResponse,
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "No item exists with the provided identifier.",
             "model": ErrorResponse,
@@ -103,13 +118,19 @@ async def update(
 
 
 ## PUT /:id
+
+
 @router.put(
     "/{id}",
     summary="Replace an item by ID",
-    description="Replaces an existing item with the provided data. All fields must be supplied. Returns the updated resource.",
+    description="Replaces an existing item with the provided data. Requires expected_version, name and price; omitted description becomes null. Each accepted replacement increments version once.",
     response_model=ItemResponse,
     status_code=status.HTTP_200_OK,
     responses={
+        409: {
+            "description": "Item version conflict; reload the item before retrying.",
+            "model": ErrorResponse,
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "No item exists with the provided identifier.",
             "model": ErrorResponse,
@@ -118,21 +139,29 @@ async def update(
 )
 @transactional
 async def replace(
-    id: EntityId, payload: ItemBase, service: ItemService = Depends(get_item_service)
+    id: EntityId,
+    payload: ReplaceItemRequest,
+    service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
     item = await service.replace(id, payload)
 
     return ItemResponse.model_validate(item)
 
 
-## DELETE /:id
-@router.delete(
-    "/{id}",
+## POST /:id/delete
+
+
+@router.post(
+    "/{id}/delete",
     summary="Delete an item by ID",
-    description="Removes an item by its ID. Returns the deleted resource for confirmation. Returns 404 if the item is not found.",
+    description="Requires expected_version in the JSON body. Returns the removed resource with its final version. Stale versions return 409 and missing items return 404.",
     response_model=ItemResponse,
     status_code=status.HTTP_200_OK,
     responses={
+        409: {
+            "description": "Item version conflict; reload the item before retrying.",
+            "model": ErrorResponse,
+        },
         status.HTTP_404_NOT_FOUND: {
             "description": "No item exists with the provided identifier.",
             "model": ErrorResponse,
@@ -141,8 +170,10 @@ async def replace(
 )
 @transactional
 async def delete(
-    id: EntityId, service: ItemService = Depends(get_item_service)
+    id: EntityId,
+    payload: VersionInput,
+    service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
-    item = await service.delete(id)
+    item = await service.delete(id, payload)
 
     return ItemResponse.model_validate(item)

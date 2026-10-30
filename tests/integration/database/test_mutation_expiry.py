@@ -138,14 +138,23 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
 
     async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
         path = '/api/v1/items/' if method == 'POST' else f'/api/v1/items/{identifier}'
-        payload = None if method == 'DELETE' else {'name': 'After', 'price': 2}
+        payload = (
+            {'expected_version': 1}
+            if method == 'DELETE'
+            else {'name': 'After', 'price': 2, 'expected_version': 1}
+        )
+
+        if method == 'DELETE':
+            path += '/delete'
+
+        wire_method = 'POST' if method == 'DELETE' else method
         request: asyncio.Task[httpx.Response] | None = None
         writer: asyncio.StreamWriter | None = None
 
         try:
             if ending == 'timeout':
                 request = asyncio.create_task(
-                    client.request(method, path, json=payload)
+                    client.request(wire_method, path, json=payload)
                 )
             else:
                 body = json.dumps(payload).encode() if payload else b''
@@ -155,7 +164,7 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
                 content_type = 'Content-Type: application/json\r\n' if payload else ''
 
                 writer.write(
-                    f'{method} {path} HTTP/1.1\r\nHost: localhost\r\n{content_type}Content-Length: {len(body)}\r\n\r\n'.encode()
+                    f'{wire_method} {path} HTTP/1.1\r\nHost: localhost\r\n{content_type}Content-Length: {len(body)}\r\n\r\n'.encode()
                     + body
                 )
                 await writer.drain()

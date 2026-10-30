@@ -134,3 +134,69 @@ async def test_interrupted_startup_closes_resources(
     monkeypatch.setattr(value, 'shutdown', shutdown)
     await value.startup()
     shutdown.assert_awaited_once_with(None)
+
+
+async def test_listener_notice_follows_successful_server_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = server(monkeypatch)
+    logger = Mock()
+
+    monkeypatch.setattr(http_server, 'log', logger)
+
+    async def started(*_: object) -> None:
+        logger.info.assert_not_called()
+        value.started = True
+
+    monkeypatch.setattr(uvicorn.Server, 'startup', started)
+    await value.startup()
+    logger.info.assert_called_once_with(
+        'HTTP server running on port 8000 — http://localhost:8000'
+    )
+
+
+async def test_signal_notice_is_early_named_and_emitted_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = server(monkeypatch)
+    logger = Mock()
+
+    monkeypatch.setattr(http_server, 'log', logger)
+    value.handle_exit(signal.SIGTERM, None)
+    monkeypatch.setattr(uvicorn.Server, 'shutdown', AsyncMock())
+    await value.shutdown()
+    logger.warning.assert_called_once_with('SIGTERM received — initiating shutdown')
+    assert cast(Any, value.config).loaded_app.state.shutdown_notice_logged is True
+
+
+def test_clean_exit_record_follows_runner_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = server(monkeypatch)
+    logger = Mock()
+
+    monkeypatch.setattr(http_server, 'log', logger)
+
+    def run(*_: object) -> None:
+        logger.info.assert_not_called()
+        value.started = True
+
+    monkeypatch.setattr(uvicorn.Server, 'run', run)
+    value.run()
+    logger.info.assert_called_once_with('Application exited (code 0)')
+
+
+def test_failed_startup_has_no_success_exit_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = server(monkeypatch)
+    logger = Mock()
+
+    monkeypatch.setattr(http_server, 'log', logger)
+    monkeypatch.setattr(
+        uvicorn.Server, 'run', Mock(side_effect=RuntimeError('startup failed'))
+    )
+    with pytest.raises(RuntimeError):
+        value.run()
+
+    logger.info.assert_not_called()

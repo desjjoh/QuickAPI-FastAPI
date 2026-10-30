@@ -81,6 +81,7 @@ async def test_create_returns_and_persists_complete_resource(
 
     assert set(body) == {
         "id",
+        "version",
         "name",
         "price",
         "description",

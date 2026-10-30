@@ -14,14 +14,14 @@ When `DOCS_ENABLED=true`, the app exposes `/docs`, `/redoc`, and `/openapi.json`
 
 | Method | Route                | Success | Behavior                                |
 | ------ | -------------------- | ------- | --------------------------------------- |
-| POST   | `/api/v1/items/`     | 201     | Create and return an item               |
-| GET    | `/api/v1/items/`     | 200     | Return a filtered, paginated collection |
+| POST   | `/api/v1/items`     | 201     | Create and return an item               |
+| GET    | `/api/v1/items`     | 200     | Return a filtered, paginated collection |
 | GET    | `/api/v1/items/{id}` | 200     | Retrieve an item                        |
 | PATCH  | `/api/v1/items/{id}` | 200     | Update supplied fields                  |
 | PUT    | `/api/v1/items/{id}` | 200     | Replace using the full input model      |
-| DELETE | `/api/v1/items/{id}` | 200     | Return the deleted item                 |
+| POST | `/api/v1/items/{id}/delete` | 200 | Delete with a revision precondition; return the removed item |
 
-IDs are exactly 16 ASCII alphanumeric characters, including upper/lowercase letters. Existing hexadecimal IDs remain valid. Invalid IDs/payloads return 422; missing items return 404. Responses include `id`, `name`, `price`, `description`, `createdAt`, and `updatedAt`.
+IDs are exactly 16 ASCII alphanumeric characters, including upper/lowercase letters. Existing hexadecimal IDs remain valid. Invalid IDs/payloads return 422; missing items return 404. Responses include `id`, `version`, `name`, `price`, `description`, `createdAt`, and `updatedAt`.
 
 Create/replace require `name` (1–120 characters) and `price`. `description` is optional, nullable, and at most 500 characters. Omitting it on PUT resets it to null. PATCH requires at least one recognized supplied field, rejects explicit null for `name`/`price`, and allows null to clear `description`.
 
@@ -29,9 +29,34 @@ Prices must be between `0.01` and `99999999.99`, with at most two decimal places
 
 Models, services and MySQL `Numeric(10, 2)` storage retain exact `Decimal` values. Responses serialize prices as JSON numbers and validate the same range and precision. Python/ORM timestamp attributes remain `created_at` and `updated_at`; JSON uses the aliases above.
 
-These rules require no schema migration. Existing rows outside the accepted price
+Exact price rules require no additional schema change. Existing rows outside the accepted price
 range fail response validation; repair them explicitly before reading them through
 the API. Development data is never reset automatically.
+
+## Mutation revisions
+
+Every item starts at `version: 1`. PATCH, PUT and POST deletion require
+`expected_version` from the caller's last read: a numeric integer from 1 through
+4294967295. Boolean, string, null, fractional and out-of-range revisions return 422.
+As in Express, parsed numeric `1.0` denotes revision 1. PATCH also requires at least
+one recognized editable field; a revision alone is not an edit.
+
+The transaction locks the row and compares its revision; UPDATE and DELETE also
+include the expected revision in SQL. Every accepted PATCH/PUT advances the version
+once, including unchanged-value edits. Updates at the maximum revision return 409;
+deletion of that revision remains allowed and returns its final persisted resource.
+
+Missing items return 404 with `No item exists with the provided identifier.` Stale
+or exhausted revisions return 409 with `Item version conflict; reload the item before
+retrying.` The shared error envelope is unchanged. DELETE is no longer an item route;
+use `POST /api/v1/items/{id}/delete` with JSON such as `{"expected_version": 2}`.
+Successful deletion retries without idempotency return 404.
+
+Item routes and named system endpoints accept either trailing-slash spelling through
+the shared router, without redirecting or duplicate controller declarations. OpenAPI
+lists only the canonical spelling; the application root `/` is registered once.
+The canonical collection route has no trailing slash. Migrate existing databases before starting this version:
+see [Migrations](migrations.md). Existing rows are initialized to revision 1.
 
 ## Collection queries
 
@@ -82,8 +107,7 @@ The process-local limiter defaults to 200 admitted requests in the preceding 60 
 Item controllers delegate to services and validate their results into response models. Repository
 mutations participate in the request-owned transaction and never commit
 independently. The route owner commits after service execution and buffered JSON
-preparation; see [Mutation transactions](transactions.md). No optimistic concurrency
-token, idempotency-key contract, or replay protection exists. Avoid automatic
+preparation; see [Mutation transactions](transactions.md). Optimistic concurrency is enforced; no idempotency-key contract or replay protection exists. Avoid automatic
 mutation retries unless the caller can reconcile an uncertain result.
 
 Operational payloads and access boundaries are documented in [Deployment](deployment.md#application-lifespan-and-operational-endpoints).

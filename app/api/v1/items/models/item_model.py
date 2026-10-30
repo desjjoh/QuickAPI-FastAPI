@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 
 from app.common.models.base_model import BaseResponse
 from app.common.models.price_model import Price
+from app.common.models.version_model import Version
 
 
 class ItemBase(BaseModel):
@@ -28,4 +29,4 @@ class ItemBase(BaseModel):
 
 
 class ItemResponse(ItemBase, BaseResponse):
-    pass
+    version: Version

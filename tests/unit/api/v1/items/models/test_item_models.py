@@ -17,7 +17,10 @@ pytestmark = pytest.mark.unit
     ],
 )
 def test_item_base_accepts_boundaries(payload: dict[str, object]) -> None:
-    assert ItemBase.model_validate(payload).name == payload["name"]
+    assert (
+        ItemBase.model_validate(payload).name
+        == {"expected_version": 1, **payload}["name"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -49,10 +52,9 @@ def test_item_base_rejects_invalid_payloads(payload: dict[str, object]) -> None:
 def test_update_accepts_each_field_and_explicit_null_description(
     payload: dict[str, object],
 ) -> None:
-    assert (
-        UpdateItemRequest.model_validate(payload).model_dump(exclude_unset=True)
-        == payload
-    )
+    assert UpdateItemRequest.model_validate(
+        {'expected_version': 1, **(payload)}
+    ).model_dump(exclude_unset=True) == {"expected_version": 1, **payload}
 
 
 @pytest.mark.parametrize(
@@ -70,14 +72,19 @@ def test_update_rejects_empty_null_or_invalid_fields(
     payload: dict[str, object],
 ) -> None:
     with pytest.raises(ValidationError):
-        UpdateItemRequest.model_validate(payload)
+        UpdateItemRequest.model_validate({'expected_version': 1, **(payload)})
 
 
 def test_update_distinguishes_omitted_fields() -> None:
-    update = UpdateItemRequest.model_validate({"description": None})
+    update = UpdateItemRequest.model_validate(
+        {'expected_version': 1, 'description': None}
+    )
 
-    assert update.model_fields_set == {"description"}
-    assert update.model_dump(exclude_unset=True) == {"description": None}
+    assert update.model_fields_set == {"description", "expected_version"}
+    assert update.model_dump(exclude_unset=True) == {
+        "description": None,
+        "expected_version": 1,
+    }
 
 
 @pytest.mark.parametrize(

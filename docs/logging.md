@@ -12,15 +12,27 @@ and the standard logging bridge. There is no separate output-format setting.
 | Event                                       | Python level |
 | ------------------------------------------- | ------------ |
 | Successful request access record            | DEBUG        |
-| Normal application lifecycle                | INFO         |
+| Boot, listening server and successful exit  | INFO         |
+| Service registration, start/stop and timings | DEBUG       |
 | Expected client rejection / aborted request | WARNING      |
 | Server error / unexpected failure           | ERROR        |
 | Fatal initialization/runtime failure        | CRITICAL     |
 
 At INFO, successful request logs are hidden while lifecycle messages are visible.
 The boot banner is emitted at the start of application construction, before lifecycle
-service registration. The lifespan then starts the registered services and emits the
-HTTP startup message; construction alone does not start services.
+service registration. The lifespan starts registered services; the supported server
+entrypoint emits the HTTP startup message only after Uvicorn starts the listener.
+Construction or a standalone ASGI lifespan does not claim a listening server.
+
+Lifecycle messages follow the Express/NestJS conventions: `Starting services…`,
+`Service started → <name>`, `All services started in <duration>ms`, then the HTTP
+startup message. Shutdown logs `<signal> received — initiating shutdown` immediately
+when a signal is handled, or `Shutdown requested — initiating shutdown` for a
+programmatic stop. Each stop logs `Service stopped ← <name>`, followed by
+`Shutdown completed in <duration>ms` and `Application exited (code 0)` after successful
+runner cleanup. The initiation notice is emitted once; standalone lifespan cleanup
+uses the programmatic wording. Failed runs never receive the successful exit record.
+Python severity names, runtime identity and actual service names remain native.
 Metrics and request-outcome observation are independent of log filtering. There is
 one access record per settled response outcome; a rejection/failure can also have a
 separate fixed diagnostic event. An aborted response whose headers carry a server

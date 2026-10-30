@@ -70,7 +70,7 @@ async def test_native_entrypoint_handles_sigterm(
                 pytest.fail("Native shutdown timed out: " + log_path.read_text())
 
             assert process.returncode in (0, -signal.SIGTERM), log_path.read_text()
-            assert 'Application exited cleanly' in log_path.read_text()
+            assert 'Application exited (code 0)' in log_path.read_text()
             with pytest.raises(OSError):
                 await asyncio.open_connection('127.0.0.1', port)
         finally:
@@ -263,14 +263,14 @@ async def test_shutdown_process_contract(
 
             if forced:
                 assert process.returncode == 1, logs
-                assert 'Application exited cleanly' not in logs
+                assert 'Application exited (code 0)' not in logs
                 if mode == 'transaction-stuck':
                     assert 'Final shutdown deadline exceeded' in logs
                     assert not (tmp_path / 'dependency-closed').exists()
                     assert not (tmp_path / 'cleanup').exists()
             else:
                 assert process.returncode in (0, -signal.SIGTERM), logs
-                assert 'Application exited cleanly' in logs
+                assert 'Application exited (code 0)' in logs
 
             async with database_engine.connect() as connection:
                 count = await connection.scalar(

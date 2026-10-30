@@ -47,7 +47,15 @@ async def test_price_round_trip_is_exact_in_mysql_and_numeric_on_the_wire(
     body = response.json()
 
     assert re.fullmatch(r'[A-Za-z0-9]{16}', body['id'])
-    assert set(body) == {'id', 'name', 'price', 'description', 'createdAt', 'updatedAt'}
+    assert set(body) == {
+        'id',
+        'version',
+        'name',
+        'price',
+        'description',
+        'createdAt',
+        'updatedAt',
+    }
     assert isinstance(body['price'], (int, float)) and not isinstance(
         body['price'], bool
     )
@@ -106,7 +114,14 @@ async def test_rejected_prices_never_change_mysql(
 
     path = '/api/v1/items/' if method == 'POST' else f'/api/v1/items/{identifier}'
     response = await contract_client.request(
-        method, path, json={'name': 'After', 'price': price, 'description': 'Changed'}
+        method,
+        path,
+        json={
+            'expected_version': 1,
+            'name': 'After',
+            'price': price,
+            'description': 'Changed',
+        },
     )
 
     assert response.status_code == 422, response.text
@@ -190,7 +205,7 @@ async def test_existing_alphanumeric_id_and_invalid_stored_price_use_controller_
         seed.add(ItemORM(id='A1b2C3d4E5f6G7h8', name='Before', price=Decimal('0.00')))
 
     failed = await contract_client.patch(
-        '/api/v1/items/A1b2C3d4E5f6G7h8', json={'name': 'After'}
+        '/api/v1/items/A1b2C3d4E5f6G7h8', json={'name': 'After', 'expected_version': 1}
     )
 
     assert (
@@ -202,7 +217,7 @@ async def test_existing_alphanumeric_id_and_invalid_stored_price_use_controller_
 
     assert row == ('Before', Decimal('0.00'))
     repaired = await contract_client.patch(
-        '/api/v1/items/A1b2C3d4E5f6G7h8', json={'price': '0.01'}
+        '/api/v1/items/A1b2C3d4E5f6G7h8', json={'price': '0.01', 'expected_version': 1}
     )
 
     assert repaired.status_code == 200 and repaired.json()['price'] == 0.01

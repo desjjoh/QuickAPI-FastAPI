@@ -92,7 +92,7 @@ def test_invalid_prices_are_rejected_without_rounding(value: object) -> None:
 def test_all_input_models_share_the_price_contract(value: object) -> None:
     for model, payload in [
         (ItemBase, {'name': 'Item', 'price': value}),
-        (UpdateItemRequest, {'price': value}),
+        (UpdateItemRequest, {'price': value, 'expected_version': 1}),
         (ItemPaginationQuery, {'min_price': value}),
         (ItemPaginationQuery, {'max_price': value}),
     ]:
@@ -121,6 +121,7 @@ def test_response_aliases_preserve_python_attributes_and_validate_prices() -> No
     timestamp = datetime(2026, 1, 1, tzinfo=UTC)
     item = SimpleNamespace(
         id='A1b2C3d4E5f6G7h8',
+        version=1,
         name='Item',
         price=Decimal('12.34'),
         description=None,
@@ -133,7 +134,15 @@ def test_response_aliases_preserve_python_attributes_and_validate_prices() -> No
     assert isinstance(response.price, Decimal)
     body = json.loads(response.model_dump_json())
 
-    assert set(body) == {'id', 'name', 'price', 'description', 'createdAt', 'updatedAt'}
+    assert set(body) == {
+        'id',
+        'version',
+        'name',
+        'price',
+        'description',
+        'createdAt',
+        'updatedAt',
+    }
     assert body['price'] == 12.34 and isinstance(body['price'], float)
     assert ItemResponse.model_validate(body) == response
     item.price = Decimal('1.234')

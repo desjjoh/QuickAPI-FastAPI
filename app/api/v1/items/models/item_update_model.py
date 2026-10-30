@@ -1,13 +1,14 @@
 from typing import Any, Self
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
 from pydantic_core import PydanticCustomError
 
 from app.common.models.price_model import Price
+from app.common.models.version_model import VersionInput
 
 
-class UpdateItemRequest(BaseModel):
+class UpdateItemRequest(VersionInput):
     name: str | SkipJsonSchema[None] = Field(
         None,
         min_length=1,
@@ -44,7 +45,7 @@ class UpdateItemRequest(BaseModel):
     def reject_empty_payload(self) -> Self:
         provided = {k: v for k, v in self.model_dump(exclude_unset=True).items()}
 
-        if not provided:
+        if not provided.keys() - {'expected_version'}:
             raise PydanticCustomError(
                 "empty_body", "At least one field must be provided"
             )

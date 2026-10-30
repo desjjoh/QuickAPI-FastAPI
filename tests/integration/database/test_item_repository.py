@@ -19,6 +19,42 @@ from app.database.repositories.item_repo import (
 pytestmark = pytest.mark.integration
 
 
+@pytest.mark.parametrize('operation', ['update', 'delete'])
+async def test_sql_preconditions_reject_stale_objects_without_service_checks(
+    database_engine: AsyncEngine, operation: str
+) -> None:
+    from fastapi import HTTPException
+
+    factory = async_sessionmaker(database_engine, expire_on_commit=False)
+    repository = ItemRepository()
+
+    async with factory() as session, session.begin():
+        item = await repository.create(
+            session, item_in={'name': 'Original', 'price': Decimal('1')}
+        )
+
+        await repository.update(session, item, {'name': 'Saved'}, 1)
+        assert item.version == 2
+
+    async with factory() as session:
+        with pytest.raises(HTTPException) as error:
+            async with session.begin():
+                current = await repository.get_by_id(session, item.id)
+
+                assert current is not None
+                if operation == 'update':
+                    await repository.update(session, current, {'name': 'Lost'}, 1)
+                else:
+                    await repository.delete(session, current, 1)
+
+        assert error.value.status_code == 409
+
+    async with factory() as observer:
+        assert (
+            await observer.execute(select(ItemORM.name, ItemORM.version))
+        ).one() == ('Saved', 2)
+
+
 @pytest.mark.parametrize('sort', list(ItemSort))
 @pytest.mark.parametrize('order', list(SortOrder))
 async def test_tied_values_have_unique_order_across_pages(
@@ -120,6 +156,7 @@ async def test_create_get_all_get_by_id_update_and_delete(
                 session,
                 item,
                 {"name": "Updated", "description": "saved", "price": Decimal('3')},
+                item.version,
             )
             is item
         )
@@ -128,7 +165,7 @@ async def test_create_get_all_get_by_id_update_and_delete(
             "saved",
             3.0,
         )
-        assert await repository.delete(session, item) is item
+        assert await repository.delete(session, item, item.version) is item
         assert await repository.get_all(session) == []
 
 
@@ -248,9 +285,11 @@ async def test_owner_commit_failure_rolls_back_and_session_is_reusable(
                             session, item_in={"name": "Partial", "price": Decimal('99')}
                         )
                     elif operation == "update":
-                        await repository.update(session, existing, {"name": "Partial"})
+                        await repository.update(
+                            session, existing, {"name": "Partial"}, existing.version
+                        )
                     else:
-                        await repository.delete(session, existing)
+                        await repository.delete(session, existing, existing.version)
         finally:
             event.remove(session.sync_session, "before_commit", fail_before_commit)
 
@@ -288,7 +327,9 @@ async def test_owner_refresh_failure_rolls_back_and_session_is_reusable(
                         session, item_in={"name": "Partial", "price": Decimal('99')}
                     )
                 else:
-                    await repository.update(session, existing, {"name": "Partial"})
+                    await repository.update(
+                        session, existing, {"name": "Partial"}, existing.version
+                    )
 
         session.refresh = real_refresh
 
@@ -316,7 +357,9 @@ async def test_repositories_join_one_owner_and_never_commit_partially(
                     session, item_in={"name": "First", "price": Decimal('1')}
                 )
 
-                await repository.update(session, item, {"name": "Changed"})
+                await repository.update(
+                    session, item, {"name": "Changed"}, item.version
+                )
                 await repository.create(
                     session, item_in={"name": "Second", "price": Decimal('2')}
                 )
@@ -344,9 +387,11 @@ async def test_mutation_requires_a_caller_transaction(
                     session, item_in={"name": "Rejected", "price": Decimal('1')}
                 )
             elif operation == "update":
-                await repository.update(session, item, {"name": "Changed"})
+                await repository.update(
+                    session, item, {"name": "Changed"}, item.version
+                )
             else:
-                await repository.delete(session, item)
+                await repository.delete(session, item, item.version)
 
         assert item.name == "Untouched"
         assert not session.in_transaction()

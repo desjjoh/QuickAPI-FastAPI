@@ -38,6 +38,22 @@ the caller's session. Application assembly is centralized in
 `app/config/application.py`. [Services](services.md) describes the shared item and
 system boundary and session ownership.
 
+## Flexible route spelling
+
+Item and system controllers use [FlexibleRouter](../app/common/handlers/flexible_router.py)
+to accept named HTTP endpoints with or without a trailing slash, without redirects.
+Controllers declare each operation once. The router registers the canonical path
+first and hides the alternate spelling from OpenAPI. URL generation selects the
+canonical route. Nested router inclusion copies existing routes without generating
+another pair; response models, status codes, dependencies and route classes survive.
+
+Use `""` for a collection root mounted beneath a prefix, such as `/api/v1/items`.
+An explicit `"/"` remains a single root route, as used by the system greeting.
+Named paths such as `/health` and `/items/{id}` receive both spellings. Item routes
+retain `ApplicationRoute` and their transaction markers. Operational exposure
+settings protect both spellings. Framework-provided documentation routes retain
+their normal FastAPI routing behavior.
+
 ## Request lifecycle and middleware order
 
 Starlette wraps middleware in reverse registration order. Consequently, the last

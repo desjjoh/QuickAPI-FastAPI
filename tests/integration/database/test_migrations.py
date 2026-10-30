@@ -19,6 +19,64 @@ from app.database.entities.item_orm import ItemORM
 pytestmark = pytest.mark.integration
 
 
+async def test_revision_upgrade_backfills_and_downgrade_preserves_item_data(
+    migration_engine: AsyncEngine,
+) -> None:
+    async with migration_engine.connect() as connection:
+
+        def migrate(conn: Connection, target: str, downgrade: bool = False) -> None:
+            config = migration_config()
+            config.attributes['connection'] = conn
+
+            if downgrade:
+                command.downgrade(config, target)
+            else:
+                command.upgrade(config, target)
+
+        await connection.run_sync(lambda conn: migrate(conn, '0001_create_items'))
+        await connection.execute(
+            text(
+                "INSERT INTO items (id,name,price,description) VALUES ('LegacyItem000001','Legacy',12.34,NULL)"
+            )
+        )
+        await connection.commit()
+        before = (
+            await connection.execute(
+                text('SELECT id,name,price,description,createdAt,updatedAt FROM items')
+            )
+        ).one()
+
+        await connection.run_sync(lambda conn: migrate(conn, 'head'))
+        await connection.commit()
+        assert (
+            await connection.execute(text('SELECT version FROM items'))
+        ).scalar_one() == 1
+        await connection.execute(text('UPDATE items SET version=7'))
+        await connection.commit()
+        await connection.run_sync(lambda conn: migrate(conn, 'head'))
+        assert (
+            await connection.execute(text('SELECT version FROM items'))
+        ).scalar_one() == 7
+        await connection.run_sync(lambda conn: migrate(conn, '0001_create_items', True))
+        await connection.commit()
+        assert (
+            await connection.execute(
+                text('SELECT id,name,price,description,createdAt,updatedAt FROM items')
+            )
+        ).one() == before
+        columns = await connection.run_sync(
+            lambda conn: inspect(conn).get_columns('items')
+        )
+
+        assert 'version' not in {column['name'] for column in columns}
+        await connection.run_sync(lambda conn: migrate(conn, 'head'))
+        await connection.commit()
+        assert (
+            await connection.execute(text('SELECT version FROM items'))
+        ).scalar_one() == 1
+        await connection.run_sync(check_revision)
+
+
 async def test_empty_database_is_rejected_without_creating_tables(
     migration_engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
