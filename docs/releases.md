@@ -115,7 +115,7 @@ Each run builds and qualifies its own candidate. A later publishing run does not
 silently reuse a previous dry-run's approval. GitHub service availability and
 registry permissions are prerequisites for hosted qualification.
 
-## Local checks and rollback boundary
+## Local checks
 
 Focused Windows checks use synthetic OCI archives and fake tool runners:
 
@@ -128,6 +128,84 @@ stale evidence, version drift and publication identity. Actual container builds,
 MySQL image qualification, scans and registry round-trips run in CI. Offline tests
 do not establish hosted release success.
 
-Image publication does not establish that an older image supports a newer database
-schema. Retained-image selection, schema compatibility and the disposable rollback
-exercise remain a separate scope in [Milestones](milestones.md).
+## Retained-image rollback
+
+Rollback selects an earlier **published image digest**. It does not rebuild that
+source, move registry tags, reverse migrations or reset a database. Preserve
+successful `publication.json` records and their source, SBOM/provenance, scan and
+smoke evidence beyond CI retention when your rollback horizon requires it. Retain
+the corresponding registry digests against deletion/garbage collection.
+
+The application requires exact Alembic revision equality. An older image can be
+considered for application-only rollback only when it expects the current single
+schema head and the release pair passes compatibility qualification. Head equality
+is necessary, not sufficient: business/data contracts and retry semantics also
+have to remain compatible. Changes requiring another schema revision need their
+own recovery plan; do not bypass readiness or stamp/downgrade the database to make
+an image start.
+
+### Disposable qualification
+
+The manual [Rollback qualification workflow](../.github/workflows/rollback-check.yml)
+runs trusted main-branch tooling with registry read permission. Select both input
+references from successful publication records: `current-image` is the image being
+replaced and `rollback-image` is the earlier retained version. Use full
+`repository@sha256:<index-digest>` references from this application's configured
+registry/repository. Tags, identical references and same-source rebuilds are
+rejected. Image source/version/user labels, pulled digests and both migration heads
+are verified before any database is started.
+
+1. In **Actions → Rollback qualification → Run workflow**, select **main**.
+2. Paste the two retained image references into `current-image` and `rollback-image`.
+3. Review `rollback-evidence-<run>-<attempt>`, including `result.json`, image/head
+   identities, transition records, command diagnostics and API/MySQL logs.
+
+The check owns `quickapi-fastapi-rollback`, publishes no API/database host ports and
+uses temporary MySQL storage. It migrates a fresh database **once** with the current
+image, then exercises current → rollback → current against that same running MySQL
+container. A read-only live schema check precedes every API start. Each transition
+replaces only the API and verifies its requested immutable image reference.
+
+The current image creates/updates retained state and a keyed response. The rollback
+image must read it, replay the original exact response without another mutation,
+and update/create resources. Returning to the current image must preserve those
+writes, replay the original response and accept further updates/deletion. All three
+API instances must stop cleanly. Failure or cleanup failure leaves `passed: false`;
+temporary project resources are removed and reports are retained for 90 days.
+
+The command can also be invoked explicitly after installing development tooling
+and preparing guarded `.env.test` configuration:
+
+```powershell
+python -m scripts.test_rollback --current-image 'ghcr.io/owner/repository@sha256:<current-digest>' --rollback-image 'ghcr.io/owner/repository@sha256:<retained-digest>' --source 'https://github.com/owner/repository'
+```
+
+Use registry login when image pulls require it. The workflow reuses release
+registry variables/secrets. These are tooling settings, not application `.env`
+configuration. Local verification normally uses
+`python -m pytest -q tests/unit/config/test_rollback.py --no-cov`; live Docker/MySQL
+rollback qualification stays in CI.
+
+### Applying a qualified rollback
+
+Before a real application rollback, confirm the current database head, the
+reviewed release pair's data compatibility and current security acceptance. A
+compatibility test does not refresh an earlier vulnerability scan or independently
+verify an operator's claim that a reference came from a successful release.
+The current image is checked against current build-content rules. A retained
+image is checked for its non-root runtime identity and application compatibility;
+historical tool inventory, such as an older curl installation, does not by itself
+invalidate that compatibility evidence. Security acceptance remains a separate review.
+
+Withdraw traffic/admission and drain/stop the current API. Select the retained
+verified digest in the deployment configuration, without running migrations, then
+start it and verify readiness, representative reads/writes, retry behavior and
+logs before restoring traffic. Keep the replaced digest and deployment record.
+If the retained image fails compatibility/readiness, leave traffic withdrawn and
+use the recorded current digest or a reviewed forward repair. Database restoration
+and destructive schema reversal require separate qualification.
+
+This repository exercises the image/database procedure in disposable infrastructure.
+Hosting-specific traffic withdrawal, rollout and restore remain deferred. A first
+published release has no historical image pair; an actual retained-image run is
+required once a second compatible release exists.

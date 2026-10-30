@@ -1,0 +1,38 @@
+# Disposable image rollback qualification only; never mounts development data.
+name: quickapi-fastapi-rollback
+services:
+  mysql-rollback:
+    image: mysql:8.4.6
+    environment:
+      MYSQL_DATABASE: ${TEST_DB_DATABASE:?Load guarded test configuration}
+      MYSQL_USER: ${TEST_DB_USER:?Load guarded test configuration}
+      MYSQL_PASSWORD: ${TEST_DB_PASSWORD:?Load guarded test configuration}
+      MYSQL_ROOT_PASSWORD: ${TEST_DB_ROOT_PASSWORD:?Load guarded test configuration}
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u"$$MYSQL_USER" "$$MYSQL_DATABASE" --silent --skip-column-names --execute="SELECT 1"']
+      interval: 2s
+      timeout: 3s
+      retries: 45
+      start_period: 20s
+  migrate:
+    image: ${ROLLBACK_CURRENT_IMAGE:?Select the current retained image}
+    environment: &runtime
+      APP_NAME: QuickAPI
+      APP_VERSION: ${ROLLBACK_APP_VERSION:?Read the selected image version}
+      ENV: production
+      LOG_LEVEL: INFO
+      HOST: 0.0.0.0
+      PORT: "8000"
+      DATABASE_URL: ${ROLLBACK_DATABASE_URL:?Run python -m scripts.test_rollback}
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+  api:
+    image: ${ROLLBACK_ACTIVE_IMAGE:?Select the retained image}
+    environment: *runtime
+    stop_grace_period: 35s
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8000/ready', timeout=2).close()"]
+      interval: 1s
+      timeout: 3s
+      retries: 45

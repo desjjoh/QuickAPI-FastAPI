@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import shutil
 import sys
+import urllib.request
 
 assert os.getuid() == 10001 and os.getgid() == 10001, 'Unexpected runtime identity'
 assert sys.prefix == '/opt/venv', 'Runtime dependencies must use /opt/venv'
@@ -20,9 +21,8 @@ installed = {distribution.metadata['Name'].lower().replace('_', '-')
     for distribution in importlib.metadata.distributions()}
 for name in ['black', 'ruff', 'mypy', 'pytest', 'pytest-cov', 'pytest-asyncio', 'coverage']:
     assert name not in installed, f'Development dependency in runtime: {name}'
-for command in ['cc', 'gcc', 'g++', 'make']:
-    assert shutil.which(command) is None, f'Build tool in runtime: {command}'
-assert shutil.which('curl'), 'Compose readiness probes require curl'
+for command in ['cc', 'gcc', 'g++', 'make', 'curl']:
+    assert shutil.which(command) is None, f'Unexpected tool in runtime: {command}'
 for name in ['/app', '/app/app', '/opt/venv', '/opt/venv/lib']:
     path = Path(name)
     assert os.access(path, os.R_OK | os.X_OK), f'Inaccessible runtime directory: {name}'

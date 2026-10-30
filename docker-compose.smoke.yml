@@ -32,7 +32,7 @@ services:
     environment: *runtime
     stop_grace_period: 35s
     healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8000/ready"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8000/ready', timeout=2).close()"]
       interval: 1s
       timeout: 3s
       retries: 45

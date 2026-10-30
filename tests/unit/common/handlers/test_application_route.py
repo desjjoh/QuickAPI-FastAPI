@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, Mock
 import httpx
 import pytest
 from fastapi import APIRouter, FastAPI, Request
+from fastapi.datastructures import DefaultPlaceholder
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +21,14 @@ pytestmark = pytest.mark.unit
 
 async def endpoint(value: int = 1) -> dict[str, int]:
     return {'value': value}
+
+
+def test_default_json_class_is_explicit_for_transaction_response_preparation() -> None:
+    route = ApplicationRoute(
+        '/test', endpoint=endpoint, response_class=DefaultPlaceholder(JSONResponse)
+    )
+
+    assert route.response_class is JSONResponse
 
 
 def test_marker_preserves_endpoint_and_dependency_signature() -> None:

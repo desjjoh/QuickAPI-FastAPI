@@ -74,8 +74,8 @@ CI and release qualification remain separate.
 
 | Step | Scope | Completion check |
 | --- | --- | --- |
-| **7A–7C — Verified candidate publication (implemented; hosted qualification pending)** | Exact-source main CI; one OCI candidate with SBOM/provenance; MySQL/security qualification; disposable registry rehearsal; digest-preserving publication and retained evidence | Offline Windows identity/evidence/publication tests pass; live attestation/build/scan/registry dry-run and real publication require hosted qualification |
-| **7D — Release rollback procedure** | Retained image selection, schema compatibility and release ordering | Supported rollback procedure is documented and exercised within disposable infrastructure |
+| **7A–7C — Verified candidate publication (complete; hosted publication passed)** | Exact-source main CI; one OCI candidate with SBOM/provenance; MySQL/security qualification; disposable registry rehearsal; digest-preserving publication and retained evidence | Release run 41129765731 passed build, qualification, registry rehearsal and real publication |
+| **7D — Release rollback procedure (implemented; retained-image exercise pending)** | Retained image selection, exact schema compatibility, current → rollback → current and release ordering | 23 offline Windows checks passed; manual disposable workflow/runbook implemented; actual historical pair requires two compatible published releases |
 
 ### Milestone 8 — Hosting-dependent verification (deferred)
 

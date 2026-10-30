@@ -7,6 +7,7 @@ from inspect import iscoroutinefunction
 from typing import Any
 
 from fastapi import Request, Response
+from fastapi.datastructures import DefaultPlaceholder
 from fastapi.dependencies.models import Dependant
 from fastapi.params import Body, Form
 from fastapi.responses import JSONResponse
@@ -93,6 +94,13 @@ class ApplicationRoute(APIRoute):
     openapi_extra: dict[str, Any] | None
 
     def __init__(self, path: str, endpoint: Callable[..., Any], **kwargs: Any) -> None:
+        # Preserve prepared JSONResponse semantics across FastAPI's model-byte
+        # fast path, including render validation inside the owned transaction.
+        response_class = kwargs.setdefault('response_class', JSONResponse)
+
+        if isinstance(response_class, DefaultPlaceholder):
+            kwargs['response_class'] = response_class.value
+
         if getattr(endpoint, IDEMPOTENCY_MARKER, None) is not None:
             kwargs['responses'] = {
                 400: {

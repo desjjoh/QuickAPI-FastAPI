@@ -188,13 +188,14 @@ sequence: stop the API, apply the intended migrations, inspect `current` and `ch
 then start the matching application and verify readiness. This policy does not
 support mixed application revisions during a rolling schema deployment.
 
-To revert application/schema versions, first establish that the target application's
-expected revision and data requirements are supported by the proposed downgrade.
-Stop the API, execute the reviewed downgrade, inspect the resulting schema/data, and
-start that matching application. The current repository has only its initial real
-revision; no historical application image rollback is claimed. Every future real
-migration needs its own representative-data and compatibility tests. Retained-image
-release rollback and backup restoration remain separate verification work.
+Application-only rollback uses an earlier retained image with the same expected
+schema revision, after its data/contract compatibility has been qualified. The
+[rollback procedure](releases.md#retained-image-rollback) exercises current →
+rollback → current without downgrading or resetting the database. A different
+expected revision blocks this procedure. Schema reversal or restoration needs a
+separately reviewed, representative-data recovery plan; it is not an automatic
+step of image rollback. Every future real migration needs its own upgrade and
+supported recovery evidence. Backup restoration remains separately scoped.
 
 A deliberately failing test revision creates a table and then raises. On MySQL,
 the table remains while the evidence revision stays at its predecessor. A failed

@@ -72,6 +72,20 @@ remote branch enforcement is tracked separately in [Milestones](milestones.md).
 re-evaluation before publication; a passing PR scan does not approve an image
 rebuilt later. Candidate publication does not rebuild the qualified artifact.
 
+## Remediation
+
+Update the affected manually pinned requirement and any framework dependency
+needed to support its fix. Qualify the existing API/transaction contract after a
+FastAPI/Starlette update; do not weaken response or replay validation to make an
+upgrade pass. Image installer updates use the Dockerfile's `PIP_VERSION`.
+
+Fresh image builds apply available stable Trixie updates and omit curl by using
+Python readiness probes. A pinned base may already contain the latest supported
+runtime, while distribution advisories still list unfixed packages. Retain those
+findings and review upstream patches; do not remove warnings or invent exceptions
+to reduce the count. Only a fresh scan of the rebuilt image establishes the
+updated findings. Critical-only blocking and exception rules remain unchanged.
+
 ## Exceptions
 
 Separate registers start empty:

@@ -2,6 +2,65 @@
 
 [Documentation index](../README.md#documentation)
 
+## High and medium vulnerability remediation
+
+Inspected the successful release's retained scan from run 41129765731 and candidate
+`sha256:bfa62e21adc9778fadf39c72f99fd5b19027042d577a87bd66be8001a11c4f9f`.
+It reported 55 HIGH and 105 MEDIUM findings. Python findings had listed fixes in
+cryptography, Starlette, pip, idna and python-dotenv; the reported OS findings had
+no fixed distribution versions listed. The supported Python 3.12 Trixie moving
+alias and pinned patch tag resolved to the same amd64 runtime manifest, so a base
+index change alone would not remediate those OS findings.
+
+Updated cryptography to 50.0.2, Starlette to 1.3.1, compatible FastAPI to 0.135.4,
+idna to 3.20 and python-dotenv to 1.2.4. Dependency resolution and `pip check`
+passed. The image installs pip 26.2.2 into its virtual environment, removes the
+old global pip copy, applies available Trixie package upgrades and omits curl.
+Native Python probes preserve readiness failure behavior with proxy bypass.
+No exception or severity-policy changes were made.
+
+An initial early-stopping Windows run found FastAPI's new implicit model JSON
+response type conflicted with the transaction guard. ApplicationRoute now makes
+the configured response class explicit, preserving buffered JSONResponse and
+transaction/render validation rather than relaxing the guard. Focused route checks
+passed, followed by one complete Windows run: **1504 passed, 2 skipped, 5
+deselected** in 118.83 seconds. Six additional native-probe cases passed. Ruff
+passed and mypy passed for 91 application/tool files; strict editor types cover
+the affected route, image tooling and tests.
+
+A subsequent narrow rollback adjustment keeps current build-content checks on
+the current image while checking retained runtime identity and compatibility on
+the historical target; an older curl installation alone does not reject a retained
+image. Its 23 offline rollback checks passed. This grants no fresh security approval.
+
+No local image build, live vulnerability scan, TLS run or registry publication was
+performed. CI must build/qualify/rescan the updated candidate before reporting
+remaining counts. The older scan and PyPI fix metadata do not establish a clean
+rebuilt image. Existing rollback work was preserved; application settings, schema
+history and the deferred hosting scope are unchanged.
+
+## Retained-image rollback tooling and publication evidence
+
+Verified [release run 41129765731](https://github.com/desjjoh/QuickAPI-FastAPI/actions/runs/41129765731)
+for `f464b928ad44ef13c26415595669a3e967f5e103`: build, candidate qualification,
+registry rehearsal, real registry login and real publication all passed. This
+completes hosted publication qualification for that source, not historical rollback.
+
+Rollback tooling was implemented against `f464b92` plus the working changes.
+Twenty-three focused offline Windows tests passed for immutable reference checks,
+image/schema rejection before database startup, one-time migration ordering,
+three image transitions, read-only schema probes, preserved database identity,
+API/replay/write assertions, cleanup failures and manual workflow boundaries.
+Formatting, Ruff, targeted mypy and strict editor-type checks passed. Embedded
+image programs compile. No live container, MySQL, TLS or registry exercise was
+run locally and no remote rollback job was dispatched.
+
+Only one successful published release existed when inspected. A historical pair
+exercise remains pending a second compatible published image and a successful
+manual Rollback qualification run. The tooling does not assert fresh security
+approval or automate hosted deployment. No application code, environment settings
+or migration history changed. Hosting verification remains deferred.
+
 ## Registry round-trip index correction
 
 Inspected [release run 41127639341](https://github.com/desjjoh/QuickAPI-FastAPI/actions/runs/41127639341)

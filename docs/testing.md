@@ -153,6 +153,12 @@ backup restoration and candidate-bound release publication remain separately sco
 
 ## Regression coverage
 
+The manual [retained-image rollback check](releases.md#disposable-qualification)
+uses an isolated MySQL project and two published digests. Offline Windows checks
+in `tests/unit/config/test_rollback.py` cover reference/schema rejection, transition
+ordering, retained-state/replay assertions and cleanup failures. Actual image
+rollback requires a hosted run with two compatible retained releases.
+
 [Release qualification](releases.md) builds one source-bound candidate and reuses
 the MySQL image checks plus critical-only scanner policy before publication.
 `tests/unit/config/test_release.py` tests source/OCI/evidence/publication failure

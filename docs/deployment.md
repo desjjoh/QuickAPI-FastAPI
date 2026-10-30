@@ -25,7 +25,15 @@ Dockerfile. Builder and runtime share that base. Only the builder installs
 `build-essential`; runtime requirements live in `/opt/venv`. The API and migration
 command run as UID/GID `10001:10001`, with root-owned application code and
 dependencies. Application logging uses standard output and needs no writable
-application directory. Curl remains installed for Compose readiness probes.
+application directory. Compose readiness probes use Python's standard-library
+HTTP client with a two-second timeout and explicit proxy bypass. Curl and its
+additional dependencies are not installed in the runtime stage.
+
+Both build stages apply available Trixie package updates. The builder installs
+the Dockerfile's pinned `PIP_VERSION` in `/opt/venv`; the runtime removes the base
+image's separate pip installation before copying that environment. The active
+runtime pip remains available for dependency consistency checks. Review installer
+pin updates alongside requirements and qualify the resulting final image in CI.
 
 ### Updating the Python base
 
