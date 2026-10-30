@@ -100,7 +100,7 @@ An unavailable service is a failure to execute the persistence suite, never a pa
 ## CI and image qualification
 
 The Quality workflow runs dependency security, static analysis, unit checks, MySQL integration/E2E jobs,
-a full MySQL coverage run, and built-image MySQL qualification. Database jobs own
+a full MySQL coverage run, built-image MySQL qualification and a Deployment gate. Database jobs own
 independent disposable infrastructure. Layer collection must be nonempty; failures
 collect bounded logs and cleanup is attempted. Dedicated TLS checks remain in the
 MySQL integration job.
@@ -111,6 +111,24 @@ findings block; high/medium findings warn and development-only findings remain
 nonblocking. Invalid evidence and scanner failures block independently. Offline
 Windows regressions use synthetic reports and fake tool runners; live scans run
 in CI and retain reports even on failure.
+
+The always-running Deployment gate directly requires all six prerequisite jobs,
+including both matrix jobs. It accepts only an explicit `success` result for each;
+failed, cancelled, skipped, missing, malformed or unexpected results block it.
+Optional steps, such as TLS in the E2E matrix entry, are evaluated through their
+owning job's overall result. Cancelling an entire workflow can cancel the gate;
+a cancelled or absent gate is not approval and must not satisfy branch protection.
+
+Existing runs emit JUnit XML for unit, MySQL integration/E2E, TLS and combined
+coverage selections. CI retains available results, coverage XML/data, bounded
+failure logs, image qualification logs, security reports and `ci-gate.json` for
+14 days with always-running artifact steps. No scanner cache or image archive
+is included. Early tool/setup failures may prevent a report from being produced;
+they still fail the job/gate. This adds no application test run.
+
+Triggers include pull requests, protected-branch pushes, merge groups, manual
+dispatch and reusable workflow calls. Workflow/gate structural checks run in the
+existing unit layer; they do not establish hosted execution or remote enforcement.
 
 ```powershell
 docker build -t quickapi-fastapi:ci .
@@ -129,8 +147,8 @@ must terminate cleanly. This does not test MySQL restarts or volume durability.
 
 Required check names and removal of obsolete duplicate contexts are documented in
 [Branch protections](branch-protection.md). Workflow definitions and local checks do
-not establish hosted success or ruleset enforcement. There is no aggregate
-fail-closed final job yet. Representative future migrations, database-volume durability,
+not establish hosted success or ruleset enforcement. The aggregate gate must be
+verified on GitHub before replacing individual required checks. Representative future migrations, database-volume durability,
 backup restoration and candidate-bound release publication remain separately scoped.
 
 ## Regression coverage

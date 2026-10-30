@@ -65,8 +65,9 @@ retention, including failures. Findings can appear in both runtime and full
 dependency reports; warning counts are per report, not unique vulnerabilities.
 Reports are time-specific advisory evidence, not proof of exploitability.
 
-The jobs fail on prohibited findings or unusable evidence. An aggregate CI gate
-and branch enforcement are tracked separately in [Milestones](milestones.md).
+The jobs fail on prohibited findings or unusable evidence. The always-running
+Deployment gate requires dependency security and production-container success;
+remote branch enforcement is tracked separately in [Milestones](milestones.md).
 Release candidates require their own bound scan; a passing PR scan does not
 approve an image rebuilt later.
 

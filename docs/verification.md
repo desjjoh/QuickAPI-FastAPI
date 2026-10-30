@@ -2,6 +2,25 @@
 
 [Documentation index](../README.md#documentation)
 
+## Aggregate CI gate and retained results
+
+Implemented on 2026-10-30 against `450468c` plus the aggregate-gate changes.
+Fifty-one focused offline Windows tests passed, covering explicit all-success,
+each required job's failure/cancellation/skip/unknown result, missing and malformed
+contexts, unexpected jobs, decision output and workflow structure. Structural
+checks require all prerequisite jobs, prohibit continue-on-error, retain both
+MySQL matrix entries, and verify triggers plus always-running bounded artifact
+uploads. Formatting, Ruff and targeted mypy passed.
+
+JUnit output is added to existing runs; no additional application test run is
+introduced. The gate itself uses Python's standard library and does not install
+application dependencies. No local MySQL/TLS/image/security scan or full suite
+was repeated for this workflow-only change. Hosted aggregate execution and
+report uploads remain pending. The GitHub ruleset is unchanged; retain current
+individual requirements until hosted gate verification and the separate ruleset
+transition are complete. Existing milestone-document formatting edits were
+preserved.
+
 ## Hosted security findings and corrections
 
 Inspected [Quality run 41089796696](https://github.com/desjjoh/QuickAPI-FastAPI/actions/runs/41089796696)
