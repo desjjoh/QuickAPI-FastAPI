@@ -125,7 +125,7 @@ data/rollback compatibility need separate evidence.
 
 Keep HTTP declarations and response-model validation in controllers, application logic in services, queries in repositories, and transport policies in middleware. Mutation commit/rollback belongs to the shared route owner. Register resources requiring startup/cleanup with the lifecycle handler and test readiness and cleanup failures.
 
-Update [API contracts](api-contracts.md) when routes/models change, [Development](development.md) when configuration changes, and [Deployment](deployment.md) when runtime behavior changes. Track unresolved limitations in [Backlog](backlog.md).
+Update [API contracts](api-contracts.md) when routes/models change, [Development](development.md) when configuration changes, and [Deployment](deployment.md) when runtime behavior changes. Track unresolved limitations in [Milestones](milestones.md).
 
 ## Request deadlines
 
@@ -136,7 +136,7 @@ See [Request deadlines and streaming](request-timeouts.md) for the pure-ASGI res
 Reference guides describe the current supported behavior in the present tense.
 Document configuration, contracts, commands, and limitations directly, without
 implementation chronology, phase-completion notes, or descriptions of superseded
-behavior. Keep implementation plans/status in the roadmap, milestones, and backlog;
+behavior. Keep implementation plans/status in Milestones;
 write verification reports as final documents organized by scope, source identity,
 results, and limitations. Verification reports also avoid phase-completion narratives.
 Update related examples and links when a contract changes.

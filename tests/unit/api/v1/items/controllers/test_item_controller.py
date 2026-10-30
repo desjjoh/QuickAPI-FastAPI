@@ -1,5 +1,6 @@
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import cast
 from unittest.mock import AsyncMock, Mock
 
@@ -39,14 +40,14 @@ async def test_controller_validates_service_results(operation: str) -> None:
     args: tuple[object, ...]
 
     if operation == 'create':
-        args = (ItemBase(name='Item', price=1, description=None),)
+        args = (ItemBase(name='Item', price=Decimal('1'), description=None),)
     elif operation == 'get_all':
         args = (ItemPaginationQuery(),)
     elif operation in {'update', 'replace'}:
         payload = (
             UpdateItemRequest.model_validate({'price': 1})
             if operation == 'update'
-            else ItemBase(name='Item', price=1, description=None)
+            else ItemBase(name='Item', price=Decimal('1'), description=None)
         )
         args = ('0123456789abcdef', payload)
     else:

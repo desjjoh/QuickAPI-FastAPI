@@ -1,6 +1,7 @@
 import os
 import unittest
 from datetime import UTC, datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import AsyncMock, patch
@@ -37,7 +38,7 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(
                 id="0123456789abcdef",
                 name="Iron Sword",
-                price=49.99,
+                price=Decimal('49.99'),
                 description="A finely crafted steel blade.",
                 created_at=timestamp,
                 updated_at=timestamp,
@@ -74,8 +75,8 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
         response, update = await self._update(payload)
 
         update.assert_awaited_once()
-        self.assertEqual(update.await_args_list[0].args[2], {"price": 59.99})
-        self.assertEqual(response.price, 59.99)
+        self.assertEqual(update.await_args_list[0].args[2], {"price": Decimal('59.99')})
+        self.assertEqual(response.price, Decimal('59.99'))
         self.assertEqual(response.name, "Iron Sword")
         self.assertEqual(response.description, "A finely crafted steel blade.")
 
@@ -87,10 +88,10 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(update.await_args_list[0].args[2], {"description": None})
         self.assertIsNone(response.description)
         self.assertEqual(response.name, "Iron Sword")
-        self.assertEqual(response.price, 49.99)
+        self.assertEqual(response.price, Decimal('49.99'))
 
     async def test_create_converts_payload_and_returns_created_item(self) -> None:
-        payload = ItemBase(name="Iron Sword", price=49.99, description=None)
+        payload = ItemBase(name="Iron Sword", price=Decimal('49.99'), description=None)
         db = AsyncMock(spec=AsyncSession)
 
         with patch.object(
@@ -144,7 +145,7 @@ class ItemServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error.exception.status_code, 404)
 
     async def test_replace_updates_all_fields_and_reports_missing_item(self) -> None:
-        payload = ItemBase(name="Replacement", price=10, description=None)
+        payload = ItemBase(name="Replacement", price=Decimal('10'), description=None)
         db = AsyncMock(spec=AsyncSession)
         update = AsyncMock(return_value=self.item)
 

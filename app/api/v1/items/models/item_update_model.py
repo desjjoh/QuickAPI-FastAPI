@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
 from pydantic_core import PydanticCustomError
 
+from app.common.models.price_model import Price
+
 
 class UpdateItemRequest(BaseModel):
     name: str | SkipJsonSchema[None] = Field(
@@ -14,10 +16,9 @@ class UpdateItemRequest(BaseModel):
         examples=["Iron Sword"],
     )
 
-    price: float | SkipJsonSchema[None] = Field(
+    price: Price | SkipJsonSchema[None] = Field(
         None,
-        ge=0,
-        description="Price of the item represented as a decimal with 2 fractional digits.",
+        description="Price from 0.01 through 99999999.99 with at most two decimal places; numbers or unsigned plain decimal strings. Excess precision is rejected.",
         examples=[49.99],
     )
 

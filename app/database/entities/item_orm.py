@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from sqlalchemy import Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,7 +16,7 @@ class ItemORM(BaseEntity):
         doc="Descriptive name of the item (max length 120).",
     )
 
-    price: Mapped[float] = mapped_column(
+    price: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         nullable=False,
         doc="Price of the item represented as a decimal with 2 fractional digits.",

@@ -1,25 +1,26 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import StrEnum
 from typing import NotRequired, TypedDict
 
 from sqlalchemy import ColumnElement, Result, Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.common.models.parameters_model import HexId
+from app.common.models.parameters_model import EntityId
 from app.database.entities.item_orm import ItemORM
 
 
 class ItemCreateData(TypedDict):
     name: str
     description: NotRequired[str | None]
-    price: float
+    price: Decimal
 
 
 class ItemUpdateData(TypedDict, total=False):
     name: str
     description: str | None
-    price: float
+    price: Decimal
 
 
 class ItemSort(StrEnum):
@@ -40,8 +41,8 @@ class ItemListQuery:
     search: str | None = None
     sort: ItemSort = ItemSort.CREATED_AT
     order: SortOrder = SortOrder.desc
-    min_price: float | None = None
-    max_price: float | None = None
+    min_price: Decimal | None = None
+    max_price: Decimal | None = None
 
 
 class ItemRepository:
@@ -111,7 +112,7 @@ class ItemRepository:
 
         return data, total
 
-    async def get_by_id(self, session: AsyncSession, id: HexId) -> ItemORM | None:
+    async def get_by_id(self, session: AsyncSession, id: EntityId) -> ItemORM | None:
         result: Result[tuple[ItemORM]] = await session.execute(
             select(ItemORM).where(ItemORM.id == id)
         )

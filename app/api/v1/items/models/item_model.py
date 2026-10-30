@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 
 from app.common.models.base_model import BaseResponse
+from app.common.models.price_model import Price
 
 
 class ItemBase(BaseModel):
@@ -12,10 +13,9 @@ class ItemBase(BaseModel):
         examples=["Iron Sword"],
     )
 
-    price: float = Field(
+    price: Price = Field(
         ...,
-        ge=0,
-        description="Price of the item represented as a decimal with 2 fractional digits.",
+        description="Price from 0.01 through 99999999.99 with at most two decimal places; excess precision is rejected. Accepts numbers or unsigned plain decimal strings; responses are numbers.",
         examples=[49.99],
     )
 

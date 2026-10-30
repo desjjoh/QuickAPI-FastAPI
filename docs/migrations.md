@@ -10,8 +10,9 @@ files describe how to create or change that schema. Each revision contains an
 `alembic_version` table records its applied revision; `head` means the latest
 revision in the checked-out application, and `base` means no applied revisions.
 
-The initial revision creates the current `items` table and its name index. IDs,
-timestamps, prices, and the HTTP contract retain their existing behavior. The
+The initial revision creates the current `items` table and its name index. Its
+16-character ID, timestamp and `Numeric(10, 2)` price columns support the
+[current item contract](api-contracts.md) without a further schema revision. The
 database itself and its MySQL user are created by Docker's MySQL initialization;
 Alembic creates the tables inside that database.
 

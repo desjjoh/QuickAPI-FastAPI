@@ -4,8 +4,8 @@
 
 ## Source and environment
 
-Verified on 2026-10-29 against base commit
-`26fa32ce781303697249598b083fa36457369229` and the local fingerprints below.
+Verified on 2026-10-30 against base commit
+`61596ef5d5d2777bda85e90d5ea9e4b76dba4b22` and the local fingerprints below.
 The candidate includes uncommitted changes; the base commit alone does not identify
 it. This report describes the current MySQL-only application and tests. Earlier
 verification snapshots remain in Git history and do not define current support.
@@ -18,16 +18,14 @@ The development database is separate and was not modified.
 
 | Check | Result |
 | --- | --- |
-| Windows full MySQL suite | 1022 passed; two POSIX-only cases skipped; five dedicated TLS cases deselected; 95.94% branch-measured application coverage |
-| Linux full MySQL suite | 1024 passed; no skips; five dedicated TLS cases deselected; 96.03% branch-measured application coverage |
-| Database-independent units | 670 passed with an unreachable configured database target; no database-backed fixtures selected |
+| Windows full MySQL suite | 1144 passed; two POSIX-only cases skipped; five dedicated TLS cases deselected; 95.99% branch-measured application coverage |
+| Linux full MySQL suite | 1146 passed; no skips; five dedicated TLS cases deselected; 96.07% branch-measured application coverage |
+| Database-independent units | 728 passed with an unreachable configured database target; no database-backed fixtures selected |
 | Dedicated TLS | Five cases passed on Windows against the separate generated-certificate MySQL server |
-| Coverage gates | Middleware 97%, lifecycle 99%, database package 95%, API 99%; all configured gates passed on both platforms |
-| Formatting/linting | Combined Black/logical-spacing check: 170 files, zero changes on Windows/Linux; independent Black check and Ruff passed |
-| Formatting safety | All 168 pre-existing Python files retain identical ASTs and comment text; 135 files received spacing changes; the new formatter/checker tests are separate tooling additions |
-| Formatter qualification | Ten cases cover spacing, comments/decorators/docstrings, exclusions/strings, syntax preservation, idempotence, exit codes, invalid-source safety, Unicode/CRLF, discovery and editor buffer/selection protocols; final focused Windows run passed |
+| Coverage gates | Middleware 97%, lifecycle 99%, database package 95%, API 99%; all configured gates passed on Windows and Linux |
+| Formatting/linting | Combined Black/logical-spacing check: 173 files, zero changes on Windows/Linux; Ruff passed |
 | Format enforcement | CI static analysis runs scripts.format_code --check; VS Code format-on-save uses the same formatter through Black Formatter; no additional Python dependency introduced |
-| Type checking | mypy: 71 application/tool files passed; strict Pyright: 15 affected files, zero diagnostics, using explicit installed typeshed |
+| Type checking | mypy: 72 application/tool files passed; strict Pyright: affected Python files, zero diagnostics, using explicit installed typeshed |
 | Dependencies | Local and fresh-image pip checks passed; removed optional database driver absent from both; pytest absent from runtime image |
 | Transaction HTTP qualification | Existing 32-case preparation/ownership module and 23 real HTTP/MySQL expiry, uncertainty and rollback-loss cases pass in both full suites |
 | Forced-exit diagnostics | Watchdog and repeated-signal paths terminate with status 1 even when stderr raises OSError or BrokenPipeError |
@@ -46,10 +44,28 @@ The development database is separate and was not modified.
 | Safety | Live identity checks, exclusive reset guards, destructive schema restoration, unavailable-target failure, and isolated command-lock tests pass |
 | CI definition | Unit job, MySQL integration/E2E, full MySQL coverage, dedicated TLS and independent MySQL image qualification; YAML parses |
 | Image-runner failures | Database startup, HTTP-check, and artifact-write failures all attempt disposable-project teardown |
-| Built runtime image | sha256:cc8850be6b7e1c5ff2f1df37212c16525dfd040b40f29a19f50846495d4e800b |
+| Built runtime image | sha256:97709d19dec42afd641abf3710170a2ad78c7ebfbb5de97ea5e359352f05ccbf |
 | Built-image MySQL qualification | Explicit migration, CRUD, probes, favicon, production exposure defaults, pip check, Docker SIGTERM, exit zero and final success record passed |
 | Cleanup | Generated TLS material, independent smoke/TLS projects and verification containers removed; existing development/regular test services retained |
 | Hosted CI / branch enforcement | Not run / not independently verified for this candidate |
+
+The initial Linux run had 1145 passes and one database fixture setup error: a new
+connection exceeded the one-second acquisition deadline. A complete repeat after
+the independent image/TLS jobs finished passed without application or test changes.
+This records the observed local timing sensitivity rather than hiding the first result.
+
+## Item contract evidence
+
+The new exact-price module covers 55 unit cases; the new MySQL contract module
+covers 62 cases. Evidence includes exact storage and numeric JSON round trips,
+rejected POST/PUT/PATCH writes leaving data unchanged, non-finite input rejection,
+inclusive fractional filters, accepted alphanumeric IDs, and controller validation
+rolling back writes against invalid stored prices. OpenAPI records numeric/string
+inputs and numeric outputs with camelCase response timestamps.
+
+A local comparison against the actual Express price validator at commit
+`eed860ca5d5d2549b6d7d1534063bfd54ff9b1bb` matched acceptance and normalized numeric
+output for all 33 shared JSON-compatible cases. Node is not a FastAPI test dependency.
 
 ## Boundaries
 
@@ -62,12 +78,13 @@ qualification with their own temporary server, rather than ordinary-suite passes
 Destructive migration cases hold the exclusive test guard and restore the baseline
 before releasing it. Both schema fixtures and row-reset fixtures verify the permitted
 live database/user. No migrations are applied automatically by application startup.
-The application schema and public item contracts are unchanged. Repository callers
-now own their transaction explicitly, as described in [Mutation transactions](transactions.md).
+The schema is unchanged. Item JSON now uses camelCase timestamp aliases, IDs accept
+ASCII letters and digits, and prices enforce exact two-decimal bounds. See
+[API contracts](api-contracts.md). Repository callers own their transaction explicitly,
+as described in [Mutation transactions](transactions.md).
 Item and system controllers delegate application logic to services, then validate
 the returned data into JSON response models, as described in
-[Controllers and services](services.md). Existing route
-contracts, transaction ownership and expiry/shutdown boundaries are retained.
+[Controllers and services](services.md). Transaction ownership and expiry/shutdown boundaries are retained.
 
 Real constraint-rejection cases verify rollback after an earlier successful write.
 Expiry tests hold actual MySQL protocol packets rather than simulating commit
@@ -76,8 +93,9 @@ committed before an acknowledgement reaches the driver. Rollback barriers are ar
 after initial connection setup so they interrupt rollback of an actual application
 write. Combined process tests check that dependency teardown precedes service
 cleanup and that stuck transaction work reaches the final watchdog, rather than
-merely accepting any nonzero exit. Application code is unchanged after full-suite
-qualification.
+merely accepting any nonzero exit. After the Windows full run, only custom price
+error punctuation was adjusted; 65 focused price/OpenAPI checks passed afterward.
+The Linux qualification uses that final application source.
 Coverage describes application code executed in the parent test process; it is not
 an aggregate of native application or Alembic subprocess coverage. MySQL migration
 DDL is not claimed to be transactionally reversible. The database-package threshold
@@ -99,8 +117,8 @@ workflow definitions do not establish hosted check execution or ruleset enforcem
 
 ## Input fingerprints
 
-The Python tree digest for all 170 files under `app`, `tests` and `scripts` is
-`f813f59fb39db0d5b4f5106e0e56c00b0a09b287b8170b4dfeee96922391c973`. It hashes sorted project-relative POSIX paths, each followed
+The Python tree digest for all 173 files under `app`, `tests` and `scripts` is
+`714bb859dd0633bd435c10aabcba67bb1117f4b5d6389a779a091737e78e7967`. It hashes sorted project-relative POSIX paths, each followed
 by a NUL byte, the raw file bytes and another NUL byte. The table records formatter,
 CI, editor and runtime configuration inputs separately. Local `.env` secrets are excluded.
 

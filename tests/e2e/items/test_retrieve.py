@@ -14,7 +14,7 @@ async def test_retrieve_existing_item(client: httpx.AsyncClient) -> None:
     assert response.json() == item
 
 
-@pytest.mark.parametrize("item_id", ["short", "g" * 16, "A" * 16, "0" * 17])
+@pytest.mark.parametrize("item_id", ["short", "_" * 16, "-" * 16, "0" * 17])
 async def test_retrieve_rejects_syntactically_invalid_ids(
     client: httpx.AsyncClient, item_id: str
 ) -> None:

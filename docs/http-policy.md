@@ -125,7 +125,7 @@ Uvicorn keep-alive timing is also not a header-receive timeout. No ineffective
 
 True header/whole-upload receive protection requires a supported server or the
 selected ingress. Configuration and real slow-client verification remain open in
-the deployment backlog; application settings alone do not complete that guarantee.
+the hosting-dependent milestones; application settings alone do not complete that guarantee.
 
 ## Operational availability
 

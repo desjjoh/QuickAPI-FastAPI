@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator
+from decimal import Decimal
 from typing import Any
 
 import httpx
@@ -101,7 +102,7 @@ async def test_mutation_preparation_and_precommit_failures_roll_back_mysql(
     )
 
     async with factory() as seed, seed.begin():
-        before = ItemORM(name='Before', price=1, description='Original')
+        before = ItemORM(name='Before', price=Decimal('1'), description='Original')
 
         seed.add(before)
         await seed.flush()
@@ -219,8 +220,8 @@ async def test_transactional_crud_preserves_status_and_response_contract(
         'name',
         'description',
         'price',
-        'created_at',
-        'updated_at',
+        'createdAt',
+        'updatedAt',
     }
     path = '/api/v1/items/' + first['id']
     patched = await client.patch(path, json={'description': 'Changed'})
@@ -265,7 +266,7 @@ async def test_transaction_route_rejects_deferred_work_and_rolls_back_error_resp
     @router.post('/transaction-test')
     @transactional
     async def operation(db: AsyncSession = Depends(database.get_session)) -> Response:
-        await repo.create(db, item_in={'name': 'Discarded', 'price': 1})
+        await repo.create(db, item_in={'name': 'Discarded', 'price': Decimal('1')})
         if kind == 'stream':
 
             async def stream() -> AsyncIterator[bytes]:
@@ -316,7 +317,9 @@ async def test_dependencies_share_one_owner_and_cannot_autobegin_after_commit(
     ) -> dict[str, bool]:
         assert service.db is first is second and first.in_transaction()
         sessions.append(first)
-        await service.create(ItemBase(name='Committed', price=1, description=None))
+        await service.create(
+            ItemBase(name='Committed', price=Decimal('1'), description=None)
+        )
 
         return {'done': True}
 

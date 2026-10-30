@@ -9,7 +9,7 @@ from app.api.v1.items.models.item_model import ItemBase
 from app.api.v1.items.models.item_update_model import UpdateItemRequest
 from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
 from app.common.models.converter import model_to
-from app.common.models.parameters_model import HexId
+from app.common.models.parameters_model import EntityId
 from app.config.database import get_session
 from app.database.entities.item_orm import ItemORM
 from app.database.repositories.item_repo import (
@@ -38,7 +38,7 @@ class ItemService:
 
         return items, count
 
-    async def get(self, id: HexId) -> ItemORM:
+    async def get(self, id: EntityId) -> ItemORM:
         item = await repo.get_by_id(self.db, id)
 
         if item is None:
@@ -46,7 +46,7 @@ class ItemService:
 
         return item
 
-    async def update(self, id: HexId, payload: UpdateItemRequest) -> ItemORM:
+    async def update(self, id: EntityId, payload: UpdateItemRequest) -> ItemORM:
         item = await repo.get_by_id(self.db, id)
 
         if item is None:
@@ -58,7 +58,7 @@ class ItemService:
 
         return updated
 
-    async def replace(self, id: HexId, payload: ItemBase) -> ItemORM:
+    async def replace(self, id: EntityId, payload: ItemBase) -> ItemORM:
         item = await repo.get_by_id(self.db, id)
 
         if item is None:
@@ -70,7 +70,7 @@ class ItemService:
 
         return updated
 
-    async def delete(self, id: HexId) -> ItemORM:
+    async def delete(self, id: EntityId) -> ItemORM:
         item = await repo.get_by_id(self.db, id)
 
         if item is None:

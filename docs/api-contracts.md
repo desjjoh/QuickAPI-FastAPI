@@ -4,6 +4,10 @@
 
 ## Scope and source of truth
 
+This guide describes currently implemented behavior. The
+[item specification](item-contract-specification.md) records the agreed Express
+alignment target; it does not change the running contract until implemented.
+
 When `DOCS_ENABLED=true`, the app exposes `/docs`, `/redoc`, and `/openapi.json`; documentation defaults off in production. The schema reflects the registered endpoint surface. See [operational exposure](operational-exposure.md). Contracts live in the [item controller](../app/api/v1/items/controllers/item_controller.py), [item models](../app/api/v1/items/models), and [shared models](../app/common/models). No account, authentication, or article routes are implemented.
 
 ## Items
@@ -17,11 +21,17 @@ When `DOCS_ENABLED=true`, the app exposes `/docs`, `/redoc`, and `/openapi.json`
 | PUT    | `/api/v1/items/{id}` | 200     | Replace using the full input model      |
 | DELETE | `/api/v1/items/{id}` | 200     | Return the deleted item                 |
 
-IDs are exactly 16 lowercase hexadecimal characters. Invalid IDs/payloads return 422; missing items return 404. Responses include `id`, `name`, `price`, `description`, `created_at`, and `updated_at`.
+IDs are exactly 16 ASCII alphanumeric characters, including upper/lowercase letters. Existing hexadecimal IDs remain valid. Invalid IDs/payloads return 422; missing items return 404. Responses include `id`, `name`, `price`, `description`, `createdAt`, and `updatedAt`.
 
-Create/replace require `name` (1–120 characters) and `price` (a non-negative float). `description` is optional, nullable, and at most 500 characters. Omitting it on PUT resets it to null. PATCH requires at least one recognized supplied field, rejects explicit null for `name`/`price`, and allows null to clear `description`.
+Create/replace require `name` (1–120 characters) and `price`. `description` is optional, nullable, and at most 500 characters. Omitting it on PUT resets it to null. PATCH requires at least one recognized supplied field, rejects explicit null for `name`/`price`, and allows null to clear `description`.
 
-Storage uses `Numeric(10, 2)`, but request models do not enforce matching precision/range. Exact decimal validation and database-engine parity are unresolved; see [Backlog](backlog.md).
+Prices must be between `0.01` and `99999999.99`, with at most two decimal places. Accept JSON numbers or unsigned plain decimal strings such as `"12.34"`. Strings reject whitespace, signs, exponent notation and more than two fractional digits, including trailing zeros. Boolean, non-finite, zero, negative, excessive-precision and out-of-range values return 422 without rounding. JSON numeric spelling is interpreted after parsing, so numeric `1.230` is accepted as `1.23`.
+
+Models, services and MySQL `Numeric(10, 2)` storage retain exact `Decimal` values. Responses serialize prices as JSON numbers and validate the same range and precision. Python/ORM timestamp attributes remain `created_at` and `updated_at`; JSON uses the aliases above.
+
+These rules require no schema migration. Existing rows outside the accepted price
+range fail response validation; repair them explicitly before reading them through
+the API. Development data is never reset automatically.
 
 ## Collection queries
 
@@ -32,10 +42,10 @@ Storage uses `Numeric(10, 2)`, but request models do not enforce matching precis
 | `sort`      | `price` | `name`, `price`, or `created_at`                   |
 | `order`     | `asc`   | `asc` or `desc`                                    |
 | `search`    | Absent  | Case-insensitive SQL LIKE over name or description |
-| `min_price` | Absent  | Non-negative; cannot exceed `max_price`            |
-| `max_price` | Absent  | Non-negative                                       |
+| `min_price` | Absent  | Same exact price rules; cannot exceed `max_price` |
+| `max_price` | Absent  | Same exact price rules                            |
 
-The JSON envelope contains `data`, `total`, `page`, and `limit`. `total_pages` is a Python property, not a serialized field. Search includes SQL LIKE `%` and `_` wildcard semantics. Sorting has no unique tie-breaker, so equal values do not guarantee stable page ordering.
+Both price bounds are inclusive. The JSON envelope contains `data`, `total`, `page`, and `limit`. `total_pages` is a Python property, not a serialized field. Search includes SQL LIKE `%` and `_` wildcard semantics. Sorting has no unique tie-breaker, so equal values do not guarantee stable page ordering. The current sort query token remains `created_at`, even though response timestamps use camelCase.
 
 ## Error contract
 

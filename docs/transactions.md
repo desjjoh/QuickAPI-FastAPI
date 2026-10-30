@@ -78,11 +78,13 @@ for mutations and never commit, roll back, or open a transaction independently.
 Callers outside the HTTP route boundary must own the transaction explicitly:
 
 ```python
+from decimal import Decimal
+
 async with SessionLocal(autobegin=False) as db:
     async with db.begin():
-        first = await repo.create(db, item_in={"name": "First", "price": 1})
+        first = await repo.create(db, item_in={"name": "First", "price": Decimal("1.00")})
         await repo.update(db, first, {"description": "Saved together"})
-        await repo.create(db, item_in={"name": "Second", "price": 2})
+        await repo.create(db, item_in={"name": "Second", "price": Decimal("2.00")})
 ```
 
 All operations above commit together on context exit. A repository return value is

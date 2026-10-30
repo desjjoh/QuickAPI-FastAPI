@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 import httpx
@@ -31,14 +32,15 @@ async def test_create_rejects_invalid_payloads(
     assert_validation_error(await client.post(ITEMS_URL, json=payload))
 
 
-@pytest.mark.parametrize("price", [0, 0.01, 12.345])
-async def test_create_accepts_zero_and_fractional_prices(
-    client: httpx.AsyncClient, price: float
+@pytest.mark.parametrize("price", [0.01, 12.34, 99999999.99, '12.34'])
+async def test_create_accepts_exact_prices(
+    client: httpx.AsyncClient, price: float | str
 ) -> None:
     response = await client.post(ITEMS_URL, json={"name": "Priced", "price": price})
 
     assert response.status_code == 201
-    assert response.json()["price"] == pytest.approx(round(price, 2))
+    assert response.json()["price"] == float(price)
+    assert isinstance(response.json()['price'], (float, int))
 
 
 async def test_create_accepts_optional_and_null_description(
@@ -82,13 +84,13 @@ async def test_create_returns_and_persists_complete_resource(
         "name",
         "price",
         "description",
-        "created_at",
-        "updated_at",
+        "createdAt",
+        "updatedAt",
     }
     assert len(body["id"]) == 16
-    int(body["id"], 16)
-    datetime.fromisoformat(body["created_at"])
-    datetime.fromisoformat(body["updated_at"])
+    assert re.fullmatch(r'[A-Za-z0-9]{16}', body['id'])
+    datetime.fromisoformat(body["createdAt"])
+    datetime.fromisoformat(body["updatedAt"])
     persisted = await client.get(f"{ITEMS_URL}{body['id']}")
 
     assert persisted.status_code == 200

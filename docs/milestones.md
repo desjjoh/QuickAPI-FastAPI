@@ -48,15 +48,16 @@ and verification requirements.
 
 ### Milestone 5 — Item API contract alignment
 
-Review the concrete client-facing changes before implementing this milestone.
+The [item specification](item-contract-specification.md) records the agreed Express
+contract. Runtime alignment is delivered and verified by the remaining phases.
 
-| Phase                             | Scope                                                                                              | Completion check                                                                                                |
-| --------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **5A — Compatibility decisions**  | IDs, timestamp/sort names, page defaults, price rules, deletion route, versions, and retry headers | Agreed before/after contract and migration implications                                                         |
-| **5B — Exact prices and filters** | Decimal precision/range, accepted inputs, response validation, inclusive price filters             | Boundary/malformed/excess-precision tests pass; rejected mutations leave MySQL unchanged                        |
-| **5C — Deterministic pagination** | Unique sorting tie-breaker, safe offsets, repeated/crossed query validation                        | Equal-sort-value pages are deterministic for unchanged data; pagination limits are documented                   |
-| **5D — Optimistic concurrency**   | Revision migration/backfill, required `expected_version`, stale-write/delete protection            | Concurrent writes, missing rows, overflow, rollback, and upgrade compatibility tests pass                       |
-| **5E — Durable idempotency**      | Optional keys, fingerprinting, atomic replay, conflicts, retention, bounded cleanup                | MySQL/HTTP tests cover duplicate concurrency, replay, failure rollback, expiry, cleanup, and later item changes |
+| Phase                                                             | Scope                                                                                                                             | Completion check                                                                                                   |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **5A — Compatibility decisions (complete locally)**               | Express IDs, timestamp/sort names, page defaults, price rules, deletion route, versions and retry contract                        | Item specification accepted; runtime implementation remains tracked below                                          |
+| **5B — Item models, exact prices and filters (complete locally)** | Alphanumeric IDs, response timestamp aliases, Decimal precision/range, accepted inputs, response validation and inclusive filters | Identity/model and price-boundary tests pass; rejected mutations leave MySQL unchanged; hosted CI remains separate |
+| **5C — Deterministic pagination**                                 | Unique sorting tie-breaker, safe offsets, agreed query names/defaults, repeated/crossed query validation                                                       | Equal-sort-value pages are deterministic for unchanged data; pagination limits are documented                      |
+| **5D — Optimistic concurrency**                                   | Revision migration/backfill, required `expected_version`, stale-write protection and agreed deletion route                                           | Concurrent writes, missing rows, overflow, rollback, and upgrade compatibility tests pass                          |
+| **5E — Durable idempotency**                                      | Optional keys, fingerprinting, atomic replay, conflicts, retention, bounded cleanup                                               | MySQL/HTTP tests cover duplicate concurrency, replay, failure rollback, expiry, cleanup, and later item changes    |
 
 ### Milestone 6 — Production container and CI enforcement
 
@@ -89,3 +90,20 @@ Tracked now, executed when hosting is selected.
 Full authentication/authorization remains a separate scope decision. Shared Redis rate limiting remains deferred until deployment-wide enforcement is needed.
 
 Each phase includes implementation, relevant tests, documentation, and recorded evidence. Reassess estimates when dependency or environment constraints change.
+
+## Planning and verification boundaries
+
+This is the single source of truth for implementation scope, status and deferred
+work. Reference guides describe supported behavior; [Verification](verification.md)
+records dated execution evidence.
+
+- Express defines the agreed item contract; use native Python mechanisms and retain controller response validation and service ownership.
+- Use pip with manually maintained requirements. Runtime and development dependencies remain separate.
+- Local verification uses focused Windows tests and relevant static checks. Run the full Windows suite only when scope warrants it; leave Linux, TLS and production-image qualification to CI. Repeat checks only when changes or failures justify it.
+- Application HTTP settings do not establish slow-header or whole-upload transport protection. Server/ingress configuration and deployed checks remain under 8A.
+- Every future schema change needs representative-data upgrade and supported rollback evidence. Migration rollback does not establish backup restoration; image rollback requires schema compatibility.
+- Authentication/authorization remain outside the small items API's scope. CORS and unused keys provide no authentication. Shared Redis rate limiting is deferred until deployment-wide enforcement is needed.
+- The maintainer confirmed required-check configuration on 2026-10-29; candidate-specific hosted execution and ruleset enforcement still require independent verification under 6E.
+
+Keep passed, failed, skipped, not-run and unavailable evidence distinct. Local
+coverage or workflow definitions alone do not establish a verified release.

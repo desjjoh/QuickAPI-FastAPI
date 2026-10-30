@@ -149,7 +149,7 @@ def test_item_operation_parameters_and_request_bodies(schema: dict[str, Any]) ->
             "path",
             True,
         )
-        assert parameter["schema"]["pattern"] == "^[0-9a-f]{16}$"
+        assert parameter["schema"]["pattern"] == "^[A-Za-z0-9]{16}$"
         assert (
             parameter["schema"]["minLength"] == parameter["schema"]["maxLength"] == 16
         )
@@ -190,6 +190,34 @@ def test_success_and_pagination_schemas(schema: dict[str, Any]) -> None:
         pagination["properties"][key]["type"] == "integer"
         for key in ("total", "page", "limit")
     )
+
+
+def test_item_price_input_and_output_schemas_and_timestamp_aliases(
+    schema: dict[str, Any],
+) -> None:
+    schemas = schema['components']['schemas']
+    numeric = {
+        'type': 'number',
+        'minimum': 0.01,
+        'maximum': 99999999.99,
+        'multipleOf': 0.01,
+    }
+
+    for model in ['ItemBase', 'UpdateItemRequest']:
+        price = schemas[model]['properties']['price']
+
+        assert numeric in price['anyOf']
+        assert any(
+            option.get('type') == 'string' and option.get('pattern')
+            for option in price['anyOf']
+        )
+
+    output = schemas['ItemResponse']['properties']
+
+    assert all(output['price'][key] == value for key, value in numeric.items())
+    assert {'createdAt', 'updatedAt'} <= output.keys()
+    assert not {'created_at', 'updated_at'} & output.keys()
+    assert output['id']['pattern'] == '^[A-Za-z0-9]{16}$'
 
 
 def test_operational_json_contracts_are_strict_and_complete(
@@ -316,7 +344,10 @@ def test_patch_nullable_and_required_representation(schema: dict[str, Any]) -> N
 
     assert "required" not in update
     assert update["properties"]["name"]["type"] == "string"
-    assert update["properties"]["price"]["type"] == "number"
+    assert {entry['type'] for entry in update['properties']['price']['anyOf']} == {
+        'number',
+        'string',
+    }
     assert {
         entry["type"] for entry in update["properties"]["description"]["anyOf"]
     } == {"string", "null"}

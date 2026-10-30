@@ -21,7 +21,7 @@ async def test_list_multiple_final_and_out_of_range_pages(
     client: httpx.AsyncClient,
 ) -> None:
     for index in range(5):
-        await create_item(client, f"Item {index}", float(index))
+        await create_item(client, f"Item {index}", float(index + 1))
 
     first = (await client.get(ITEMS_URL, params={"page": 1, "limit": 2})).json()
     second = (await client.get(ITEMS_URL, params={"page": 2, "limit": 2})).json()
@@ -86,10 +86,12 @@ async def test_list_supports_every_sort_and_order(
 
     if sort == "created_at":
         expected = sorted(
-            created, key=lambda item: (item[sort], item["id"]), reverse=reverse
+            created, key=lambda item: (item['createdAt'], item["id"]), reverse=reverse
         )
 
-        assert [item[sort] for item in actual] == [item[sort] for item in expected]
+        assert [item['createdAt'] for item in actual] == [
+            item['createdAt'] for item in expected
+        ]
     else:
         assert [item[sort] for item in actual] == sorted(
             [item[sort] for item in created], reverse=reverse

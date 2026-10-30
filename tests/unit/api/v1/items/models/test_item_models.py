@@ -11,7 +11,7 @@ pytestmark = pytest.mark.unit
 @pytest.mark.parametrize(
     "payload",
     [
-        {"name": "a", "price": 0},
+        {"name": "a", "price": 0.01},
         {"name": "a" * 120, "price": 1.25, "description": None},
         {"name": "item", "price": 3, "description": "x" * 500},
     ],
@@ -41,7 +41,7 @@ def test_item_base_rejects_invalid_payloads(payload: dict[str, object]) -> None:
     "payload",
     [
         {"name": "renamed"},
-        {"price": 0},
+        {"price": 1},
         {"description": None},
         {"name": "renamed", "price": 2, "description": "new"},
     ],
@@ -85,8 +85,8 @@ def test_update_distinguishes_omitted_fields() -> None:
     [
         {},
         {"page": 1, "limit": 100, "sort": "name", "order": "desc"},
-        {"min_price": 0},
-        {"max_price": 0},
+        {"min_price": 0.01},
+        {"max_price": 0.01},
         {"min_price": 1, "max_price": 1},
     ],
 )

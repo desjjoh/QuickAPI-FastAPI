@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from decimal import Decimal
 from unittest.mock import AsyncMock
 
 import pytest
@@ -33,15 +34,19 @@ async def seed(session: AsyncSession) -> list[ItemORM]:
     return [
         await repository.create(
             session,
-            item_in={"name": "Alpha", "description": None, "price": 10},
+            item_in={"name": "Alpha", "description": None, "price": Decimal('10')},
         ),
         await repository.create(
             session,
-            item_in={"name": "Bravo", "description": "alpha detail", "price": 20},
+            item_in={
+                "name": "Bravo",
+                "description": "alpha detail",
+                "price": Decimal('20'),
+            },
         ),
         await repository.create(
             session,
-            item_in={"name": "Charlie", "description": "last", "price": 30},
+            item_in={"name": "Charlie", "description": "last", "price": Decimal('30')},
         ),
     ]
 
@@ -54,7 +59,8 @@ async def test_create_get_all_get_by_id_update_and_delete(
 
     async with sessions() as session, session.begin():
         item = await repository.create(
-            session, item_in={"name": "Original", "description": None, "price": 2.5}
+            session,
+            item_in={"name": "Original", "description": None, "price": Decimal('2.5')},
         )
 
         assert list(await repository.get_all(session)) == [item]
@@ -63,7 +69,9 @@ async def test_create_get_all_get_by_id_update_and_delete(
 
         assert (
             await repository.update(
-                session, item, {"name": "Updated", "description": "saved", "price": 3}
+                session,
+                item,
+                {"name": "Updated", "description": "saved", "price": Decimal('3')},
             )
             is item
         )
@@ -100,12 +108,16 @@ async def test_create_get_all_get_by_id_update_and_delete(
             0,
         ),
         (
-            ItemListQuery(limit=10, offset=0, min_price=20, sort=ItemSort.ITEM_NAME),
+            ItemListQuery(
+                limit=10, offset=0, min_price=Decimal('20'), sort=ItemSort.ITEM_NAME
+            ),
             ["Charlie", "Bravo"],
             2,
         ),
         (
-            ItemListQuery(limit=10, offset=0, max_price=20, sort=ItemSort.ITEM_NAME),
+            ItemListQuery(
+                limit=10, offset=0, max_price=Decimal('20'), sort=ItemSort.ITEM_NAME
+            ),
             ["Bravo", "Alpha"],
             2,
         ),
@@ -113,8 +125,8 @@ async def test_create_get_all_get_by_id_update_and_delete(
             ItemListQuery(
                 limit=10,
                 offset=0,
-                min_price=15,
-                max_price=25,
+                min_price=Decimal('15'),
+                max_price=Decimal('25'),
                 sort=ItemSort.ITEM_NAME,
             ),
             ["Bravo"],
@@ -169,7 +181,7 @@ async def test_owner_commit_failure_rolls_back_and_session_is_reusable(
     async with sessions() as session:
         async with session.begin():
             existing = await repository.create(
-                session, item_in={"name": "Before", "price": 1}
+                session, item_in={"name": "Before", "price": Decimal('1')}
             )
 
         def fail_before_commit(*_: object) -> None:
@@ -182,7 +194,7 @@ async def test_owner_commit_failure_rolls_back_and_session_is_reusable(
                 async with session.begin():
                     if operation == "create":
                         await repository.create(
-                            session, item_in={"name": "Partial", "price": 99}
+                            session, item_in={"name": "Partial", "price": Decimal('99')}
                         )
                     elif operation == "update":
                         await repository.update(session, existing, {"name": "Partial"})
@@ -193,7 +205,9 @@ async def test_owner_commit_failure_rolls_back_and_session_is_reusable(
 
         assert not session.in_transaction()
         async with session.begin():
-            await repository.create(session, item_in={"name": "Reusable", "price": 2})
+            await repository.create(
+                session, item_in={"name": "Reusable", "price": Decimal('2')}
+            )
 
     async with sessions() as fresh:
         assert list(
@@ -210,7 +224,7 @@ async def test_owner_refresh_failure_rolls_back_and_session_is_reusable(
     async with sessions() as session:
         async with session.begin():
             existing = await repository.create(
-                session, item_in={"name": "Before", "price": 1}
+                session, item_in={"name": "Before", "price": Decimal('1')}
             )
 
         real_refresh = session.refresh
@@ -220,7 +234,7 @@ async def test_owner_refresh_failure_rolls_back_and_session_is_reusable(
             async with session.begin():
                 if operation == "create":
                     await repository.create(
-                        session, item_in={"name": "Partial", "price": 99}
+                        session, item_in={"name": "Partial", "price": Decimal('99')}
                     )
                 else:
                     await repository.update(session, existing, {"name": "Partial"})
@@ -229,7 +243,9 @@ async def test_owner_refresh_failure_rolls_back_and_session_is_reusable(
 
         assert not session.in_transaction()
         async with session.begin():
-            await repository.create(session, item_in={"name": "Reusable", "price": 2})
+            await repository.create(
+                session, item_in={"name": "Reusable", "price": Decimal('2')}
+            )
 
     async with sessions() as fresh:
         assert list(
@@ -246,11 +262,13 @@ async def test_repositories_join_one_owner_and_never_commit_partially(
         with pytest.raises(RuntimeError, match="owner failure"):
             async with session.begin():
                 item = await repository.create(
-                    session, item_in={"name": "First", "price": 1}
+                    session, item_in={"name": "First", "price": Decimal('1')}
                 )
 
                 await repository.update(session, item, {"name": "Changed"})
-                await repository.create(session, item_in={"name": "Second", "price": 2})
+                await repository.create(
+                    session, item_in={"name": "Second", "price": Decimal('2')}
+                )
                 async with sessions() as observer:
                     assert list(await observer.scalars(select(ItemORM.name))) == []
 
@@ -267,12 +285,12 @@ async def test_mutation_requires_a_caller_transaction(
     repository = ItemRepository()
 
     async with sessions() as session:
-        item = ItemORM(name="Untouched", price=1)
+        item = ItemORM(name="Untouched", price=Decimal('1'))
 
         with pytest.raises(RuntimeError, match="caller-owned transaction"):
             if operation == "create":
                 await repository.create(
-                    session, item_in={"name": "Rejected", "price": 1}
+                    session, item_in={"name": "Rejected", "price": Decimal('1')}
                 )
             elif operation == "update":
                 await repository.update(session, item, {"name": "Changed"})

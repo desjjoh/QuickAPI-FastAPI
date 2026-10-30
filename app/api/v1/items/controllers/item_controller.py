@@ -9,7 +9,7 @@ from app.api.v1.items.services.item_service import ItemService, get_item_service
 from app.common.handlers.application_route import ApplicationRoute, transactional
 from app.common.models.error_model import ErrorResponse
 from app.common.models.pagination import PaginatedResult
-from app.common.models.parameters_model import HexId
+from app.common.models.parameters_model import EntityId
 
 router: APIRouter = APIRouter(route_class=ApplicationRoute)
 
@@ -68,7 +68,7 @@ async def get_all(
     },
 )
 async def get(
-    id: HexId, service: ItemService = Depends(get_item_service)
+    id: EntityId, service: ItemService = Depends(get_item_service)
 ) -> ItemResponse:
     item = await service.get(id)
 
@@ -91,7 +91,7 @@ async def get(
 )
 @transactional
 async def update(
-    id: HexId,
+    id: EntityId,
     payload: UpdateItemRequest,
     service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
@@ -116,7 +116,7 @@ async def update(
 )
 @transactional
 async def replace(
-    id: HexId, payload: ItemBase, service: ItemService = Depends(get_item_service)
+    id: EntityId, payload: ItemBase, service: ItemService = Depends(get_item_service)
 ) -> ItemResponse:
     item = await service.replace(id, payload)
 
@@ -139,7 +139,7 @@ async def replace(
 )
 @transactional
 async def delete(
-    id: HexId, service: ItemService = Depends(get_item_service)
+    id: EntityId, service: ItemService = Depends(get_item_service)
 ) -> ItemResponse:
     item = await service.delete(id)
 

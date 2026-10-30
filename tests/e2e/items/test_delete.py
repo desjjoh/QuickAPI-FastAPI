@@ -20,7 +20,7 @@ async def test_delete_existing_item_and_persisted_absence(
     assert listing["total"] == 0 and listing["data"] == []
 
 
-@pytest.mark.parametrize("item_id", ["bad", "z" * 16, "0" * 15])
+@pytest.mark.parametrize("item_id", ["bad", "_" * 16, "0" * 15])
 async def test_delete_rejects_syntactically_invalid_ids(
     client: httpx.AsyncClient, item_id: str
 ) -> None:

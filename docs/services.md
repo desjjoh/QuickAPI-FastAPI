@@ -32,6 +32,11 @@ session. Services and repositories never independently commit or roll back an
 HTTP mutation. A new request gets a new service/session; no mutable session is
 stored on an application-wide item singleton.
 
+Item prices remain `Decimal` through request validation, services and repositories.
+Controllers validate the returned ORM values, and response models serialize prices
+as JSON numbers with `createdAt`/`updatedAt` timestamp aliases. No service-side
+float conversion is needed.
+
 ```python
 @router.post("/", response_model=ItemResponse, status_code=201)
 @transactional
