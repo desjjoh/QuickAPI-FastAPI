@@ -2,6 +2,23 @@
 
 [Documentation index](../README.md#documentation)
 
+## Runtime container hardening
+
+Checked on Windows with Python 3.12.10 on 2026-10-30 against `8b6b5c5`
+plus the runtime-hardening changes. Six focused image-qualification orchestration
+tests passed, including configured-root rejection, runtime-check failure cleanup,
+and successful check ordering/termination. The combined formatter, Ruff and
+targeted mypy checks passed. Both embedded container check programs compile.
+
+The official registry manifest for `python:3.12.16-slim-bookworm` was inspected;
+its index digest matches the Dockerfile pin. No image build or Linux container
+execution was performed locally. Effective UID/GID, filesystem permissions,
+dependency contents, migrations and HTTP/MySQL startup remain pending the
+production-container CI job. These local script tests do not establish those
+runtime properties. No environment settings or database schema changed.
+
+The following sections retain the earlier idempotency verification snapshot.
+
 ## Source and scope
 
 Verified locally on Windows with Python 3.12.10 on 2026-10-30 against base commit

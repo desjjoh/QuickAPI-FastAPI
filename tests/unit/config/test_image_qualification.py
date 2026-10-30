@@ -9,7 +9,10 @@ from scripts import test_image
 pytestmark = pytest.mark.unit
 
 
-@pytest.mark.parametrize('failure', ['database_start', 'http_checks', 'artifact_write'])
+@pytest.mark.parametrize(
+    'failure',
+    ['database_start', 'http_checks', 'runtime_checks', 'image_user', 'artifact_write'],
+)
 def test_image_failure_always_removes_disposable_project(
     failure: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -17,8 +20,10 @@ def test_image_failure_always_removes_disposable_project(
 
     def run(arguments: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         calls.append(arguments)
-        if (failure == 'database_start' and 'up' in arguments) or (
-            failure == 'http_checks' and test_image.HTTP_CHECKS in arguments
+        if (
+            (failure == 'database_start' and 'up' in arguments)
+            or (failure == 'http_checks' and test_image.HTTP_CHECKS in arguments)
+            or (failure == 'runtime_checks' and test_image.RUNTIME_CHECKS in arguments)
         ):
             raise subprocess.CalledProcessError(
                 1, arguments, output='Test failure', stderr='Test diagnostic'
@@ -28,6 +33,9 @@ def test_image_failure_always_removes_disposable_project(
 
         if 'inspect' in arguments:
             result = '0'
+
+        if arguments[:3] == ['docker', 'image', 'inspect']:
+            result = 'root' if failure == 'image_user' else '10001:10001'
 
         if 'ps' in arguments:
             result = 'test-container-id'
@@ -43,9 +51,45 @@ def test_image_failure_always_removes_disposable_project(
 
         monkeypatch.setattr(Path, 'write_text', denied)
 
-    with pytest.raises((subprocess.CalledProcessError, PermissionError)):
+    with pytest.raises((subprocess.CalledProcessError, PermissionError, RuntimeError)):
         test_image.qualify('quickapi-fastapi:test')
 
     assert calls[-1][-3:] == ['down', '--volumes', '--remove-orphans']
     assert 'quickapi-fastapi-smoke' in calls[-1]
     assert all('quickapi-fastapi-dev' not in command for command in calls)
+
+    if failure == 'image_user':
+        assert not any('up' in command for command in calls)
+
+
+def test_image_checks_runtime_before_http_and_stops_cleanly(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def run(arguments: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(arguments)
+        result = 'Application exited (code 0)'
+
+        if arguments[:3] == ['docker', 'image', 'inspect']:
+            result = '10001:10001'
+        elif 'inspect' in arguments:
+            result = '0'
+        elif 'ps' in arguments:
+            result = 'test-container-id'
+
+        return subprocess.CompletedProcess(arguments, 0, stdout=result, stderr='')
+
+    monkeypatch.setattr(test_image, 'ROOT', tmp_path)
+    monkeypatch.setattr(test_image.subprocess, 'run', run)
+
+    test_image.qualify('quickapi-fastapi:test')
+
+    runtime = next(
+        i for i, call in enumerate(calls) if test_image.RUNTIME_CHECKS in call
+    )
+    http = next(i for i, call in enumerate(calls) if test_image.HTTP_CHECKS in call)
+
+    assert runtime < http
+    assert any('stop' in call for call in calls)
+    assert calls[-1][-3:] == ['down', '--volumes', '--remove-orphans']

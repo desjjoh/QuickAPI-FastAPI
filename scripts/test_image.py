@@ -7,6 +7,35 @@ import sys
 
 from scripts.test_database_support import ROOT, command_lock, load_test_config
 
+RUNTIME_CHECKS = '''
+import importlib.metadata
+import os
+from pathlib import Path
+import shutil
+import sys
+
+assert os.getuid() == 10001 and os.getgid() == 10001, 'Unexpected runtime identity'
+assert sys.prefix == '/opt/venv', 'Runtime dependencies must use /opt/venv'
+installed = {distribution.metadata['Name'].lower().replace('_', '-')
+    for distribution in importlib.metadata.distributions()}
+for name in ['black', 'ruff', 'mypy', 'pytest', 'pytest-cov', 'pytest-asyncio', 'coverage']:
+    assert name not in installed, f'Development dependency in runtime: {name}'
+for command in ['cc', 'gcc', 'g++', 'make']:
+    assert shutil.which(command) is None, f'Build tool in runtime: {command}'
+assert shutil.which('curl'), 'Compose readiness probes require curl'
+for name in ['/app', '/app/app', '/opt/venv', '/opt/venv/lib']:
+    path = Path(name)
+    assert os.access(path, os.R_OK | os.X_OK), f'Inaccessible runtime directory: {name}'
+    assert not os.access(path, os.W_OK), f'Writable runtime directory: {name}'
+for name in ['/app/app/main.py', '/app/alembic.ini', '/app/app/database/migrations/env.py']:
+    path = Path(name)
+    assert os.access(path, os.R_OK), f'Unreadable runtime file: {name}'
+    assert not os.access(path, os.W_OK), f'Writable runtime file: {name}'
+assert not Path('/app/scripts').exists(), 'Development scripts in runtime'
+assert not Path('/app/.env').exists(), 'Local environment in runtime'
+print('Built-image non-root identity, permissions and runtime-only dependencies verified.')
+'''
+
 HTTP_CHECKS = '''
 import json
 import urllib.error
@@ -84,9 +113,20 @@ def qualify(image: str, *, cleanup_only: bool = False) -> None:
     failure = ''
 
     try:
+        identity = subprocess.run(
+            ['docker', 'image', 'inspect', '--format', '{{.Config.User}}', image],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+        if identity != '10001:10001':
+            raise RuntimeError('Built image must declare USER 10001:10001.')
+
         compose('up', '-d', '--wait', 'mysql-smoke')
         compose('run', '--rm', 'migrate')
         compose('up', '-d', '--wait', 'api')
+        print(compose('exec', '-T', 'api', 'python', '-c', RUNTIME_CHECKS))
         print(compose('exec', '-T', 'api', 'python', '-c', HTTP_CHECKS))
         print(compose('exec', '-T', 'api', 'python', '-m', 'pip', 'check'))
         compose('stop', '--timeout', '35', 'api')

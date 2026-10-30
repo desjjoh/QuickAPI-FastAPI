@@ -110,8 +110,9 @@ docker build -t quickapi-fastapi:ci .
 python -m scripts.test_image
 ```
 
-The image command verifies explicit migrations, CRUD, probes, static assets,
-production exposure defaults, dependencies, and graceful Docker termination against
+The image command verifies declared and effective non-root identity, code/dependency
+permissions, exclusion of development/build tools, explicit migrations, CRUD, probes,
+static assets, production exposure defaults, dependencies, and graceful Docker termination against
 an independent MySQL server. See [Deployment](deployment.md) for ownership and limits.
 
 Required check names and removal of obsolete duplicate contexts are documented in
