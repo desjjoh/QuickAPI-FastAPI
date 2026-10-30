@@ -73,10 +73,12 @@ and a new request is admitted without resetting the entire history.
 
 ## Endpoint and middleware policy
 
-Raw parsed-header budgets remain ahead of admission. Over-budget headers are rejected
-before creating a limiter bucket. Security headers wrap rate-limit responses. Admission
-then runs before CORS, body/content/method policy, sanitizer, timeout, exposure guard,
-and router handling, so requests rejected downstream consume quota.
+Security headers wrap rate-limit responses. Admission runs before header sanitization,
+application header budgets, timeout, content/method policy, CORS, body limits, exposure
+guards and routing. Unknown allowed-to-drop headers are removed before header-size
+accounting. Retained over-budget headers return 431 after consuming admitted quota;
+dropped unknown headers do not trigger that application size rejection. Trusted-proxy
+interpretation retains its separate early raw-header bounds.
 
 `/health`, `/ready`, `/info`, `/system`, `/metrics`, docs/schema, unknown routes, and
 browser preflights share the client's quota. A probe can therefore receive 429/503
