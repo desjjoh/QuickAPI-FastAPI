@@ -16,8 +16,7 @@ before editing it. The intended protection policy is:
 - Allow repository administrators to bypass the rules. This policy does not prevent
   administrator bypass.
 - Do not require branches to be up to date before merging.
-- Require the verified Quality Deployment gate; retain the individual checks below
-  until the hosted gate and ruleset transition have been verified.
+- Require `Deployment gate` from GitHub Actions as the sole required status check.
 
 A target rule can cover a branch that does not exist yet. Branch creation/deletion
 and changes to the protection policy require separate repository administration.
@@ -25,33 +24,18 @@ Dated ruleset comparisons and hosted-run evidence are in [Verification](verifica
 
 ## Required status checks
 
-The [Quality workflow](../.github/workflows/tests.yml) defines `Deployment gate`
-as its aggregate check. It directly depends on all required jobs and accepts only
-explicit success from each, including matrix job results. Its implementation and
-offline tests do not establish hosted availability or ruleset enforcement.
-
-Retain these individual contexts until the aggregate check is verified:
+The [Quality workflow](../.github/workflows/tests.yml) emits the required check:
 
 ```text
-dependency-security
-static-analysis
-test-layers (unit)
-mysql-tests (integration)
-mysql-tests (e2e)
-combined-coverage
-production-container
+Deployment gate
 ```
 
-Remove obsolete required contexts `test-layers (integration)` and
-`test-layers (e2e)` from existing rulesets. Those duplicate jobs are no longer
-emitted; persistence layers are required through `mysql-tests (integration)` and
-`mysql-tests (e2e)`. Retaining removed contexts would leave merges waiting forever.
-The full coverage job also runs against MySQL.
-
-
-The MySQL contexts above are defined by the workflow. Run it on GitHub and confirm
-the actual check names before adding the new contexts; local runs do not establish
-that they are available or enforced remotely.
+Its source is GitHub Actions (integration ID `15368`). The aggregate directly
+requires dependency security, static analysis, unit tests, MySQL integration/E2E,
+combined coverage and production-container qualification/security. Only explicit
+success from every prerequisite passes. Failed, cancelled, skipped, missing or
+malformed results block approval. Individual job checks still run and appear in
+the PR; the ruleset requires their aggregate rather than listing them separately.
 
 The workflow runs on pull requests, pushes to `main`/`staging`/`dev`, merge groups,
 manual dispatch and reusable workflow calls. It uses read-only contents permissions and cancels superseded
@@ -61,11 +45,9 @@ candidate commit passed; inspect its actual check results.
 ## Required-check configuration
 
 1. Open [the existing ruleset settings](https://github.com/desjjoh/QuickAPI-FastAPI/settings/rules/25976668).
-2. Verify the candidate's `Deployment gate` on GitHub and confirm its exact check
-   context/source. Until then, preserve all individual requirements above.
-3. Under **Require status checks to pass**, require the verified `Deployment gate`
-   and select **GitHub Actions** as its source when offered. Remove superseded
-   individual requirements only after verifying the aggregate. Preserve the intended branch,
+2. Confirm the candidate's `Deployment gate` on GitHub and its GitHub Actions source.
+3. Under **Require status checks to pass**, require only `Deployment gate`
+   and select **GitHub Actions** as its source. Preserve the intended branch,
    pull-request, merge, up-to-date, and bypass settings.
 4. Save and reopen the rule to verify the configured list.
 5. Verify that an ordinary pull request requires the gate for its candidate commit
@@ -77,8 +59,10 @@ workflow; sibling applications do not supply this repository's check evidence.
 
 ## Enforcement boundary
 
-Until the transition is verified, require all listed individual checks. The production-container job depends on earlier jobs, and an earlier failure
-can leave dependent jobs skipped. Requiring only the final dependent job does not
-provide a fail-closed aggregate gate. An aggregate check must run and be verified
-before it can replace this list; that requirement is tracked in [Milestones](milestones.md).
-Local tests and Compose startup do not verify remote branch enforcement.
+The gate runs with `if: always()` so prerequisite failures cannot become an
+approved skipped aggregate. Cancelling the workflow can cancel the gate; an absent,
+pending or cancelled gate is not approval. Requiring production-container alone
+would not provide this aggregate guarantee. Administrator bypass remains enabled
+by policy. Local tests and Compose startup do not verify remote branch enforcement;
+dated hosted execution and saved ruleset evidence are recorded in
+[Verification](verification.md).

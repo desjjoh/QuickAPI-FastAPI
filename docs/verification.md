@@ -2,6 +2,26 @@
 
 [Documentation index](../README.md#documentation)
 
+## Hosted gate verification and required-check transition
+
+Verified [Quality run 41096725174](https://github.com/desjjoh/QuickAPI-FastAPI/actions/runs/41096725174)
+on 2026-10-30 for `5788476ec585ff2ec2e79de51a45757dbbd56eb0`. All eight
+job instances passed, including dependency security, both MySQL layers, combined
+coverage, production-container and `Deployment gate`. Report upload steps passed;
+TLS passed in integration and was intentionally skipped in E2E. The successful
+gate's exact context is `Deployment gate`, from GitHub Actions (integration ID
+15368). This qualifies the corrected security candidate and aggregate execution.
+
+After the maintainer saved the transition, ruleset 25976668 was re-read on
+2026-10-30. It is active for main/dev/staging and requires exactly `Deployment gate`
+with integration ID 15368. All six previous individual requirements were removed.
+Branch targets, deletion/force-push restrictions, pull-request policy, merge
+methods, non-strict update policy and administrator bypass were preserved.
+The active ruleset requires that source-bound gate for ordinary PRs; administrator
+bypass remains explicit. Hosted all-success execution and offline non-success
+gate cases were verified; no deliberately failing hosted PR or merge attempt was
+created. No local tests were repeated for this remote/configuration review.
+
 ## Aggregate CI gate and retained results
 
 Implemented on 2026-10-30 against `450468c` plus the aggregate-gate changes.
