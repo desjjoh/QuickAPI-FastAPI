@@ -55,6 +55,9 @@ Successful deletion retries without a key return 404; keyed retries replay the o
 Item routes and named system endpoints accept either trailing-slash spelling through
 the shared router, without redirecting or duplicate controller declarations. OpenAPI
 lists only the canonical spelling; the application root `/` is registered once.
+Static path text matches without case sensitivity; parameter values keep their
+original case. GET endpoints also accept HEAD, returning the selected handler's
+status and headers without response body bytes. Explicit HEAD handlers take priority.
 The canonical collection route has no trailing slash. Migrate existing databases before starting this version:
 see [Migrations](migrations.md). Existing rows are initialized to revision 1.
 

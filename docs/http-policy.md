@@ -60,9 +60,18 @@ CORS_ORIGINS="http://localhost:3000,http://localhost:5173"
 ```
 
 Production must configure its actual frontend origins when browser access is needed.
-The localhost default is identical in all environments. Allowed origins receive origin-specific response headers and `Vary: Origin`.
-Disallowed origins/method/header preflights receive the JSON 403 error envelope. Requests
-without Origin remain valid and receive no CORS response headers. Configured request
+The localhost default is identical in all environments. Allowed origins receive
+origin-specific response headers. Every response reaching CORS varies on `Origin`,
+including absent and rejected origins. OPTIONS also varies on
+`Access-Control-Request-Method` and `Access-Control-Request-Headers`. Existing `Vary`
+tokens are retained without duplicates; `Vary: *` remains unchanged.
+Disallowed origins/method/header preflights receive the JSON 403 error envelope.
+Invalid preflight methods/headers use `CORS preflight method or headers not allowed.`
+Requests without Origin remain valid and receive no `Access-Control-Allow-Origin`;
+the configured static CORS policy headers are still returned. OPTIONS returns 204
+after policy validation, including ordinary OPTIONS without browser preflight headers.
+This happens before operational exposure gates and never executes their handlers.
+Configured request
 headers also pass the application's sanitizer, which otherwise retains its existing
 base allowlist and protocol restrictions. Listing `set-cookie` does not make that
 header readable by browser JavaScript. CORS is browser policy, not authentication.

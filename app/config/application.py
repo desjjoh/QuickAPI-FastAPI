@@ -21,6 +21,10 @@ from app.common.handlers.exception_handler import (
     unhandled_exception_handler,
     validation_exception_handler,
 )
+from app.common.handlers.flexible_router import (
+    HeadResponseASGIMiddleware,
+    configure_framework_routes,
+)
 from app.common.handlers.lifecycle_handler import LifecycleHandler
 from app.common.handlers.request_work import RequestAdmission, RequestWork
 from app.common.middleware.content_type_enforcement import (
@@ -97,7 +101,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 class ObservedFastAPI(FastAPI):
     def build_middleware_stack(self) -> ASGIApp:
         return RequestOutcomeASGIMiddleware(
-            super().build_middleware_stack(), self.router.routes
+            HeadResponseASGIMiddleware(super().build_middleware_stack()),
+            self.router.routes,
         )
 
 
@@ -124,6 +129,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    configure_framework_routes(app.router.routes)
     app.state.lifecycle = LifecycleHandler()
     app.state.request_work = RequestWork(settings.HTTP_DRAIN_TIMEOUT_MS / 1000)
 

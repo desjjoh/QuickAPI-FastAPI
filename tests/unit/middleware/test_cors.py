@@ -64,9 +64,43 @@ async def test_valid_and_invalid_preflight(app: ASGIApp) -> None:
     ]
     sent = await req(app, "OPTIONS", base)
 
-    assert sent[0]["status"] == 204 and headers(sent)["vary"] == "Origin"
+    assert sent[0]["status"] == 204 and headers(sent)["vary"] == (
+        'Origin, Access-Control-Request-Method, Access-Control-Request-Headers'
+    )
     for changed in [
         [*base[:-2], (b"access-control-request-method", b"TRACE"), *base[-1:]],
         [*base[:-1], (b"access-control-request-headers", b"x-bad")],
     ]:
         assert (await req(app, "OPTIONS", changed))[0]["status"] == 403
+
+
+@pytest.mark.parametrize('origin', [None, 'https://ok', 'https://bad'])
+@pytest.mark.parametrize('method', ['GET', 'OPTIONS'])
+async def test_cache_variants_cover_absent_and_rejected_origins(
+    app: ASGIApp,
+    origin: str | None,
+    method: str,
+) -> None:
+    sent = await req(app, method, [(b'origin', origin.encode())] if origin else [])
+    result = headers(sent)
+
+    assert result['vary'] == (
+        'Origin, Access-Control-Request-Method, Access-Control-Request-Headers'
+        if method == 'OPTIONS'
+        else 'Origin'
+    )
+    assert sent[0]['status'] == (
+        403 if origin == 'https://bad' else 204 if method == 'OPTIONS' else 200
+    )
+    assert result.get('access-control-allow-origin') == (
+        origin if origin == 'https://ok' else None
+    )
+
+
+@pytest.mark.parametrize('existing', ['Accept-Encoding, origin', '*'])
+async def test_vary_preserves_existing_tokens_without_duplicates(existing: str) -> None:
+    from starlette.responses import Response
+
+    sent = await req(Response(headers={'Vary': existing}))
+
+    assert headers(sent)['vary'] == existing

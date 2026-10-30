@@ -42,7 +42,9 @@ system boundary and session ownership.
 ## Flexible route spelling
 
 Item and system controllers use [FlexibleRouter](../app/common/handlers/flexible_router.py)
-to accept named HTTP endpoints with or without a trailing slash, without redirects.
+to accept named HTTP endpoints with or without a trailing slash, without redirects,
+and match static path text without case sensitivity. Captured parameter values retain
+their original spelling, including case-sensitive resource IDs.
 Controllers declare each operation once. The router registers the canonical path
 first and hides the alternate spelling from OpenAPI. URL generation selects the
 canonical route. Nested router inclusion copies existing routes without generating
@@ -52,8 +54,13 @@ Use `""` for a collection root mounted beneath a prefix, such as `/api/v1/items`
 An explicit `"/"` remains a single root route, as used by the system greeting.
 Named paths such as `/health` and `/items/{id}` receive both spellings. Item routes
 retain `ApplicationRoute` and their transaction markers. Operational exposure
-settings protect both spellings. Framework-provided documentation routes retain
-their normal FastAPI routing behavior.
+settings protect all spellings. Framework-provided documentation routes use the same
+case and slash matching. Logs and metrics retain canonical route labels.
+
+GET routes accept HEAD automatically without adding an OpenAPI operation. Explicit
+HEAD handlers take precedence over that fallback. HEAD executes the selected handler
+and response preparation, preserving status and representation headers; the outer
+HTTP response wrapper suppresses body bytes, including error responses.
 
 ## Request lifecycle and middleware order
 

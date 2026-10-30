@@ -37,7 +37,7 @@ class SecurityHeadersMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
-        path = scope.get("path", "")
+        path = scope.get("path", "").lower()
 
         if self.docs_enabled and path.startswith(("/docs", "/redoc", "/openapi.json")):
             return await self.app(scope, receive, send)

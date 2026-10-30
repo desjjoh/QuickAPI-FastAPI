@@ -10,6 +10,8 @@ from typing import Literal
 from starlette.routing import BaseRoute, Match, Mount, Route
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.common.handlers.flexible_router import FlexibleRoute
+
 _KEY = "quickapi.request_outcome"
 _METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"})
 
@@ -43,7 +45,11 @@ def route_template(
                 terminal.get("route") is route
                 or terminal.get("endpoint") is route.endpoint
             ):
-                return prefix + route.path
+                return prefix + (
+                    route.canonical_path
+                    if isinstance(route, FlexibleRoute)
+                    else route.path
+                )
 
             return "<unmatched>"
 
@@ -53,7 +59,11 @@ def route_template(
     if isinstance(partial, Route) and (
         terminal.get("route") is partial or terminal.get("endpoint") is partial.endpoint
     ):
-        return prefix + partial.path
+        return prefix + (
+            partial.canonical_path
+            if isinstance(partial, FlexibleRoute)
+            else partial.path
+        )
 
     return "<unmatched>"
 

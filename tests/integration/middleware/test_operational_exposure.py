@@ -187,11 +187,14 @@ async def test_disabled_families_never_execute_handlers_or_redirect(
                 else:
                     result = await client.request(method, path)
 
-                assert result.status_code == 404, (method, path)
+                assert result.status_code == (204 if method == 'OPTIONS' else 404), (
+                    method,
+                    path,
+                )
                 assert "location" not in result.headers
                 assert result.headers["x-content-type-options"] == "nosniff"
                 assert "content-security-policy" in result.headers
-                if method != "HEAD":
+                if method not in {'HEAD', 'OPTIONS'}:
                     assert result.json()["status"] == 404
                     assert result.json()["message"] == "Not Found"
 

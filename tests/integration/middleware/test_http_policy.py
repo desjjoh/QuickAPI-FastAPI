@@ -46,7 +46,9 @@ async def test_cors_overrides_preflight_headers_and_no_origin(
         assert response.headers["access-control-allow-origin"] == "https://ui.example"
         assert response.headers["access-control-allow-methods"] == "GET, POST"
         assert response.headers["access-control-max-age"] == "90"
-        assert response.headers["vary"] == "Origin"
+        assert response.headers["vary"] == (
+            'Origin, Access-Control-Request-Method, Access-Control-Request-Headers'
+        )
         assert "access-control-allow-credentials" not in response.headers
         assert (
             await client.options(
@@ -79,7 +81,8 @@ async def test_cors_overrides_preflight_headers_and_no_origin(
         direct = await client.get("/")
 
         assert direct.status_code == 200
-        assert not any(name.startswith("access-control-") for name in direct.headers)
+        assert 'access-control-allow-origin' not in direct.headers
+        assert direct.headers['vary'] == 'Origin'
 
 
 async def test_configured_body_and_method_limits(
