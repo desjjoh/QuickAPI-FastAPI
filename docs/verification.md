@@ -2,6 +2,23 @@
 
 [Documentation index](../README.md#documentation)
 
+## Container replacement and persistence
+
+Implemented against `813feb8` plus the working changes on 2026-10-30. Eighteen
+focused Windows tests passed, covering replacement ordering, image/container/database
+identity guards, cleanup after failures, retained logs and recovery HTTP assertions.
+The combined formatter, Ruff and targeted script mypy checks passed; all four
+embedded container programs compile. Recovery assertion tests reject lost item
+state, changed replay status/bytes, changed collection state and rejected fresh writes.
+The actual built-image MySQL replacement exercise is delegated to hosted CI;
+no local image build, Linux, TLS or broad application test run was performed.
+No application behavior, environment settings or database schema changed.
+
+The maintainer confirmed that hosted CI passed for runtime hardening on
+2026-10-30. This confirmation completes 6A; it does not qualify the subsequent
+replacement/persistence changes. The earlier local hardening results below
+describe the evidence available before that hosted run.
+
 ## Runtime container hardening
 
 Checked on Windows with Python 3.12.10 on 2026-10-30 against `8b6b5c5`

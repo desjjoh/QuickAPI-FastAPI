@@ -62,8 +62,18 @@ and `pip check` checks, sends Docker's stop signal, and verifies exit zero and t
 shutdown record. Bounded logs are retained in `test-artifacts/production-mysql.log`;
 the temporary project and storage are removed on completion or failure.
 
+The check also creates a keyed item and updates it before stopping the API. It
+replaces only the API container, verifies a new container identity with the same
+image ID and unchanged MySQL container, and waits for readiness. The replacement
+must return the retained item fields/version, replay the original create status
+and exact response bytes without changing the item or collection, and accept a
+fresh update and deletion. Both API instances must stop cleanly; logs from the
+first instance are preserved before replacement.
+
 This validates the selected local image and MySQL behavior. A local tag is not an
-immutable release reference. Restart/persistence, deployment storage, representative
+immutable release reference. Persistence is qualified across API container
+replacement while the disposable MySQL container stays running. Its temporary
+storage does not qualify database restarts or durable database volumes. Deployment storage, representative
 future migrations, restore, failover, and release promotion have separate acceptance
 criteria. The test database is disposable and is not a deployment configuration.
 

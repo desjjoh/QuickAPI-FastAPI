@@ -115,10 +115,15 @@ permissions, exclusion of development/build tools, explicit migrations, CRUD, pr
 static assets, production exposure defaults, dependencies, and graceful Docker termination against
 an independent MySQL server. See [Deployment](deployment.md) for ownership and limits.
 
+It also replaces the API container using the same image, retains the running
+MySQL instance, and checks saved item/version state, byte-exact keyed replay,
+unchanged collection state and fresh writes after readiness. Both API instances
+must terminate cleanly. This does not test MySQL restarts or volume durability.
+
 Required check names and removal of obsolete duplicate contexts are documented in
 [Branch protections](branch-protection.md). Workflow definitions and local checks do
 not establish hosted success or ruleset enforcement. There is no aggregate
-fail-closed final job yet. Representative future migrations, restart/persistence,
+fail-closed final job yet. Representative future migrations, database-volume durability,
 backup restoration and candidate-bound release publication remain separately scoped.
 
 ## Regression coverage
