@@ -487,7 +487,7 @@ async def test_connection_loss_during_rollback_retires_lease_and_recovers(
                 response = await asyncio.wait_for(failed, 3)
 
                 assert response.status_code == 500
-                assert response.json()['message'] == 'Internal server error.'
+                assert response.json()['message'] == 'Internal Server Error'
                 assert (await asyncio.wait_for(recovery, 3)).status_code == 201
                 await settled(app)
                 assert invalidated and all(

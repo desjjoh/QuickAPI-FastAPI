@@ -95,7 +95,9 @@ share this response shape:
 
 `status` is the HTTP status, `message` is safe client-facing text, and `timestamp`
 is Unix time in milliseconds. Validation details are flattened into a deterministic
-message; unhandled exceptions return only `Internal server error.` OpenAPI replaces
+message; unhandled exceptions return only `Internal Server Error`. Malformed JSON
+returns `400` with `Malformed JSON request body.`; valid JSON with invalid fields
+continues to return `422`. OpenAPI replaces
 FastAPI's default validation schema with this contract.
 
 ## Transport and mutation boundaries

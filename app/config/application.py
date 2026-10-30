@@ -37,6 +37,7 @@ from app.common.middleware.request_body_limit import (
 )
 from app.common.middleware.request_cleanup import RequestCleanupASGIMiddleware
 from app.common.middleware.request_context import RequestContextASGIMiddleware
+from app.common.middleware.request_error import RequestErrorASGIMiddleware
 from app.common.middleware.request_header_limit import (
     HeaderLimits,
     RequestHeaderLimitASGIMiddleware,
@@ -146,28 +147,7 @@ def create_app() -> FastAPI:
         diagnostics_enabled=settings.DIAGNOSTICS_ENABLED,
         metrics_enabled=settings.METRICS_ENABLED,
     )
-    app.add_middleware(
-        RequestTimeoutASGIMiddleware,
-        first_body_timeout=settings.REQUEST_FIRST_BODY_TIMEOUT_MS / 1000,
-        chunk_timeout=settings.REQUEST_CHUNK_TIMEOUT_MS / 1000,
-        total_timeout=settings.REQUEST_TIMEOUT_MS / 1000,
-        work=app.state.request_work,
-    )
-
-    app.add_middleware(
-        MethodWhitelistASGIMiddleware,
-        allowed_methods=set(settings.HTTP_ALLOWED_METHODS),
-    )
-
-    app.add_middleware(
-        HeaderSanitizationASGIMiddleware,
-        extra_allowed=set(settings.CORS_ALLOWED_HEADERS),
-    )
-    app.add_middleware(
-        ContentTypeEnforcementASGIMiddleware,
-        default_allowed=set(settings.HTTP_ALLOWED_CONTENT_TYPES),
-        route_overrides=[],
-    )
+    app.add_middleware(RequestErrorASGIMiddleware)
 
     app.add_middleware(
         RequestBodyLimitASGIMiddleware,
@@ -186,15 +166,23 @@ def create_app() -> FastAPI:
     )
 
     app.add_middleware(
-        RateLimitASGIMiddleware,
-        limiter=RateLimiter(
-            window_ms=settings.RATE_LIMIT_WINDOW_MS,
-            max_requests=settings.RATE_LIMIT_MAX,
-            max_clients=settings.RATE_LIMIT_MAX_CLIENTS,
-        ),
+        MethodWhitelistASGIMiddleware,
+        allowed_methods=set(settings.HTTP_ALLOWED_METHODS),
     )
 
-    app.add_middleware(SecurityHeadersMiddleware, docs_enabled=settings.DOCS_ENABLED)
+    app.add_middleware(
+        ContentTypeEnforcementASGIMiddleware,
+        default_allowed=set(settings.HTTP_ALLOWED_CONTENT_TYPES),
+        route_overrides=[],
+    )
+
+    app.add_middleware(
+        RequestTimeoutASGIMiddleware,
+        first_body_timeout=settings.REQUEST_FIRST_BODY_TIMEOUT_MS / 1000,
+        chunk_timeout=settings.REQUEST_CHUNK_TIMEOUT_MS / 1000,
+        total_timeout=settings.REQUEST_TIMEOUT_MS / 1000,
+        work=app.state.request_work,
+    )
 
     app.add_middleware(
         RequestHeaderLimitASGIMiddleware,
@@ -205,6 +193,22 @@ def create_app() -> FastAPI:
             allow_chunked=False,
         ),
     )
+
+    app.add_middleware(
+        HeaderSanitizationASGIMiddleware,
+        extra_allowed=set(settings.CORS_ALLOWED_HEADERS),
+    )
+
+    app.add_middleware(
+        RateLimitASGIMiddleware,
+        limiter=RateLimiter(
+            window_ms=settings.RATE_LIMIT_WINDOW_MS,
+            max_requests=settings.RATE_LIMIT_MAX,
+            max_clients=settings.RATE_LIMIT_MAX_CLIENTS,
+        ),
+    )
+
+    app.add_middleware(SecurityHeadersMiddleware, docs_enabled=settings.DOCS_ENABLED)
 
     app.add_middleware(PrometheusASGIMiddleware)
     app.add_middleware(RequestLoggingASGIMiddleware)

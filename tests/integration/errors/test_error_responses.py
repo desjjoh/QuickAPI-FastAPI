@@ -125,7 +125,7 @@ async def test_repository_and_unexpected_failures_do_not_leak(
     started = int(time.time() * 1000)
     response = await error_client.get("/api/v1/items/")
 
-    assert_error_contract(response, 500, "Internal server error.", started_ms=started)
+    assert_error_contract(response, 500, "Internal Server Error", started_ms=started)
 
 
 async def test_unexpected_route_exception_is_sanitized(
@@ -138,7 +138,7 @@ async def test_unexpected_route_exception_is_sanitized(
     started = int(time.time() * 1000)
     response = await error_client.get("/unexpected-error")
 
-    assert_error_contract(response, 500, "Internal server error.", started_ms=started)
+    assert_error_contract(response, 500, "Internal Server Error", started_ms=started)
 
 
 async def test_protocol_headers_survive_an_error_response(
@@ -153,3 +153,26 @@ async def test_protocol_headers_survive_an_error_response(
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-request-id"]
     assert response.headers["x-ratelimit-result"] == "accepted"
+
+
+@pytest.mark.parametrize('content', ['{', '{"name":}', '[1,]'])
+async def test_malformed_json_is_bad_request(
+    error_client: httpx.AsyncClient,
+    content: str,
+) -> None:
+    started = int(time.time() * 1000)
+    response = await error_client.post(
+        '/api/v1/items',
+        content=content,
+        headers={
+            'content-type': 'application/json',
+            'origin': 'https://client.example',
+        },
+    )
+
+    assert_error_contract(
+        response, 400, 'Malformed JSON request body.', started_ms=started
+    )
+    assert response.headers['x-request-id']
+    assert response.headers['x-frame-options'] == 'DENY'
+    assert response.headers['access-control-allow-origin'] == 'https://client.example'

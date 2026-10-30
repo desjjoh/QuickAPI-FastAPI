@@ -33,6 +33,8 @@ class HeaderSanitizationASGIMiddleware:
         "user-agent",
         "referer",
         "origin",
+        "access-control-request-method",
+        "access-control-request-headers",
         "cookie",
         "sec-fetch-site",
         "sec-fetch-mode",

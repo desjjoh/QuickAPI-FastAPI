@@ -33,7 +33,7 @@ async def test_http_and_unexpected_error_envelopes(
     unexpected_response = await client.get("/unexpected")
 
     assert unexpected_response.status_code == 500
-    assert unexpected_response.json()["message"] == "Internal server error."
+    assert unexpected_response.json()["message"] == "Internal Server Error"
 
 
 def test_openapi_schema_and_documented_responses() -> None:

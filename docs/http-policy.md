@@ -21,6 +21,27 @@ Missing optional values use defaults. Empty values are rejected except `TRUST_PR
 `CORS_ALLOWED_HEADERS`, and `CORS_EXPOSED_HEADERS`, where empty means an empty list.
 The existing published-port settings separately accept empty values as defaults.
 
+## Request rejection and errors
+
+After admission, cleanup, trusted-proxy resolution, request context and observation,
+the effective application policy order is security headers, rate limiting, header
+sanitization, header limits, the response deadline, content-type enforcement, method
+validation, CORS, body limits and routing. The first rejecting policy determines the
+response. Requests rejected after rate limiting still consume their admitted quota.
+Unknown permitted-to-drop headers are removed before application header-size checks;
+trusted-proxy processing retains its early bounds before interpreting forwarding data.
+
+Malformed JSON returns `400` with `Malformed JSON request body.` Valid JSON that fails
+input validation returns `422` with the normal field-validation message. Unexpected
+application failures return `500` with `Internal Server Error`; provider details remain
+in sanitized diagnostics rather than the response.
+
+Application errors are rendered inside the response policy wrappers, preserving the
+request ID, security headers, rate-limit headers and CORS headers for allowed origins.
+Policies that reject before CORS do not grant CORS permission. Once response headers
+have started, failures propagate to the server instead of emitting a second response.
+Cancellation propagates without becoming a JSON server error.
+
 ## Browser policy
 
 | Setting                | Default                                       | Validation                                                                                                                       |
@@ -100,8 +121,8 @@ convert to seconds only when configuring the existing Python timeout middleware;
 [response/stream/cancellation behavior](request-timeouts.md) is unchanged.
 
 Header byte accounting remains name + value, excluding wire framing. Parsed-header
-budgets run before CORS preflight short-circuiting and before sanitizer filtering,
-so unknown headers cannot evade the limits by being dropped. Trusted proxy handling
+budgets run before CORS preflight short-circuiting and after sanitizer filtering,
+matching application accounting for retained headers. Trusted proxy handling
 consumes headers only after the original count/size budgets pass. This protects the
 application policy boundary; a server may reject a request before ASGI with its own
 limits, and these settings do not cap memory used while parsing wire headers.

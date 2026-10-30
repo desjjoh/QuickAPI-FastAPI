@@ -40,6 +40,17 @@ def configure_custom_validation_openapi(app: FastAPI) -> None:
                 if isinstance(responses_raw, dict):
                     responses = cast(dict[str, Any], responses_raw)
 
+                    body = method_data.get('requestBody', {})
+
+                    if 'application/json' in body.get('content', {}):
+                        responses.setdefault(
+                            '400',
+                            {
+                                'description': 'Malformed JSON request body.',
+                                'content': {'application/json': {'schema': error_ref}},
+                            },
+                        )
+
                     if "422" in responses:
                         responses["422"]["content"]["application/json"][
                             "schema"

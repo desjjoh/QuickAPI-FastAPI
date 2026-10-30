@@ -210,7 +210,7 @@ async def test_existing_alphanumeric_id_and_invalid_stored_price_use_controller_
 
     assert (
         failed.status_code == 500
-        and failed.json()['message'] == 'Internal server error.'
+        and failed.json()['message'] == 'Internal Server Error'
     )
     async with database_engine.connect() as observer:
         row = (await observer.execute(select(ItemORM.name, ItemORM.price))).one()
