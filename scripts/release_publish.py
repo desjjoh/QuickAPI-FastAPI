@@ -159,6 +159,9 @@ def publish(
 
         layout = Path(directory) / 'layout'
 
+        # Preserve the exported catalog even if later identity validation fails.
+        write_json(evidence / 'roundtrip-index.json', read_json(layout / 'index.json'))
+
         with tarfile.open(returned, 'w') as output:
             for file in sorted(layout.rglob('*')):
                 if file.is_symlink():
@@ -171,7 +174,9 @@ def publish(
                         recursive=False,
                     )
 
-        roundtrip = inspect(returned, source, version, packages)
+        roundtrip = inspect(
+            returned, source, version, packages, expected_digest=record['digest']
+        )
 
         if any(
             roundtrip[field] != record[field]

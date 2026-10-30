@@ -2,6 +2,26 @@
 
 [Documentation index](../README.md#documentation)
 
+## Registry round-trip index correction
+
+Inspected [release run 41127639341](https://github.com/desjjoh/QuickAPI-FastAPI/actions/runs/41127639341)
+for `784e5d272a6d2ac99d75c859a1edaea6ff7a2273`. Candidate build, attestation/
+MySQL/security qualification and both disposable registry tag digest checks
+succeeded. The returned OCI layout failed the original single-root-only check.
+Real registry login/publication were skipped; the disposable registry was removed.
+
+The returned-layout validator now selects the independently approved digest and
+allows additional catalog entries or consistent aliases. A missing approved digest,
+conflicting descriptor, changed blob, wrong runtime/source or invalid attestation
+still blocks. Original build archives retain the strict single-root requirement.
+The exported catalog is retained as `roundtrip-index.json` for subsequent diagnosis.
+
+Thirty-eight focused offline Windows release tests passed, including returned
+catalog/alias fixtures and publisher round-trip coverage. Formatting, Ruff, mypy
+and strict editor-type checks passed. A fresh hosted run is required; no local
+container build, registry operation or publication was performed. Historical
+image rollback qualification remains pending and was not implemented by this fix.
+
 ## Verified candidate publication tooling
 
 Implemented on 2026-10-30 against `d7baea1` plus the release changes. The combined

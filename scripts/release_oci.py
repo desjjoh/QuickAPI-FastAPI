@@ -145,7 +145,12 @@ class Candidate:
 
 
 def inspect(
-    path: Path, source: dict[str, Any], version: str, packages: dict[str, str]
+    path: Path,
+    source: dict[str, Any],
+    version: str,
+    packages: dict[str, str],
+    *,
+    expected_digest: str | None = None,
 ) -> dict[str, Any]:
     candidate = Candidate(path)
 
@@ -156,10 +161,41 @@ def inspect(
         root = candidate.read('index.json')
         roots = sequence(root.get('manifests'))
 
-        if root.get('schemaVersion') != 2 or len(roots) != 1:
-            raise ValueError('Expected exactly one OCI candidate index.')
+        if root.get('schemaVersion') != 2:
+            raise ValueError('Unsupported OCI index schema.')
 
-        descriptor = mapping(roots[0])
+        if expected_digest is not None:
+            if not DIGEST.fullmatch(expected_digest):
+                raise ValueError('Invalid expected OCI candidate digest.')
+
+            # Registry OCI layouts may also catalog referrers and digest aliases.
+            # Select only the independently approved index, never the first entry.
+            matches = [
+                mapping(entry)
+                for entry in roots
+                if mapping(entry).get('digest') == expected_digest
+            ]
+
+            if not matches:
+                raise ValueError(
+                    'Approved candidate digest is missing from OCI layout.'
+                )
+
+            descriptor = matches[0]
+
+            if any(
+                any(
+                    entry.get(field) != descriptor.get(field)
+                    for field in ('size', 'mediaType')
+                )
+                for entry in matches
+            ):
+                raise ValueError('Conflicting OCI descriptors for the approved digest.')
+        elif len(roots) != 1:
+            raise ValueError('Expected exactly one OCI candidate index.')
+        else:
+            descriptor = mapping(roots[0])
+
         index = candidate.blob(descriptor)
         entries = [mapping(entry) for entry in sequence(index.get('manifests'))]
         runtimes = [

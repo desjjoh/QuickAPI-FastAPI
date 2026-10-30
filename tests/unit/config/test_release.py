@@ -158,9 +158,28 @@ def make_archive(path: Path, failure: str = '') -> dict[str, Any]:
         {'schemaVersion': 2, 'manifests': entries},
         'application/vnd.oci.image.index.v1+json',
     )
-    files['index.json'] = json.dumps(
-        {'schemaVersion': 2, 'manifests': [index]}
-    ).encode()
+    roots = [index]
+
+    if failure in {'registry_catalog', 'digest_aliases', 'conflicting_alias'}:
+        roots.insert(
+            0,
+            blob(
+                {'schemaVersion': 2, 'manifests': []},
+                'application/vnd.oci.image.index.v1+json',
+            ),
+        )
+
+    if failure in {'digest_aliases', 'conflicting_alias'}:
+        alias: dict[str, Any] = index | {
+            'annotations': {'org.opencontainers.image.ref.name': 'verified'}
+        }
+
+        if failure == 'conflicting_alias':
+            alias['size'] += 1
+
+        roots.append(alias)
+
+    files['index.json'] = json.dumps({'schemaVersion': 2, 'manifests': roots}).encode()
     files['oci-layout'] = b'{"imageLayoutVersion":"1.0.0"}'
 
     if failure == 'blob':
@@ -219,6 +238,41 @@ def test_valid_candidate_preserves_root_runtime_and_attestations(
     assert all(info[field] == value for field, value in identity.items())
     assert info['sbom']['packages'][0]['name'] == 'fastapi'
     assert info['provenance']['buildDefinition']['resolvedDependencies']
+
+
+@pytest.mark.parametrize('mode', ['registry_catalog', 'digest_aliases'])
+def test_registry_layout_selects_only_the_approved_digest(
+    tmp_path: Path, mode: str
+) -> None:
+    archive = tmp_path / 'image.tar'
+    identity = make_archive(archive, mode)
+
+    assert (
+        oci.inspect(
+            archive, SOURCE, VERSION, PACKAGES, expected_digest=identity['digest']
+        )['digest']
+        == identity['digest']
+    )
+
+    with pytest.raises(ValueError, match='exactly one'):
+        oci.inspect(archive, SOURCE, VERSION, PACKAGES)
+
+    with pytest.raises(ValueError, match='missing'):
+        oci.inspect(
+            archive, SOURCE, VERSION, PACKAGES, expected_digest='sha256:' + '0' * 64
+        )
+
+
+def test_registry_layout_rejects_conflicting_approved_descriptors(
+    tmp_path: Path,
+) -> None:
+    archive = tmp_path / 'image.tar'
+    identity = make_archive(archive, 'conflicting_alias')
+
+    with pytest.raises(ValueError, match='Conflicting'):
+        oci.inspect(
+            archive, SOURCE, VERSION, PACKAGES, expected_digest=identity['digest']
+        )
 
 
 @pytest.mark.parametrize('mode', ['artifact_storage', 'inline_artifact'])
@@ -482,6 +536,19 @@ def test_publication_preserves_digest_and_requires_no_rebuild(
                 content.extract(directory)
             finally:
                 content.close()
+
+            # Reproduce regctl layouts that catalog more than the requested root.
+            index_path = directory / 'index.json'
+            index = json.loads(index_path.read_text())
+
+            index['manifests'].append(
+                index['manifests'][0]
+                | {
+                    'annotations': {'org.opencontainers.image.ref.name': 'verified'},
+                }
+            )
+
+            write_json(index_path, index)
 
         return ''
 

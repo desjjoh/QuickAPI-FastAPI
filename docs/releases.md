@@ -66,6 +66,12 @@ commit/version tags, checks both digests, downloads the complete OCI layout and
 validates the runtime and attestations again. Registry containers and temporary
 storage are removed on success or failure.
 
+Registry-exported OCI layouts may catalog additional referrers or aliases. The
+round-trip check selects the independently approved candidate digest, rejects a
+missing digest or conflicting descriptors, and verifies its full runtime and
+attestation graph. The original build archive still requires exactly one root
+candidate. `roundtrip-index.json` retains the returned catalog for diagnostics.
+
 A real registry login occurs only after qualification, rehearsal and the final
 source/evidence recheck succeed. The publisher imports the original OCI archive;
 there is no second build. It verifies tag digests and the downloaded OCI layout,
