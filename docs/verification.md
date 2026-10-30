@@ -2,6 +2,22 @@
 
 [Documentation index](../README.md#documentation)
 
+## Dependency and image security gates
+
+Implemented on 2026-10-30 against `0b24b5d` plus the security changes. Forty-five
+focused offline Windows tests passed: severity/runtime/development policy,
+exact exception matching and expiry, missing/invalid inventories, wrong image
+identity, exported configuration hashes, scanner failure, temporary cleanup,
+malformed JSON and unsupported requirement declarations. The combined formatter,
+Ruff and targeted mypy checks passed. Strict editor-type checks cover both new
+scripts and the policy tests.
+
+No live dependency audit, container build or image scan was run locally. These
+are delegated to hosted CI; no claim is made that the current pins or image have
+no critical findings. Empty exception registers grant no exemptions. Application
+requirements, environment settings and schema are unchanged. The aggregate CI
+gate and remote required-check enforcement remain separately tracked.
+
 ## Container replacement and persistence
 
 Implemented against `813feb8` plus the working changes on 2026-10-30. Eighteen
