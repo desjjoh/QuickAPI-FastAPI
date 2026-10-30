@@ -21,6 +21,7 @@ def model_to[T](tp: type[T], model: BaseModel, **dump_kwargs: Any) -> T:
 
     try:
         data = model.model_dump(**dump_kwargs)
+
         return cast(T, _adapter(cast(Hashable, tp)).validate_python(data))
     except ValidationError as e:
         raise HTTPException(

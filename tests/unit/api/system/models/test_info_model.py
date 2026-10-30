@@ -44,10 +44,12 @@ def valid_payload() -> dict[str, object]:
 def test_info_response_accepts_only_the_complete_strict_shape() -> None:
     payload = valid_payload()
     result = InfoResponse.model_validate(payload)
+
     assert result.model_dump() == payload
 
     for key in payload:
         incomplete: dict[str, object] = payload.copy()
+
         incomplete.pop(key)
         with pytest.raises(ValidationError):
             InfoResponse.model_validate(incomplete)
@@ -61,6 +63,7 @@ def test_info_response_rejects_invalid_fields(field: str, value: object) -> None
     with pytest.raises(ValidationError):
         invalid_payload: dict[str, object] = valid_payload()
         invalid_payload[field] = value
+
         InfoResponse.model_validate(invalid_payload)
 
 

@@ -19,6 +19,7 @@ def upgrade_connection(connection: Connection) -> None:
     """Apply migrations explicitly using an existing connection (also used by tests)."""
     config = migration_config()
     config.attributes["connection"] = connection
+
     command.upgrade(config, "head")
 
 
@@ -26,10 +27,12 @@ def check_revision(connection: Connection) -> None:
     config = migration_config()
     heads = ScriptDirectory.from_config(config).get_heads()
     current = MigrationContext.configure(connection).get_current_heads()
+
     if len(heads) != 1 or set(current) != set(heads):
         log.error(
             "Database schema revision is not current. Run python -m alembic upgrade head."
         )
+
         raise RuntimeError(
             "Database schema revision is not current. Run python -m alembic upgrade head."
         )

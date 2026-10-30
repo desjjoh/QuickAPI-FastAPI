@@ -23,14 +23,18 @@ async def test_empty_database_is_rejected_without_creating_tables(
     migration_engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     engine = migration_engine
+
     monkeypatch.setattr(database, "engine", engine)
+
     try:
         with pytest.raises(RuntimeError, match="python -m alembic upgrade head"):
             await database.init_db()
+
         async with engine.connect() as connection:
             tables = await connection.run_sync(
                 lambda conn: inspect(conn).get_table_names()
             )
+
         assert tables == []
     finally:
         await engine.dispose()
@@ -40,6 +44,7 @@ async def test_baseline_matches_models_and_repeated_upgrade_preserves_data(
     migration_engine: AsyncEngine,
 ) -> None:
     engine = migration_engine
+
     try:
         async with engine.begin() as connection:
             await connection.run_sync(upgrade_connection)
@@ -70,6 +75,7 @@ async def test_missing_or_incompatible_history_is_rejected(
     migration_engine: AsyncEngine, revision: str | None
 ) -> None:
     engine = migration_engine
+
     try:
         async with engine.begin() as connection:
             await connection.run_sync(upgrade_connection)
@@ -81,6 +87,7 @@ async def test_missing_or_incompatible_history_is_rejected(
                     ),
                     {"revision": revision},
                 )
+
             with pytest.raises(RuntimeError, match="schema revision is not current"):
                 await connection.run_sync(check_revision)
     finally:
@@ -91,6 +98,7 @@ async def test_baseline_can_be_removed_and_reapplied_on_disposable_database(
     migration_engine: AsyncEngine,
 ) -> None:
     engine = migration_engine
+
     try:
         async with engine.begin() as connection:
             await connection.run_sync(upgrade_connection)
@@ -98,6 +106,7 @@ async def test_baseline_can_be_removed_and_reapplied_on_disposable_database(
             def downgrade(conn: Connection) -> None:
                 config = migration_config()
                 config.attributes["connection"] = conn
+
                 command.downgrade(config, "base")
                 assert "items" not in inspect(conn).get_table_names()
 
@@ -112,6 +121,7 @@ def test_offline_sql_contains_baseline_and_version_history() -> None:
     output = io.StringIO()
     config = migration_config()
     config.output_buffer = output
+
     command.upgrade(config, "head", sql=True)
     assert "CREATE TABLE items" in output.getvalue()
     assert "0001_create_items" in output.getvalue()
@@ -124,6 +134,7 @@ async def test_online_commands_use_configured_async_database(
         **os.environ,
         "DATABASE_URL": migration_engine.url.render_as_string(hide_password=False),
     }
+
     for arguments in [
         ("upgrade", "head"),
         ("check",),
@@ -138,4 +149,5 @@ async def test_online_commands_use_configured_async_database(
             text=True,
             timeout=20,
         )
+
         assert result.returncode == 0, result.stdout + result.stderr

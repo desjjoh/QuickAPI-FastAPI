@@ -1,24 +1,15 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.v1.items.models.item_model import ItemBase, ItemResponse
 from app.api.v1.items.models.item_update_model import UpdateItemRequest
 from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
+from app.api.v1.items.services.item_service import ItemService, get_item_service
 from app.common.handlers.application_route import ApplicationRoute, transactional
-from app.common.models.converter import model_to
 from app.common.models.error_model import ErrorResponse
 from app.common.models.pagination import PaginatedResult
 from app.common.models.parameters_model import HexId
-from app.config.database import get_session
-from app.database.entities.item_orm import ItemORM
-from app.database.repositories.item_repo import (
-    ItemCreateData,
-    ItemListQuery,
-    ItemUpdateData,
-    repo,
-)
 
 router: APIRouter = APIRouter(route_class=ApplicationRoute)
 
@@ -33,11 +24,11 @@ router: APIRouter = APIRouter(route_class=ApplicationRoute)
 )
 @transactional
 async def create(
-    payload: ItemBase, db: AsyncSession = Depends(get_session)
+    payload: ItemBase, service: ItemService = Depends(get_item_service)
 ) -> ItemResponse:
-    created: ItemORM = await repo.create(db, item_in=model_to(ItemCreateData, payload))
+    item = await service.create(payload)
 
-    return ItemResponse.model_validate(created)
+    return ItemResponse.model_validate(item)
 
 
 ## GET /
@@ -50,9 +41,9 @@ async def create(
 )
 async def get_all(
     query: Annotated[ItemPaginationQuery, Query()],
-    db: AsyncSession = Depends(get_session),
+    service: ItemService = Depends(get_item_service),
 ) -> PaginatedResult[ItemResponse]:
-    items, count = await repo.find_and_count(db, model_to(ItemListQuery, query))
+    items, count = await service.get_all(query)
 
     return PaginatedResult[ItemResponse](
         data=[ItemResponse.model_validate(item) for item in items],
@@ -76,16 +67,12 @@ async def get_all(
         }
     },
 )
-async def get(id: HexId, db: AsyncSession = Depends(get_session)) -> ItemResponse:
-    found: ItemORM | None = await repo.get_by_id(db, id)
+async def get(
+    id: HexId, service: ItemService = Depends(get_item_service)
+) -> ItemResponse:
+    item = await service.get(id)
 
-    if not found:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Resource with ID '{id}' not found",
-        )
-
-    return ItemResponse.model_validate(found)
+    return ItemResponse.model_validate(item)
 
 
 ## PATCH /:id
@@ -104,21 +91,13 @@ async def get(id: HexId, db: AsyncSession = Depends(get_session)) -> ItemRespons
 )
 @transactional
 async def update(
-    id: HexId, payload: UpdateItemRequest, db: AsyncSession = Depends(get_session)
+    id: HexId,
+    payload: UpdateItemRequest,
+    service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
-    obj: ItemORM | None = await repo.get_by_id(db, id)
+    item = await service.update(id, payload)
 
-    if not obj:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Resource with ID '{id}' not found.",
-        )
-
-    updated: ItemORM = await repo.update(
-        db, obj, model_to(ItemUpdateData, payload, exclude_unset=True)
-    )
-
-    return ItemResponse.model_validate(updated)
+    return ItemResponse.model_validate(item)
 
 
 ## PUT /:id
@@ -137,21 +116,11 @@ async def update(
 )
 @transactional
 async def replace(
-    id: HexId, payload: ItemBase, db: AsyncSession = Depends(get_session)
+    id: HexId, payload: ItemBase, service: ItemService = Depends(get_item_service)
 ) -> ItemResponse:
-    obj: ItemORM | None = await repo.get_by_id(db, id)
+    item = await service.replace(id, payload)
 
-    if not obj:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Resource with ID '{id}' not found.",
-        )
-
-    updated: ItemORM = await repo.update(
-        db, obj, model_to(ItemUpdateData, payload, exclude_unset=False)
-    )
-
-    return ItemResponse.model_validate(updated)
+    return ItemResponse.model_validate(item)
 
 
 ## DELETE /:id
@@ -169,15 +138,9 @@ async def replace(
     },
 )
 @transactional
-async def delete(id: HexId, db: AsyncSession = Depends(get_session)) -> ItemResponse:
-    obj: ItemORM | None = await repo.get_by_id(db, id)
+async def delete(
+    id: HexId, service: ItemService = Depends(get_item_service)
+) -> ItemResponse:
+    item = await service.delete(id)
 
-    if not obj:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Resource with ID '{id}' not found.",
-        )
-
-    removed: ItemORM = await repo.delete(db, obj)
-
-    return ItemResponse.model_validate(removed)
+    return ItemResponse.model_validate(item)

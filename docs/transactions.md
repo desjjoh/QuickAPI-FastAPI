@@ -7,8 +7,9 @@
 Mutation endpoints opt into a shared transaction boundary with `@transactional`.
 Their router uses `ApplicationRoute`; the decorator marks the endpoint without
 replacing its signature or implementing a middleware transaction around every
-request. Controllers retain their existing item logic. No item service layer is
-required by this contract.
+request. Controllers delegate item operations to a request-scoped `ItemService`,
+which borrows the owned session and returns the operation result. Controllers
+validate that result into the declared response model before returning it.
 
 ```python
 router = APIRouter(route_class=ApplicationRoute)
@@ -18,9 +19,9 @@ router = APIRouter(route_class=ApplicationRoute)
 @transactional
 async def create(
     payload: ItemBase,
-    db: AsyncSession = Depends(get_session),
+    service: ItemService = Depends(get_item_service),
 ) -> ItemResponse:
-    item = await repo.create(db, item_in=model_to(ItemCreateData, payload))
+    item = await service.create(payload)
     return ItemResponse.model_validate(item)
 ```
 
@@ -36,8 +37,8 @@ transaction for their queries.
    calling the controller.
 2. `get_session(request)` yields that same session. Repeated dependency resolution
    shares the owner rather than allocating another connection or transaction.
-3. Run the controller's lookup, missing-resource checks, writes, flushes, refreshes,
-   and response-model conversion inside the transaction.
+3. Run the service's lookup, missing-resource checks, writes, flushes and refreshes,
+   followed by controller response-model conversion, inside the transaction.
 4. Let FastAPI's normal handler perform response-model validation, serialization,
    alias/exclusion handling, status/header preparation, and JSON rendering.
 5. Flush any remaining writes and check request activity immediately before
@@ -100,7 +101,7 @@ session `after_begin` event, before the first business statement. An expired poo
 waiter cannot acquire a connection later and begin its mutation.
 
 For a marked mutation, HTTP timeout or disconnect closes the sending boundary but
-does not cancel the owned application task. In-flight driver/controller work settles
+does not cancel the owned application task. In-flight driver/service work settles
 before the route checks activity and rolls back. The whole ASGI application task
 remains tracked, keeping FastAPI dependencies and the transaction owner alive until
 cleanup completes. Ordinary unmarked handlers retain cooperative cancellation.

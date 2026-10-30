@@ -23,6 +23,7 @@ def application(
 ) -> FastAPI:
     for key in FLAGS:
         monkeypatch.delenv(key, raising=False)
+
     factory = cast(Any, Settings)
     policy = cast(
         Settings,
@@ -35,12 +36,15 @@ def application(
             },
         ),
     )
+
     for key in (*FLAGS, "ENV"):
         monkeypatch.setattr(settings, key, getattr(policy, key))
+
     monkeypatch.setattr(
         "app.config.rate_limiter.RateLimiter.admit",
         Mock(return_value=RateLimitDecision(allowed=True)),
     )
+
     return create_app()
 
 
@@ -53,6 +57,7 @@ async def test_environment_defaults_through_actual_stack(
     environment: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     app = application(monkeypatch, environment)
+
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:
@@ -81,6 +86,7 @@ async def test_independent_flags_and_registered_schema(
         DIAGNOSTICS_ENABLED=str(diagnostics).lower(),
         METRICS_ENABLED=str(metrics).lower(),
     )
+
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:
@@ -94,8 +100,10 @@ async def test_independent_flags_and_registered_schema(
             ("/metrics", metrics),
         ]:
             assert await status(client, path) == (200 if enabled else 404)
+
         if docs:
             schema = (await client.get("/openapi.json")).json()
+
             assert ("/info" in schema["paths"]) == diagnostics
             assert ("/system" in schema["paths"]) == diagnostics
             assert ("/metrics" in schema["paths"]) == metrics
@@ -118,6 +126,7 @@ async def test_disabled_families_never_execute_handlers_or_redirect(
     info = Mock(side_effect=AssertionError("info ran"))
     metrics = Mock(side_effect=AssertionError("metrics exposition ran"))
     schema = Mock(side_effect=AssertionError("schema generated"))
+
     monkeypatch.setattr(
         "app.api.system.services.system_service.SystemDiagnosticsService.collect",
         diagnostics,
@@ -126,7 +135,7 @@ async def test_disabled_families_never_execute_handlers_or_redirect(
         "app.api.system.services.system_service.SystemInfoService.info", info
     )
     monkeypatch.setattr(
-        "app.api.system.controllers.system_controller.generate_latest", metrics
+        "app.api.system.services.system_service.generate_latest", metrics
     )
     monkeypatch.setattr(app, "openapi", schema)
 
@@ -160,6 +169,7 @@ async def test_disabled_families_never_execute_handlers_or_redirect(
         "/%6detrics",
         "/MeTrIcS",
     ]
+
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app),
         base_url="http://test",
@@ -176,6 +186,7 @@ async def test_disabled_families_never_execute_handlers_or_redirect(
                     )
                 else:
                     result = await client.request(method, path)
+
                 assert result.status_code == 404, (method, path)
                 assert "location" not in result.headers
                 assert result.headers["x-content-type-options"] == "nosniff"
@@ -183,7 +194,9 @@ async def test_disabled_families_never_execute_handlers_or_redirect(
                 if method != "HEAD":
                     assert result.json()["status"] == 404
                     assert result.json()["message"] == "Not Found"
+
         assert await status(client, "/information") == 200
+
     diagnostics.assert_not_called()
     info.assert_not_called()
     metrics.assert_not_called()
@@ -210,6 +223,7 @@ async def test_public_probes_stay_minimal_and_check_dependencies(
             )
         ]
     )
+
     monkeypatch.setattr(app.state.lifecycle, "check_services", check)
     monkeypatch.setattr(app.state.lifecycle, "is_ready", Mock(return_value=True))
     async with httpx.AsyncClient(
@@ -219,6 +233,7 @@ async def test_public_probes_stay_minimal_and_check_dependencies(
         assert await status(client, "/health") == 200
         check.assert_not_called()
         ready = await client.get("/ready")
+
     check.assert_awaited_once()
     assert ready.status_code == (200 if healthy else 503)
     assert ready.json()["ready"] is healthy
@@ -230,17 +245,20 @@ async def test_metrics_collection_continues_while_exposition_is_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = application(monkeypatch)
+
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:
         assert await status(client, "/") == 200
         assert await status(client, "/metrics") == 404
+
     recorded = [
         sample
         for family in REQUEST_COUNT.collect()
         for sample in family.samples
         if sample.name == "http_requests_total"
     ]
+
     assert len(recorded) == 1
     assert recorded[0].labels == {"method": "GET", "route": "/", "status": "200"}
     assert recorded[0].value == 1
@@ -256,6 +274,7 @@ async def test_differently_configured_apps_do_not_leak_routes(
         DIAGNOSTICS_ENABLED="true",
         METRICS_ENABLED="true",
     )
+
     for app, expected in [(visible, 200), (hidden, 404), (visible, 200)]:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app), base_url="http://test"
@@ -269,6 +288,7 @@ async def test_production_defaults_over_real_server(
     protocol: Literal["h11", "httptools"], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     app = application(monkeypatch)
+
     async with running(app, protocol) as port:
         async with httpx.AsyncClient(
             base_url=f"http://127.0.0.1:{port}", follow_redirects=False
@@ -283,9 +303,11 @@ async def test_production_defaults_over_real_server(
                 "/metrics/",
             ]:
                 assert await status(client, path) == 404
+
             assert (await client.head("/info")).status_code == 404
             assert await status(client, "/health") == 200
             ready = await client.get("/ready")
+
             assert ready.status_code == 503  # This fixture intentionally skips startup.
             assert set(ready.json()) == {"ready", "status", "timestamp"}
 
@@ -296,10 +318,12 @@ async def test_forwarded_identity_cannot_enable_hidden_endpoints(
 ) -> None:
     monkeypatch.setattr(settings, "TRUST_PROXY", ["127.0.0.1"] if trusted else [])
     exporter = Mock(side_effect=AssertionError("hidden exporter ran"))
+
     monkeypatch.setattr(
-        "app.api.system.controllers.system_controller.generate_latest", exporter
+        "app.api.system.services.system_service.generate_latest", exporter
     )
     app = application(monkeypatch)
+
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app, client=("127.0.0.1", 123)),
         base_url="http://test",
@@ -312,5 +336,7 @@ async def test_forwarded_identity_cannot_enable_hidden_endpoints(
                     "x-forwarded-proto": "https",
                 },
             )
+
             assert response.status_code == (404 if trusted else 400)
+
     exporter.assert_not_called()

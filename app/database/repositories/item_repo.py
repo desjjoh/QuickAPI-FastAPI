@@ -57,6 +57,7 @@ class ItemRepository:
     ) -> ItemORM:
         self.require_transaction(session)
         item: ItemORM = ItemORM(**item_in)
+
         session.add(item)
 
         await session.flush()
@@ -76,6 +77,7 @@ class ItemRepository:
 
         if payload.search:
             pattern: str = f"%{payload.search.strip()}%"
+
             filters.append(
                 or_(
                     ItemORM.name.ilike(pattern),

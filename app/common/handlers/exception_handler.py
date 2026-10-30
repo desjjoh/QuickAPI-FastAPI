@@ -19,6 +19,7 @@ async def http_exception_handler(
         log.warning("HTTP request rejected.", status=exc.status_code)
     else:
         log.error("HTTP request failed.", status=exc.status_code, error=exc)
+
     return error_response(
         status=exc.status_code,
         message=_detail_message(exc.detail),
@@ -57,6 +58,7 @@ async def validation_exception_handler(
     message: str = "Validation failed: " + "; ".join(parts) + '.'
 
     log.warning("HTTP request rejected.", status=status_code)
+
     return error_response(status=status_code, message=message)
 
 
@@ -73,4 +75,5 @@ async def unhandled_exception_handler(
         error=exc,
         requestId=request.scope.get("ctx", {}).get("request_id"),
     )
+
     return error_response(status=status_code, message=message)

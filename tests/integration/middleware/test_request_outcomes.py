@@ -37,11 +37,13 @@ async def test_bounded_routes_methods_and_identifiers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = create_app()
+
     monkeypatch.setattr(
         "app.config.rate_limiter.RateLimiter.admit",
         Mock(return_value=RateLimitDecision(allowed=True)),
     )
     logger = Mock()
+
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
 
     @app.get("/entries/{entry_id}")
@@ -57,8 +59,11 @@ async def test_bounded_routes_methods_and_identifiers(
             ).status_code == 200
             assert (await client.get(f"/missing/secret-{value}")).status_code == 404
             assert (await client.request(f"PRIVATE-{value}", "/")).status_code == 405
+
         assert (await client.post("/entries/1", json={})).status_code == 405
+
     completed = samples(REQUEST_COUNT, "http_requests_total")
+
     assert {
         (s.labels["method"], s.labels["route"], s.labels["status"]) for s in completed
     } == {
@@ -72,6 +77,7 @@ async def test_bounded_routes_methods_and_identifiers(
     assert "secret-" not in str(logger.mock_calls)
     assert "PRIVATE-" not in str(logger.mock_calls)
     buckets = samples(REQUEST_DURATION, "http_request_duration_ms_bucket")
+
     assert {s.labels["le"] for s in buckets} == {
         "5.0",
         "15.0",
@@ -103,13 +109,16 @@ async def test_actual_500_and_policy_rejections_are_completed_once_with_context(
     logger = Mock()
     logger.error.side_effect = capture
     logger.warning.side_effect = capture
+
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
 
     @app.get("/explode")
     async def explode() -> None:
         context = RequestContext.get()
+
         assert context is not None
         expected_ids.append(context.request_id)
+
         raise RuntimeError("broken")
 
     assert isinstance(app.build_middleware_stack(), RequestOutcomeASGIMiddleware)
@@ -128,16 +137,21 @@ async def test_actual_500_and_policy_rejections_are_completed_once_with_context(
                 "content-type": "application/json",
             },
         )
+
         assert body_response.status_code == 413
         expected_ids.append(body_response.headers["x-request-id"])
         header_response = await client.get("/", headers={"x-forwarded-for": "bad"})
+
         assert header_response.status_code == 400
         expected_ids.append(header_response.headers["x-request-id"])
         for _ in range(9):
             await client.get("/health")
+
         limit_response = await client.get("/")
+
         assert limit_response.status_code == 429
         expected_ids.append(limit_response.headers["x-request-id"])
+
     assert {
         (s.labels["route"], s.labels["status"], s.value)
         for s in samples(REQUEST_COUNT, "http_requests_total")
@@ -166,16 +180,19 @@ async def test_real_outcome_before_cleanup(
     release = asyncio.Event()
     cleaned = asyncio.Event()
     logger = Mock()
+
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
 
     @app.get("/slow/{entry_id}")
     async def slow(entry_id: int) -> dict[str, int]:
         entered.set()
+
         try:
             await asyncio.Event().wait()
         except asyncio.CancelledError:
             await release.wait()
             cleaned.set()
+
         return {"id": entry_id}
 
     async with running(app, protocol) as port:
@@ -183,21 +200,26 @@ async def test_real_outcome_before_cleanup(
             if mode == "timeout":
                 async with httpx.AsyncClient() as client:
                     response = await client.get(f"http://127.0.0.1:{port}/slow/123")
+
                     assert response.status_code == 408
             else:
                 reader, writer = await asyncio.open_connection("127.0.0.1", port)
+
                 writer.write(b"GET /slow/123 HTTP/1.1\r\nHost: test\r\n\r\n")
                 await writer.drain()
                 await asyncio.wait_for(entered.wait(), 1)
                 writer.close()
                 await writer.wait_closed()
                 del reader
+
             async with asyncio.timeout(1):
                 while not logger.warning.called:
                     await asyncio.sleep(0.001)
+
             assert not cleaned.is_set()
             completed = samples(REQUEST_COUNT, "http_requests_total")
             aborted = samples(REQUEST_ABORTED, "http_requests_aborted_total")
+
             if mode == "timeout":
                 assert len(completed) == 1 and completed[0].labels == {
                     "method": "GET",
@@ -219,6 +241,7 @@ async def test_real_outcome_before_cleanup(
                 }
                 assert aborted[0].value == 1
                 assert "ABORTED" in logger.warning.call_args.args[0]
+
             release.set()
             await asyncio.wait_for(cleaned.wait(), 1)
             await asyncio.sleep(0.01)
@@ -239,6 +262,7 @@ async def test_real_stream_abort_is_not_a_completed_200(
     release = asyncio.Event()
     cleaned = asyncio.Event()
     logger = Mock()
+
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
 
     async def chunks() -> AsyncGenerator[bytes, None]:
@@ -267,19 +291,24 @@ async def test_real_stream_abort_is_not_a_completed_200(
                                 pass
             else:
                 reader, writer = await asyncio.open_connection("127.0.0.1", port)
+
                 writer.write(b"GET /stream/123 HTTP/1.1\r\nHost: test\r\n\r\n")
                 await writer.drain()
                 async with asyncio.timeout(1):
                     await reader.readuntil(b"partial")
+
                 writer.close()
                 await writer.wait_closed()
+
             async with asyncio.timeout(1):
                 while not logger.warning.called:
                     await asyncio.sleep(0.001)
+
             assert not cleaned.is_set()
             assert not samples(REQUEST_COUNT, "http_requests_total")
             assert not samples(REQUEST_DURATION, "http_request_duration_ms_count")
             aborted = samples(REQUEST_ABORTED, "http_requests_aborted_total")
+
             assert len(aborted) == 1 and aborted[0].value == 1
             assert aborted[0].labels == {"method": "GET", "route": "/stream/{entry_id}"}
             assert "ABORTED" in logger.warning.call_args.args[0]
@@ -303,28 +332,35 @@ async def test_concurrent_requests_keep_their_context_and_shared_duration(
 
     def capture(message: str, **fields: object) -> None:
         request_id = structlog.contextvars.get_contextvars().get("request_id")
+
         assert isinstance(request_id, str)
         messages[request_id] = message
 
     logger = Mock()
     logger.debug.side_effect = capture
+
     monkeypatch.setattr("app.common.middleware.request_logger.log", logger)
 
     @app.get("/first")
     @app.get("/second")
     async def endpoint(request: Request) -> dict[str, bool]:
         context = RequestContext.get()
+
         assert context is not None
         identities[request.url.path] = context.request_id
+
         if len(identities) == 2:
             both_entered.set()
+
         await asyncio.wait_for(both_entered.wait(), 1)
+
         return {"ok": True}
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:
         responses = await asyncio.gather(client.get("/first"), client.get("/second"))
+
     assert all(response.status_code == 200 for response in responses)
     assert len(messages) == 2 and len(set(identities.values())) == 2
     for path, request_id in identities.items():
@@ -335,4 +371,5 @@ async def test_concurrent_requests_keep_their_context_and_shared_duration(
             for s in samples(REQUEST_DURATION, "http_request_duration_ms_sum")
             if s.labels["route"] == path
         )
+
         assert elapsed == pytest.approx(recorded, abs=0.006)

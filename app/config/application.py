@@ -13,6 +13,7 @@ from app.api.api_routes import create_router
 from app.api.system.services.system_service import (
     SystemDiagnosticsService,
     SystemInfoService,
+    SystemService,
 )
 from app.common.docs.openapi import configure_custom_validation_openapi
 from app.common.handlers.exception_handler import (
@@ -57,11 +58,13 @@ from app.config.rate_limiter import RateLimiter
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     runtime_failed = False
+
     try:
         app.state.request_work.resume()
         await app.state.lifecycle.startup()
 
         port: int = settings.PORT
+
         log.info(f"HTTP server running on port {port} — http://localhost:{port}")
 
         yield
@@ -69,6 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:
         runtime_failed = True
         app.state.lifecycle.shutdown_failed = True
+
         log.error("Application runtime failed.", error=exc)
 
         log.critical('Unhandled fatal error during server runtime — forcing exit')
@@ -101,6 +105,7 @@ class ObservedFastAPI(FastAPI):
 def create_app() -> FastAPI:
     name: str = settings.APP_NAME
     version: str = settings.APP_VERSION
+
     log.info(
         f"Booting {name} v{version} ({settings.ENV}) — Python v{sys.version.split()[0]}"
     )
@@ -122,10 +127,16 @@ def create_app() -> FastAPI:
 
     app.state.lifecycle = LifecycleHandler()
     app.state.request_work = RequestWork(settings.HTTP_DRAIN_TIMEOUT_MS / 1000)
+
     app.state.lifecycle.register([DatabaseService()])
     app.state.initialization_timestamp = started_at
     app.state.system_info = SystemInfoService(started_at=started_at)
     app.state.monotonic_start = time.perf_counter()
+    app.state.system_service = SystemService(
+        lifecycle=app.state.lifecycle,
+        initialized_at=started_at,
+        started_at=app.state.monotonic_start,
+    )
     app.state.system_diagnostics = SystemDiagnosticsService(
         lifecycle=app.state.lifecycle,
         started_at=app.state.monotonic_start,

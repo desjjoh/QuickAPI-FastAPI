@@ -25,19 +25,23 @@ async def test_http_and_unexpected_error_envelopes(
 
     app.include_router(router)
     expected_response = await client.get("/expected")
+
     assert (
         expected_response.status_code == 409
         and expected_response.json()["message"] == "conflict"
     )
     unexpected_response = await client.get("/unexpected")
+
     assert unexpected_response.status_code == 500
     assert unexpected_response.json()["message"] == "Internal server error."
 
 
 def test_openapi_schema_and_documented_responses() -> None:
     schema = create_app().openapi()
+
     assert schema["info"]["title"] == "QuickAPI"
     item = schema["paths"]["/api/v1/items/{id}"]
+
     assert "404" in item["get"]["responses"]
     assert item["get"]["responses"]["422"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/ErrorResponse"
@@ -46,5 +50,6 @@ def test_openapi_schema_and_documented_responses() -> None:
         "$ref": "#/components/schemas/ErrorResponse"
     }
     metrics = schema["paths"]["/metrics"]["get"]["responses"]["200"]
+
     assert set(metrics["content"]) == {CONTENT_TYPE_LATEST}
     assert "schema" not in metrics["content"][CONTENT_TYPE_LATEST]

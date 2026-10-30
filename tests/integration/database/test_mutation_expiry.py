@@ -31,6 +31,7 @@ pytestmark = pytest.mark.integration
 @asynccontextmanager
 async def serving(app: FastAPI) -> AsyncGenerator[str, None]:
     listener = socket.socket()
+
     listener.bind(('127.0.0.1', 0))
     listener.setblocking(False)
     server = uvicorn.Server(
@@ -44,16 +45,21 @@ async def serving(app: FastAPI) -> AsyncGenerator[str, None]:
         )
     )
     task = asyncio.create_task(server.serve(sockets=[listener]))
+
     try:
         async with asyncio.timeout(5):
             while not server.started:
                 if task.done():
                     await task
+
                     raise AssertionError('Server did not start')
+
                 await asyncio.sleep(0.001)
+
         yield f'http://127.0.0.1:{listener.getsockname()[1]}'
     finally:
         server.should_exit = True
+
         try:
             await asyncio.wait_for(task, 5)
         finally:
@@ -62,9 +68,11 @@ async def serving(app: FastAPI) -> AsyncGenerator[str, None]:
 
 def application(seconds: float = 0.25) -> FastAPI:
     app = create_app()
+
     for middleware in app.user_middleware:
         if middleware.cls is RequestTimeoutASGIMiddleware:
             middleware.kwargs['total_timeout'] = seconds
+
     return app
 
 
@@ -84,12 +92,15 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
     ending: str,
 ) -> None:
     factory = async_sessionmaker(database_engine, expire_on_commit=False)
+
     monkeypatch.setattr(database, 'SessionLocal', factory)
     async with factory() as seed, seed.begin():
         item = ItemORM(name='Before', price=1)
+
         seed.add(item)
         await seed.flush()
         identifier = item.id
+
     written, release = asyncio.Event(), asyncio.Event()
     disconnected = asyncio.Event()
     original_abandon = RequestActivity.abandon
@@ -109,21 +120,27 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
     async def hold(*args: Any, **kwargs: Any) -> Any:
         nonlocal cancelled
         value = await original(*args, **kwargs)
+
         written.set()
+
         try:
             await release.wait()
         except asyncio.CancelledError:
             cancelled = True
+
             await release.wait()
+
         return value
 
     monkeypatch.setattr(repo, operation, hold)
     app = application(0.25 if ending == 'timeout' else 5)
+
     async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
         path = '/api/v1/items/' if method == 'POST' else f'/api/v1/items/{identifier}'
         payload = None if method == 'DELETE' else {'name': 'After', 'price': 2}
         request: asyncio.Task[httpx.Response] | None = None
         writer: asyncio.StreamWriter | None = None
+
         try:
             if ending == 'timeout':
                 request = asyncio.create_task(
@@ -135,14 +152,17 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
                     '127.0.0.1', int(base.rsplit(':', 1)[1])
                 )
                 content_type = 'Content-Type: application/json\r\n' if payload else ''
+
                 writer.write(
                     f'{method} {path} HTTP/1.1\r\nHost: localhost\r\n{content_type}Content-Length: {len(body)}\r\n\r\n'.encode()
                     + body
                 )
                 await writer.drain()
+
             await asyncio.wait_for(written.wait(), 3)
             if request is not None:
                 response = await asyncio.wait_for(request, 3)
+
                 assert response.status_code == 408
                 assert response.json()['message'] == 'Total request timeout exceeded.'
             else:
@@ -150,25 +170,31 @@ async def test_abandoned_write_settles_then_rolls_back_without_late_response(
                 writer.close()
                 await writer.wait_closed()
                 await asyncio.wait_for(disconnected.wait(), 3)
+
             assert not cancelled
             assert app.state.request_work.tasks
             release.set()
             await settled(app)
             async with factory() as observer:
                 rows = list(await observer.scalars(select(ItemORM.name)))
+
                 assert rows == ['Before']
+
             # A following mutation on the same server succeeds; the late result
             # neither corrupts its connection nor poisons session/pool state.
             following = await client.post(
                 '/api/v1/items/', json={'name': 'Recovered', 'price': 1}
             )
+
             assert following.status_code == 201
         finally:
             release.set()
             if request is not None:
                 await asyncio.gather(request, return_exceptions=True)
+
             if writer is not None:
                 writer.close()
+
             await settled(app)
 
 
@@ -181,6 +207,7 @@ async def test_expiry_during_pool_wait_prevents_business_sql_after_checkout(
         policy=DatabasePolicy(connection_limit=1, acquire_timeout_ms=3000),
     )
     pool = cast(BoundedAsyncPool, engine.pool)
+
     monkeypatch.setattr(
         database, 'SessionLocal', async_sessionmaker(engine, expire_on_commit=False)
     )
@@ -192,14 +219,17 @@ async def test_expiry_during_pool_wait_prevents_business_sql_after_checkout(
 
     event.listen(engine.sync_engine, 'before_cursor_execute', executed)
     app = application()
+
     try:
         async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
             pending = asyncio.create_task(
                 client.post('/api/v1/items/', json={'name': 'Too late', 'price': 1})
             )
+
             async with asyncio.timeout(3):
                 while not pool.admission.waiters:
                     await asyncio.sleep(0.001)
+
             assert (await pending).status_code == 408
             await held.close()
             await settled(app)
@@ -207,6 +237,7 @@ async def test_expiry_during_pool_wait_prevents_business_sql_after_checkout(
             assert not business_sql
             async with database_engine.connect() as observer:
                 assert not list(await observer.scalars(select(ItemORM.name)))
+
             assert (
                 await client.post(
                     '/api/v1/items/', json={'name': 'Recovered', 'price': 1}
@@ -238,21 +269,28 @@ async def test_clock_guard_rolls_back_even_without_timeout_callback(
         await repo.create(db, item_in={'name': 'Expired', 'price': 1})
         if catch_cancellation:
             task = asyncio.current_task()
+
             assert task is not None
             task.cancel()
+
             try:
                 await asyncio.sleep(0)
             except asyncio.CancelledError:
                 pass
+
         request_activity(request.scope).expires_at = time.monotonic() - 1
+
         return {'ok': True}
 
     app = application(5)
+
     app.include_router(router)
     async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
         response = await client.post('/clock', json={})
+
         assert response.status_code == 408
         await settled(app)
+
     async with database_engine.connect() as observer:
         assert not list(await observer.scalars(select(ItemORM.name)))
 
@@ -276,6 +314,7 @@ class QueryGate:
 
     async def barrier(self) -> None:
         self.used = True
+
         self.reached.set()
         await self.release.wait()
         if self.drop:
@@ -285,6 +324,7 @@ class QueryGate:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         task = asyncio.current_task()
+
         assert task is not None
         self.tasks.add(task)
         upstream: asyncio.StreamWriter | None = None
@@ -298,6 +338,7 @@ class QueryGate:
             while True:
                 header = await source.readexactly(4)
                 body = await source.readexactly(int.from_bytes(header[:3], 'little'))
+
                 if (
                     not downstream
                     and self.armed
@@ -311,7 +352,9 @@ class QueryGate:
                         result_pending = True
                 elif downstream and result_pending:
                     result_pending = False
+
                     await self.barrier()
+
                 target.write(header + body)
                 await target.drain()
 
@@ -322,6 +365,7 @@ class QueryGate:
                 asyncio.create_task(pipe(remote, writer, True)),
             ]
             done, _ = await asyncio.wait(pipes, return_when=asyncio.FIRST_COMPLETED)
+
             for completed in done:
                 await completed
         except (OSError, asyncio.IncompleteReadError):
@@ -329,14 +373,17 @@ class QueryGate:
         finally:
             for pending in pipes:
                 pending.cancel()
+
             await asyncio.gather(*pipes, return_exceptions=True)
             for stream in (writer, upstream):
                 if stream is not None:
                     stream.close()
+
                     try:
                         await stream.wait_closed()
                     except OSError:
                         pass
+
             self.tasks.discard(task)
 
 
@@ -364,7 +411,9 @@ async def test_connection_loss_during_rollback_retires_lease_and_recovers(
 
     def owned(**kwargs: Any) -> AsyncSession:
         session = factory(**kwargs)
+
         sessions.append(session)
+
         return session
 
     def invalidate(*_: object) -> None:
@@ -384,37 +433,49 @@ async def test_connection_loss_during_rollback_retires_lease_and_recovers(
         connection_id = int(
             (await db.execute(text('SELECT CONNECTION_ID()'))).scalar_one()
         )
+
         await repo.create(db, item_in={'name': 'Discarded', 'price': 1})
+
         raise RuntimeError('Injected preparation failure after a real write')
 
     app = application(5)
+
     app.include_router(router)
+
     try:
         async with engine.connect() as warm:
             await warm.execute(text('SELECT 1'))
+
         gate.armed = True
+
         async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
             failed = asyncio.create_task(client.post('/rollback-fault', json={}))
             recovery: asyncio.Task[httpx.Response] | None = None
+
             try:
                 await asyncio.wait_for(gate.reached.wait(), 3)
                 assert connection_id is not None
                 assert pool.admission.active == 1 and not failed.done()
                 async with database_engine.connect() as observer:
                     assert not list(await observer.scalars(select(ItemORM.name)))
+
                 recovery = asyncio.create_task(
                     client.post(
                         '/api/v1/items/', json={'name': 'Recovered', 'price': 1}
                     )
                 )
+
                 async with asyncio.timeout(3):
                     while not pool.admission.waiters:
                         await asyncio.sleep(0.001)
+
                 # No reuse or capacity release while rollback still owns the lease.
                 assert pool.admission.active == 1 and not recovery.done()
                 gate.drop = True
+
                 gate.release.set()
                 response = await asyncio.wait_for(failed, 3)
+
                 assert response.status_code == 500
                 assert response.json()['message'] == 'Internal server error.'
                 assert (await asyncio.wait_for(recovery, 3)).status_code == 201
@@ -431,11 +492,14 @@ async def test_connection_loss_during_rollback_retires_lease_and_recovers(
                                 .mappings()
                                 .all()
                             )
+
                         if not any(
                             int(row['Id']) == connection_id for row in processes
                         ):
                             break
+
                         await asyncio.sleep(0.01)
+
                 async with database_engine.connect() as observer:
                     assert list(await observer.scalars(select(ItemORM.name))) == [
                         'Recovered'
@@ -471,6 +535,7 @@ async def test_lost_http_response_after_confirmed_commit_does_not_undo_data(
     def owned(**kwargs: Any) -> AsyncSession:
         nonlocal first
         session = factory(**kwargs)
+
         if first:
             first = False
             original_close = session.close
@@ -483,20 +548,24 @@ async def test_lost_http_response_after_confirmed_commit_does_not_undo_data(
                     raise RuntimeError('Injected post-commit cleanup failure')
 
             monkeypatch.setattr(session, 'close', close)
+
         return session
 
     monkeypatch.setattr(database, 'SessionLocal', owned)
     app = application()
+
     async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
         request = asyncio.create_task(
             client.post('/api/v1/items/', json={'name': 'Confirmed', 'price': 1})
         )
+
         try:
             await asyncio.wait_for(closed.wait(), 3)
             async with database_engine.connect() as observer:
                 assert list(await observer.scalars(select(ItemORM.name))) == [
                     'Confirmed'
                 ]
+
             assert (await request).status_code == 408
             release.set()
             await settled(app)
@@ -543,6 +612,7 @@ async def test_real_mysql_results_and_commit_acknowledgement_loss(
         )
     )
     pool = cast(BoundedAsyncPool, engine.pool)
+
     monkeypatch.setattr(
         database, 'SessionLocal', async_sessionmaker(engine, expire_on_commit=False)
     )
@@ -557,28 +627,34 @@ async def test_real_mysql_results_and_commit_acknowledgement_loss(
 
     def owned(**kwargs: Any) -> AsyncSession:
         session = factory(**kwargs)
+
         sessions.append(session)
+
         return session
 
     monkeypatch.setattr(database, 'SessionLocal', owned)
     app = application(0.4)
+
     try:
         async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
             request = asyncio.create_task(
                 client.post('/api/v1/items/', json={'name': 'Unconfirmed', 'price': 1})
             )
+
             try:
                 await asyncio.wait_for(gate.reached.wait(), 3)
                 # Receipt of the COMMIT OK packet proves the server completed it,
                 # even though this relay has not delivered that acknowledgement.
                 async with database_engine.connect() as observer:
                     visible = list(await observer.scalars(select(ItemORM.name)))
+
                 assert visible == (
                     ['Unconfirmed'] if query == b'COMMIT' and phase == 'after' else []
                 )
                 assert (await asyncio.wait_for(request, 3)).status_code == 408
                 assert pool.admission.active == 1
                 gate.drop = drop
+
                 gate.release.set()
                 await settled(app)
                 assert pool.admission.active == 0 and not pool.admission.waiters
@@ -586,15 +662,18 @@ async def test_real_mysql_results_and_commit_acknowledgement_loss(
                 assert bool(invalidated) == drop
                 async with database_engine.connect() as observer:
                     visible = list(await observer.scalars(select(ItemORM.name)))
+
                 assert visible == (['Unconfirmed'] if committed else [])
                 # Lost acknowledgements must not cause replay; exactly one new
                 # request, with a recovered/replacement lease, creates one row.
                 following = await client.post(
                     '/api/v1/items/', json={'name': 'Recovered', 'price': 1}
                 )
+
                 assert following.status_code == 201
                 async with database_engine.connect() as observer:
                     names = list(await observer.scalars(select(ItemORM.name)))
+
                 assert sorted(names) == sorted(
                     (['Unconfirmed'] if committed else []) + ['Recovered']
                 )
@@ -631,10 +710,13 @@ async def test_interruption_after_server_commit_preserves_data_and_recovers(
 
     def owned(**kwargs: Any) -> AsyncSession:
         task = asyncio.current_task()
+
         assert task is not None
         owners.append(task)
         session = factory(**kwargs)
+
         sessions.append(session)
+
         return session
 
     monkeypatch.setattr(database, 'SessionLocal', owned)
@@ -648,17 +730,20 @@ async def test_interruption_after_server_commit_preserves_data_and_recovers(
 
     monkeypatch.setattr(RequestActivity, 'abandon', abandon)
     app = application(5)
+
     try:
         async with serving(app) as base, httpx.AsyncClient(base_url=base) as client:
             reader, writer = await asyncio.open_connection(
                 '127.0.0.1', int(base.rsplit(':', 1)[1])
             )
             body = b'{"name":"Committed","price":1}'
+
             writer.write(
                 f'POST /api/v1/items/ HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\nConnection: close\r\n\r\n'.encode()
                 + body
             )
             await writer.drain()
+
             try:
                 await asyncio.wait_for(gate.reached.wait(), 3)
                 if ending == 'disconnect':
@@ -672,14 +757,17 @@ async def test_interruption_after_server_commit_preserves_data_and_recovers(
                     # work. It cannot undo a COMMIT already completed in MySQL.
                     owners[0].cancel()
                     wire = await asyncio.wait_for(reader.read(), 3)
+
                     assert b'201 Created' not in wire
                     gate.release.set()
+
                 await settled(app)
                 assert all(not session.in_transaction() for session in sessions)
                 async with database_engine.connect() as observer:
                     assert list(await observer.scalars(select(ItemORM.name))) == [
                         'Committed'
                     ]
+
                 assert (
                     await client.post(
                         '/api/v1/items/', json={'name': 'Recovered', 'price': 1}

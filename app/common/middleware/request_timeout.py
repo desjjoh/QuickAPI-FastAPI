@@ -33,6 +33,7 @@ class RequestTimeoutASGIMiddleware:
         ):
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and greater than zero")
+
         self.app = app
         self.first_body_timeout = first_body_timeout
         self.chunk_timeout = chunk_timeout
@@ -45,14 +46,18 @@ class RequestTimeoutASGIMiddleware:
     def track_work(self, task: asyncio.Task[None]) -> None:
         if self.work is not None:
             self.work.track(task)
+
         self._pending.add(task)
         task.add_done_callback(self._pending.discard)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
+
             return
+
         request = _RequestDeadline(self, scope, receive, send)
+
         await request.run()
 
 
@@ -88,31 +93,40 @@ class _RequestDeadline:
         try:
             while True:
                 message = await self.receive()
+
                 if message["type"] == "http.disconnect":
                     if not self.completed.is_set():
                         self.disconnected = True
+
                         self.activity.abandon('Request disconnected.')
                         self.interrupted.set()
+
                     return
+
                 await self.incoming.put(message)
         except TimeoutError:
             raise  # TimeoutError is also an OSError; it is not proof of disconnect.
         except OSError:
             self.disconnected = True
+
             self.activity.abandon('Request disconnected.')
             self.interrupted.set()
 
     async def receive_body(self) -> Message:
         if self.closed or self.disconnected:
             return {"type": "http.disconnect"}
+
         if self.body_complete:
             await self.interrupted.wait()
+
             return {"type": "http.disconnect"}
+
         budget = (
             self.middleware.chunk_timeout
             if self.body_started
             else self.middleware.first_body_timeout
         )
+
         try:
             async with asyncio.timeout(budget):
                 message = await self.incoming.get()
@@ -122,29 +136,38 @@ class _RequestDeadline:
                 if self.body_started
                 else "Request first body timeout exceeded."
             )
+
             self.activity.abandon(self.timeout_detail)
             self.interrupted.set()
+
             # Do not let FastAPI's request parser convert this into a JSON 400.
             # The request owner, rather than downstream exception handling, emits 408.
             raise asyncio.CancelledError from None
+
         self.body_started = True
         self.body_complete = not message.get("more_body", False)
+
         return message
 
     async def send_response(self, message: Message) -> None:
         if self.closed or self.disconnected or self.completed.is_set():
             return
+
         if message["type"] == "http.response.start":
             self.started = True
+
         try:
             await self.send(message)
         except TimeoutError:
             raise
         except OSError:
             self.disconnected = True
+
             self.activity.abandon('Request disconnected.')
             self.interrupted.set()
+
             raise
+
         if message["type"] == "http.response.body" and not message.get(
             "more_body", False
         ):
@@ -153,6 +176,7 @@ class _RequestDeadline:
     def observe_work(self, task: asyncio.Task[None]) -> None:
         if not task.cancelled():
             error = task.exception()
+
             if (
                 error is not None
                 and self.closed
@@ -168,53 +192,67 @@ class _RequestDeadline:
 
     async def run(self) -> None:
         work = asyncio.create_task(self.run_app())
+
         self.middleware.track_work(work)
         work.add_done_callback(self.observe_work)
         reader = asyncio.create_task(self.read_messages())
         interrupted = asyncio.create_task(self.interrupted.wait())
         completed = asyncio.create_task(self.completed.wait())
         watchers = (reader, interrupted, completed)
+
         try:
             done, _ = await asyncio.wait(
                 (work, *watchers),
                 timeout=self.middleware.total_timeout,
                 return_when=asyncio.FIRST_COMPLETED,
             )
+
             if self.completed.is_set():
                 # A finished response cannot expire during dependency/background cleanup.
                 await work
             elif self.disconnected:
                 abort_request(self.scope)
                 self.closed = True
+
                 if not self.activity.owns_mutation:
                     work.cancel()
             elif self.timeout_detail is not None or not done:
                 self.closed = True
                 detail = self.timeout_detail or "Total request timeout exceeded."
+
                 self.activity.abandon(detail)
                 if not self.activity.owns_mutation:
                     work.cancel()
+
                 if self.started:
                     abort_request(self.scope)
+
                     # ASGI has no portable socket-abort message. Raising after
                     # response.start lets Uvicorn close the incomplete response.
                     raise _StreamDeadlineExceededError(detail)
+
                 response = error_response(status=408, message=detail)
+
                 await response(self.scope, self.receive_body, self.send)
             else:
                 if reader in done:
                     await reader  # Preserve unexpected receive failures.
+
                 await work  # Preserve downstream errors, including TimeoutError.
         finally:
             self.closed = True
+
             if not work.done():
                 self.activity.abandon('Request interrupted.')
+
             if (
                 not work.done()
                 and not work.cancelling()
                 and not self.activity.owns_mutation
             ):
                 work.cancel()
+
             for task in watchers:
                 task.cancel()
+
             await asyncio.gather(*watchers, return_exceptions=True)

@@ -52,6 +52,7 @@ class RequestContextASGIMiddleware:
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = message.setdefault("headers", [])
+
                 headers.append((b"x-request-id", request_id.encode()))
 
             await send(message)

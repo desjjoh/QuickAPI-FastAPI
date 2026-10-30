@@ -13,4 +13,5 @@ async def test_non_http_is_passthrough(scope: Scope, app: ASGIApp) -> None:
         app, docs_enabled=False, diagnostics_enabled=False, metrics_enabled=False
     )
     result = await invoke(wrapped, scope)
+
     assert result[0]["type"] == f"{scope['type']}.response.start"

@@ -23,6 +23,7 @@ async def test_real_server_failure_uses_safe_correlated_json(
 ) -> None:
     output = io.StringIO()
     logger = create_logger(production=True, level="DEBUG", stream=output)
+
     for module in [
         "app.config.logging",
         "app.common.handlers.exception_handler",
@@ -30,6 +31,7 @@ async def test_real_server_failure_uses_safe_correlated_json(
         "app.common.middleware.request_timeout",
     ]:
         monkeypatch.setattr(module + ".log", logger)
+
     app = create_app()
 
     @app.get("/private/{identifier}")
@@ -41,12 +43,15 @@ async def test_real_server_failure_uses_safe_correlated_json(
             response = await client.get(
                 f"http://127.0.0.1:{port}/private/{SECRET}?token={SECRET}"
             )
+
             assert response.status_code == 500
             assert response.json()["message"] == "Internal server error."
+
     assert SECRET not in output.getvalue()
     entries = [json.loads(line) for line in output.getvalue().splitlines()]
     failure = next(entry for entry in entries if entry["msg"] == "HTTP request failed.")
     access = [entry for entry in entries if entry.get("outcome") == "completed"]
+
     assert len(access) == 1
     assert failure["requestId"] == access[0]["requestId"]
     assert access[0]["route"] == "/private/{identifier}" and access[0]["status"] == 500
@@ -64,11 +69,13 @@ def test_invalid_environment_never_prints_supplied_values(environment: str) -> N
         text=True,
         timeout=10,
     )
+
     assert result.returncode == 1
     assert SECRET not in result.stdout + result.stderr
     assert "APP_VERSION" in result.stdout
     if environment == "production":
         data = json.loads(result.stdout)
+
         assert data["levelLabel"] == "critical" and data["fields"] == ["APP_VERSION"]
         assert "\x1b" not in result.stdout
     else:
@@ -99,12 +106,14 @@ log.info('Application ready.')
         text=True,
         timeout=10,
     )
+
     assert result.returncode == 0 and not result.stderr
     assert SECRET not in result.stdout
     entries = [json.loads(line) for line in result.stdout.splitlines()]
     dependencies = [
         entry for entry in entries if entry["msg"] == "Dependency log event."
     ]
+
     assert [entry["levelLabel"] for entry in dependencies] == (
         ["error"] if level == "ERROR" else ["warning", "error"]
     )
@@ -133,10 +142,12 @@ main.run()
         text=True,
         timeout=10,
     )
+
     assert result.returncode == 1 and SECRET not in result.stdout + result.stderr
     assert not result.stderr
     if environment == "production":
         entry = json.loads(result.stdout)
+
         assert (
             entry["levelLabel"] == "critical"
             and entry["error"]["errorType"] == "RuntimeError"

@@ -1,18 +1,64 @@
 # pyright: reportPrivateUsage=false
 
 import time
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 from unittest.mock import AsyncMock
 
 import pytest
-from pydantic import ValidationError
 
-from app.api.system.models.system_model import CpuDiagnostics, MemoryDiagnostics
 from app.api.system.services import system_service
-from app.api.system.services.system_service import SystemDiagnosticsService
-from app.common.handlers.lifecycle_handler import ReadinessCheckResult
+from app.api.system.services.system_service import (
+    SystemDiagnosticsService,
+    SystemService,
+)
+from app.common.handlers.lifecycle_handler import LifecycleHandler, ReadinessCheckResult
 
 pytestmark = pytest.mark.unit
+
+
+def test_liveness_uses_application_start_and_never_checks_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    initialized = datetime(2026, 1, 1, tzinfo=UTC)
+    lifecycle = LifecycleHandler()
+    checks = AsyncMock(side_effect=AssertionError('Liveness checked dependencies'))
+
+    monkeypatch.setattr(lifecycle, 'check_services', checks)
+    service = SystemService(lifecycle, initialized, 10)
+
+    monkeypatch.setattr(system_service.time, 'perf_counter', lambda: 11.23456)
+    result = service.live()
+
+    assert result['alive'] is True
+    assert result['uptime'] == 1.235
+    assert result['timestamp'] == initialized + timedelta(seconds=1.235)
+    checks.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    'started,healthy', [(False, True), (True, False), (True, True)]
+)
+async def test_readiness_requires_startup_and_healthy_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+    started: bool,
+    healthy: bool,
+) -> None:
+    lifecycle = LifecycleHandler()
+
+    if started:
+        await lifecycle.startup()
+
+    checks = AsyncMock(
+        return_value=[ReadinessCheckResult('database', 'up' if healthy else 'down', 0)]
+    )
+
+    monkeypatch.setattr(lifecycle, 'check_services', checks)
+    service = SystemService(lifecycle, datetime.now(UTC), time.perf_counter())
+    result = await service.ready()
+
+    assert result == (started and healthy)
+    checks.assert_awaited_once()
 
 
 class Lifecycle:
@@ -28,7 +74,7 @@ def test_load_average_and_memory_fallbacks(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setattr(system_service, "_memory_from_proc", lambda: None)
     monkeypatch.setattr(system_service, "_memory_from_sysconf", lambda: None)
     assert system_service._load_average() == (0.0, 0.0, 0.0)
-    assert system_service._memory_diagnostics().model_dump() == {
+    assert system_service._memory_diagnostics() == {
         "total_bytes": 0,
         "available_bytes": 0,
         "used_bytes": 0,
@@ -47,6 +93,7 @@ def test_proc_memory_compatibility_helper(tmp_path: object) -> None:
     from pathlib import Path
 
     path = Path(str(tmp_path)) / "meminfo"
+
     path.write_text("MemTotal: 100 kB\nMemAvailable: 25 kB\n", encoding="ascii")
     assert system_service._memory_from_proc(path) == (102400, 25600)
 
@@ -56,6 +103,7 @@ def test_proc_memory_invalid_or_incomplete_data_returns_none(tmp_path: object) -
 
     missing = Path(str(tmp_path)) / "missing"
     incomplete = Path(str(tmp_path)) / "meminfo"
+
     incomplete.write_text("MemTotal: 100 kB\n", encoding="ascii")
 
     assert system_service._memory_from_proc(missing) is None
@@ -69,6 +117,7 @@ def test_sysconf_failure_returns_none(
     def fail(_name: str) -> int:
         if isinstance(failure, Exception):
             raise failure
+
         return failure
 
     monkeypatch.setattr(system_service.os, "sysconf", fail, raising=False)
@@ -106,19 +155,6 @@ def test_resource_read_failure_returns_zero(monkeypatch: pytest.MonkeyPatch) -> 
     assert system_service._process_rss_bytes() == 0
 
 
-def test_nested_model_ranges_and_fixed_load_average() -> None:
-    CpuDiagnostics(cores=1, model="unknown", load_average=(0.0, 1.0, 2.0))
-    MemoryDiagnostics(total_bytes=1, available_bytes=1, used_bytes=0, percentage=100.0)
-    with pytest.raises(ValidationError):
-        CpuDiagnostics(cores=0, model="x", load_average=(0.0, 0.0, 0.0))
-    with pytest.raises(ValidationError):
-        CpuDiagnostics(cores=1, model="x", load_average=(0.0, 0.0))  # type: ignore[arg-type]
-    with pytest.raises(ValidationError):
-        MemoryDiagnostics(
-            total_bytes=1, available_bytes=0, used_bytes=1, percentage=101.0
-        )
-
-
 @pytest.mark.parametrize(
     ("result", "expected"), [("up", "connected"), ("down", "disconnected")]
 )
@@ -132,6 +168,7 @@ async def test_database_status_uses_only_named_database_check(
         )
     )
     service = SystemDiagnosticsService(lifecycle, time.perf_counter())  # type: ignore[arg-type]
+
     assert await service._database_status() == expected
     lifecycle.check_service.assert_awaited_once_with("database")
 
@@ -140,6 +177,7 @@ async def test_event_loop_lag_is_non_negative() -> None:
     lifecycle = Lifecycle()
     lifecycle.get_event_loop_lag = AsyncMock(return_value=3.5)
     service = SystemDiagnosticsService(lifecycle, time.perf_counter())  # type: ignore[arg-type]
+
     assert await service._event_loop_lag() == 3.5
     lifecycle.get_event_loop_lag.assert_awaited_once_with(samples=1, interval=0.01)
 
@@ -167,13 +205,15 @@ async def test_collector_timeout_returns_required_fallbacks(
 
     def slow() -> object:
         time.sleep(0.03)
+
         return system_service._fallback_diagnostics()
 
     monkeypatch.setattr(system_service, "_sync_diagnostics", slow)
     service = SystemDiagnosticsService(lifecycle, time.perf_counter(), timeout_seconds=0.001)  # type: ignore[arg-type]
     response = await service.collect()
-    assert response.cpu.cores == 1
-    assert response.cpu.load_average == (0.0, 0.0, 0.0)
-    assert response.memory.total_bytes == 0
-    assert response.process.rss_bytes == 0
-    assert response.db == "disconnected"
+
+    assert response['cpu']['cores'] == 1
+    assert response['cpu']['load_average'] == (0.0, 0.0, 0.0)
+    assert response['memory']['total_bytes'] == 0
+    assert response['process']['rss_bytes'] == 0
+    assert response['db'] == "disconnected"

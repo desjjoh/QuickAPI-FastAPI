@@ -19,12 +19,16 @@ FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "migrations"
 
 def evidence_config(path: Path, revision: str) -> Config:
     versions = path / "versions"
+
     versions.mkdir(parents=True)
     shutil.copyfile(FIXTURES / "env.py", path / "env.py")
     for name in ["base", revision]:
         shutil.copyfile(FIXTURES / f"{name}.py", versions / f"{name}.py")
+
     config = Config()
+
     config.set_main_option("script_location", str(path))
+
     return config
 
 
@@ -35,6 +39,7 @@ async def apply(
 
         def run(conn: Connection) -> None:
             config.attributes["connection"] = conn
+
             if downgrade:
                 command.downgrade(config, target)
             else:
@@ -61,6 +66,7 @@ async def test_real_baseline_downgrade_is_destructive_and_fresh_upgrade_matches_
     from alembic.migration import MigrationContext
 
     config = migrations.migration_config()
+
     try:
         async with database_engine.begin() as connection:
             await connection.execute(
@@ -68,6 +74,7 @@ async def test_real_baseline_downgrade_is_destructive_and_fresh_upgrade_matches_
                     "INSERT INTO items (id,name,price) VALUES ('discarded','Disposable',1)"
                 )
             )
+
         await apply(database_engine, config, "base", downgrade=True)
         async with database_engine.connect() as connection:
             assert "items" not in await connection.run_sync(
@@ -75,6 +82,7 @@ async def test_real_baseline_downgrade_is_destructive_and_fresh_upgrade_matches_
             )
     finally:
         await apply(database_engine, config, "head")
+
     async with database_engine.connect() as connection:
         assert (
             await connection.execute(text("SELECT COUNT(*) FROM items"))
@@ -93,6 +101,7 @@ async def test_data_bearing_upgrade_downgrade_and_reapply(
     database_engine: AsyncEngine, tmp_path: Path
 ) -> None:
     config = evidence_config(tmp_path / "chain", "backfill")
+
     async with database_engine.begin() as connection:
         await connection.execute(
             text(
@@ -106,10 +115,13 @@ async def test_data_bearing_upgrade_downgrade_and_reapply(
                 )
             )
         ).all()
+
     upgraded = False
+
     try:
         await apply(database_engine, config, "head")
         upgraded = True
+
         async with database_engine.begin() as connection:
             assert (
                 await connection.execute(
@@ -134,6 +146,7 @@ async def test_data_bearing_upgrade_downgrade_and_reapply(
                     for c in inspect(conn).get_columns("items")
                     if c["name"] == "evidence_label"
                 )
+
                 assert column["nullable"] is False and column["default"] is not None
 
             await connection.run_sync(schema)
@@ -145,8 +158,10 @@ async def test_data_bearing_upgrade_downgrade_and_reapply(
                     text("SELECT evidence_label FROM items WHERE id='new'")
                 )
             ).scalar_one() == "new"
+
         await apply(database_engine, config, "evidence_base", downgrade=True)
         upgraded = False
+
         async with database_engine.connect() as connection:
             assert (
                 await connection.execute(
@@ -158,11 +173,13 @@ async def test_data_bearing_upgrade_downgrade_and_reapply(
             assert "evidence_label" not in await connection.run_sync(
                 lambda conn: [c["name"] for c in inspect(conn).get_columns("items")]
             )
+
         await apply(database_engine, config, "head")
         upgraded = True
     finally:
         if upgraded:
             await apply(database_engine, config, "evidence_base", downgrade=True)
+
         await cleanup(database_engine)
 
 
@@ -170,10 +187,12 @@ async def test_failed_ddl_leaves_history_unadvanced_and_requires_explicit_cleanu
     database_engine: AsyncEngine, tmp_path: Path
 ) -> None:
     config = evidence_config(tmp_path / "failure", "failure")
+
     try:
         await apply(database_engine, config, "evidence_base")
         with pytest.raises(RuntimeError, match="Deliberate migration failure"):
             await apply(database_engine, config, "head")
+
         async with database_engine.connect() as connection:
             assert (
                 await connection.execute(
@@ -183,6 +202,7 @@ async def test_failed_ddl_leaves_history_unadvanced_and_requires_explicit_cleanu
             tables = await connection.run_sync(
                 lambda conn: inspect(conn).get_table_names()
             )
+
             assert "migration_evidence_partial" in tables
             await connection.run_sync(migrations.check_revision)
     finally:
@@ -199,9 +219,11 @@ async def test_revision_match_does_not_hide_schema_drift(
         def check(conn: Connection) -> None:
             config = migrations.migration_config()
             config.attributes["connection"] = conn
+
             command.check(config)
 
         await connection.run_sync(check)
+
         try:
             if damage == "missing_index":
                 await connection.run_sync(
@@ -215,6 +237,7 @@ async def test_revision_match_does_not_hide_schema_drift(
                 await connection.execute(
                     text("ALTER TABLE items ADD COLUMN evidence_drift INTEGER")
                 )
+
             await connection.commit()
             await connection.run_sync(migrations.check_revision)
             with pytest.raises(AutogenerateDiffsDetected):
@@ -232,7 +255,9 @@ async def test_revision_match_does_not_hide_schema_drift(
                 await connection.execute(
                     text("ALTER TABLE items DROP COLUMN evidence_drift")
                 )
+
             await connection.commit()
+
         await connection.run_sync(check)
 
 
@@ -244,21 +269,26 @@ async def test_application_rejects_incompatible_history_before_readiness(
 ) -> None:
     monkeypatch.setattr(database, "engine", database_engine)
     lifecycle = LifecycleHandler()
+
     lifecycle.register([database.DatabaseService()])
+
     try:
         async with database_engine.begin() as connection:
             await connection.execute(
                 text("UPDATE alembic_version SET version_num=:revision"),
                 {"revision": revision},
             )
+
         with pytest.raises(RuntimeError, match="schema revision is not current"):
             await lifecycle.startup()
+
         assert lifecycle.is_ready() is False
     finally:
         async with database_engine.begin() as connection:
             await connection.execute(
                 text("UPDATE alembic_version SET version_num='0001_create_items'")
             )
+
     await lifecycle.startup()
     assert lifecycle.is_ready() is True
     await lifecycle.shutdown()
@@ -268,6 +298,7 @@ async def test_multiple_source_heads_rejected(
     database_engine: AsyncEngine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config = evidence_config(tmp_path / "branches", "backfill")
+
     (tmp_path / "branches" / "versions" / "branch.py").write_text(
         "revision='another_head'\ndown_revision='evidence_base'\n"
     )

@@ -1,10 +1,6 @@
-import time
-from datetime import datetime, timedelta
-from pathlib import Path
-
-from fastapi import APIRouter, Request, Response, status
-from fastapi.responses import FileResponse, JSONResponse
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from fastapi import APIRouter, Depends, Response, status
+from fastapi.responses import FileResponse
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from app.api.system.models.info_model import InfoResponse
 from app.api.system.models.live_model import HealthResponse
@@ -14,20 +10,23 @@ from app.api.system.models.system_model import SystemResponse
 from app.api.system.services.system_service import (
     SystemDiagnosticsService,
     SystemInfoService,
+    SystemService,
+    get_system_diagnostics_service,
+    get_system_info_service,
+    get_system_service,
 )
-from app.common.handlers.lifecycle_handler import LifecycleHandler
 
 router: APIRouter = APIRouter(tags=["System"])
 diagnostics_router: APIRouter = APIRouter(tags=["System"])
 metrics_router: APIRouter = APIRouter(tags=["System"])
-_start_time: float = time.perf_counter()
-_favicon_path: Path = Path(__file__).resolve().parents[3] / "public" / "favicon.ico"
 
 
 ## GET /favicon.ico
 @router.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
-async def favicon() -> FileResponse:
-    return FileResponse(_favicon_path, media_type="image/x-icon")
+async def favicon(service: SystemService = Depends(get_system_service)) -> FileResponse:
+    path = service.favicon()
+
+    return FileResponse(path, media_type="image/x-icon")
 
 
 ## GET /
@@ -38,8 +37,10 @@ async def favicon() -> FileResponse:
     response_model=RootResponse,
     status_code=status.HTTP_200_OK,
 )
-async def root() -> RootResponse:
-    return RootResponse(message="Hello World! Welcome to FastAPI!")
+async def root(service: SystemService = Depends(get_system_service)) -> RootResponse:
+    message = service.root()
+
+    return RootResponse(message=message)
 
 
 ## GET /health
@@ -50,22 +51,12 @@ async def root() -> RootResponse:
     response_model=HealthResponse,
     status_code=status.HTTP_200_OK,
 )
-async def live_probe(request: Request) -> HealthResponse:
-    lifecycle: LifecycleHandler = request.app.state.lifecycle
-    alive: bool = lifecycle.is_alive()
-    uptime: float = round(
-        time.perf_counter() - request.app.state.monotonic_start,
-        3,
-    )
-    timestamp: datetime = request.app.state.initialization_timestamp + timedelta(
-        seconds=uptime
-    )
+async def live_probe(
+    service: SystemService = Depends(get_system_service),
+) -> HealthResponse:
+    data = service.live()
 
-    return HealthResponse.from_alive(
-        alive=alive,
-        uptime=uptime,
-        timestamp=timestamp,
-    )
+    return HealthResponse.from_alive(**data)
 
 
 ## GET /ready
@@ -82,18 +73,16 @@ async def live_probe(request: Request) -> HealthResponse:
         }
     },
 )
-async def ready_probe(request: Request) -> JSONResponse:
-    lifecycle: LifecycleHandler = request.app.state.lifecycle
-    app_ready: bool = lifecycle.is_ready()
-    results = await lifecycle.check_services()
-    ready = app_ready and all(result.is_up for result in results)
+async def ready_probe(
+    response: Response, service: SystemService = Depends(get_system_service)
+) -> ReadyResponse:
+    ready = await service.ready()
     payload = ReadyResponse.from_state(ready=ready)
-    return JSONResponse(
-        status_code=(
-            status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE
-        ),
-        content=payload.model_dump(mode="json"),
+    response.status_code = (
+        status.HTTP_200_OK if payload.ready else status.HTTP_503_SERVICE_UNAVAILABLE
     )
+
+    return payload
 
 
 ## GET /info
@@ -104,9 +93,12 @@ async def ready_probe(request: Request) -> JSONResponse:
     response_model=InfoResponse,
     status_code=status.HTTP_200_OK,
 )
-async def info(request: Request) -> InfoResponse:
-    service: SystemInfoService = request.app.state.system_info
-    return service.info()
+async def info(
+    service: SystemInfoService = Depends(get_system_info_service),
+) -> InfoResponse:
+    data = service.info()
+
+    return InfoResponse.model_validate(data)
 
 
 ## GET /system
@@ -117,9 +109,12 @@ async def info(request: Request) -> InfoResponse:
     response_model=SystemResponse,
     status_code=status.HTTP_200_OK,
 )
-async def system(request: Request) -> SystemResponse:
-    service: SystemDiagnosticsService = request.app.state.system_diagnostics
-    return await service.collect()
+async def system(
+    service: SystemDiagnosticsService = Depends(get_system_diagnostics_service),
+) -> SystemResponse:
+    data = await service.collect()
+
+    return SystemResponse.model_validate(data)
 
 
 ## GET /metrics
@@ -147,6 +142,7 @@ async def system(request: Request) -> SystemResponse:
         }
     },
 )
-async def metrics() -> Response:
-    data = generate_latest()
+async def metrics(service: SystemService = Depends(get_system_service)) -> Response:
+    data = service.metrics()
+
     return Response(data, media_type=CONTENT_TYPE_LATEST)

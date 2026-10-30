@@ -14,14 +14,17 @@ async def test_boot_banner_precedes_registration_and_service_startup(
 ) -> None:
     output = io.StringIO()
     logger = create_logger(production=False, level="DEBUG", stream=output)
+
     monkeypatch.setattr(application, "log", logger)
     monkeypatch.setattr("app.common.handlers.lifecycle_handler.log", logger)
     start, stop = AsyncMock(), AsyncMock()
+
     monkeypatch.setattr(application.DatabaseService, "start", start)
     monkeypatch.setattr(application.DatabaseService, "stop", stop)
 
     app = application.create_app()
     construction = output.getvalue()
+
     assert construction.count("Booting ") == 1
     assert construction.index("Booting ") < construction.index(
         "Registering lifecycle services"
@@ -30,6 +33,7 @@ async def test_boot_banner_precedes_registration_and_service_startup(
 
     async with app.router.lifespan_context(app):
         lines = output.getvalue()
+
         assert lines.count("Booting ") == 1
         assert (
             lines.index("Lifecycle registration completed")
@@ -38,4 +42,5 @@ async def test_boot_banner_precedes_registration_and_service_startup(
             < lines.index("HTTP server running")
         )
         start.assert_awaited_once()
+
     stop.assert_awaited_once()

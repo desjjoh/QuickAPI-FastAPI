@@ -35,10 +35,13 @@ class HealthResponse(BaseModel):
     @model_validator(mode="after")
     def validate_health_state(self) -> Self:
         expected_status: Literal["alive", "dead"] = "alive" if self.alive else "dead"
+
         if self.status != expected_status:
             raise ValueError("status must correspond to alive")
+
         if self.timestamp.tzinfo is None or self.timestamp.utcoffset() != timedelta(0):
             raise ValueError("timestamp must be timezone-aware and in UTC")
+
         return self
 
     @classmethod

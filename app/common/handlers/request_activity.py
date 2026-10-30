@@ -27,16 +27,21 @@ class RequestActivity:
     def assert_active(self) -> None:
         if self.abandoned is not None:
             raise RequestExpired(self.abandoned)
+
         if time.monotonic() >= self.expires_at:
             self.abandon('Total request timeout exceeded.')
+
             raise RequestExpired(self.abandoned or 'Total request timeout exceeded.')
 
 
 def request_activity(scope: Scope) -> RequestActivity:
     activity = scope.get(ACTIVITY_KEY)
+
     if activity is None:
         activity = RequestActivity()
         scope[ACTIVITY_KEY] = activity
+
     if not isinstance(activity, RequestActivity):
         raise RuntimeError('Invalid request activity owner.')
+
     return activity

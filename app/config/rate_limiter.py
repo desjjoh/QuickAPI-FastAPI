@@ -53,21 +53,28 @@ class RateLimiter:
     def admit(self, identity: str) -> RateLimitDecision:
         # Resolve identity before calling us; never reinterpret forwarding here.
         key = hashlib.sha256(identity.encode("utf-8")).digest()
+
         with self._lock:
             now = self._now()
+
             self._expire_clients(now)
             client = self._clients.get(key)
+
             if client is None:
                 if len(self._clients) >= self.policy.max_clients:
                     earliest = next(iter(self._clients.values()))
+
                     return self._reject(503, earliest.expires_at, now)
+
                 client = RateLimitState.new(self.policy.max_requests)
 
             cutoff = now - self.policy.window_ms
+
             while client.count and client.timestamps[client.head] <= cutoff:
                 client.head = (client.head + 1) % self.policy.max_requests
                 client.count -= 1
                 self._stored_requests -= 1
+
             if client.count == self.policy.max_requests:
                 return self._reject(
                     429, client.timestamps[client.head] + self.policy.window_ms, now
@@ -79,16 +86,20 @@ class RateLimiter:
             client.expires_at = now + self.policy.window_ms
             self._stored_requests += 1
             self._clients[key] = client
+
             # Equal windows and a monotonic clock order clients by next expiry.
             # Rejections never move an entry or extend its expiry.
             self._clients.move_to_end(key)
+
             return RateLimitDecision(allowed=True)
 
     def _expire_clients(self, now: float) -> None:
         while self._clients:
             key, client = next(iter(self._clients.items()))
+
             if client.expires_at > now:
                 break
+
             del self._clients[key]
             self._stored_requests -= client.count
 

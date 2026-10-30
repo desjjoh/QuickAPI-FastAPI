@@ -11,11 +11,14 @@ async def test_item_crud_patch_omission_and_not_found(
     created = await client.post(
         "/api/v1/items/", json={"name": "Sword", "price": 12.5, "description": "steel"}
     )
+
     assert created.status_code == 201
     item = created.json()
     fetched = await client.get(f"/api/v1/items/{item['id']}")
+
     assert fetched.json()["name"] == "Sword"
     patched = await client.patch(f"/api/v1/items/{item['id']}", json={"price": 15})
+
     assert patched.status_code == 200
     assert (
         patched.json()["name"] == "Sword" and patched.json()["description"] == "steel"
@@ -24,10 +27,13 @@ async def test_item_crud_patch_omission_and_not_found(
         f"/api/v1/items/{item['id']}",
         json={"name": "Shield", "price": 20, "description": None},
     )
+
     assert replaced.status_code == 200 and replaced.json()["name"] == "Shield"
     deleted = await client.delete(f"/api/v1/items/{item['id']}")
+
     assert deleted.status_code == 200
     missing = await client.get(f"/api/v1/items/{item['id']}")
+
     assert missing.status_code == 404
     assert missing.json()["status"] == 404
 
@@ -40,6 +46,7 @@ async def test_pagination_filtering_and_sorting(
         assert (
             await client.post("/api/v1/items/", json={"name": name, "price": price})
         ).status_code == 201
+
     response = await client.get(
         "/api/v1/items/",
         params={
@@ -53,6 +60,7 @@ async def test_pagination_filtering_and_sorting(
         },
     )
     body = response.json()
+
     assert response.status_code == 200
     assert body["total"] == 2 and body["limit"] == 1
     assert [item["name"] for item in body["data"]] == ["Beta sword"]
@@ -71,6 +79,7 @@ async def test_validation_envelope(
     client: httpx.AsyncClient, method: str, path: str, payload: dict[str, object]
 ) -> None:
     response = await getattr(client, method)(path, json=payload)
+
     assert response.status_code == 422
     assert response.json()["status"] == 422
     assert response.json()["message"].startswith("Validation failed:")

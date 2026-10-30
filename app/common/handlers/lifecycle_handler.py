@@ -29,7 +29,9 @@ class LifecycleService(Protocol):
     name: str
 
     async def start(self) -> None: ...
+
     async def stop(self) -> None: ...
+
     async def check(self) -> bool: ...
 
 
@@ -38,6 +40,7 @@ class LifecycleHandler:
     def __init__(self, check_timeout_seconds: float = 1.0) -> None:
         if check_timeout_seconds <= 0:
             raise ValueError("check_timeout_seconds must be greater than zero")
+
         self._check_timeout_seconds = check_timeout_seconds
         self._services: list[LifecycleService] = []
 
@@ -84,15 +87,18 @@ class LifecycleHandler:
         service = next(
             (service for service in self._services if service.name == name), None
         )
+
         return await self._check_service(service) if service is not None else None
 
     async def _check_service(self, service: LifecycleService) -> ReadinessCheckResult:
         started = time.perf_counter()
         category: Literal["false_return", "exception", "timeout"] | None = None
+
         try:
             healthy = await asyncio.wait_for(
                 service.check(), timeout=self._check_timeout_seconds
             )
+
             if not healthy:
                 category = "false_return"
         except TimeoutError:
@@ -101,6 +107,7 @@ class LifecycleHandler:
             category = "exception"
 
         elapsed = max(0.0, (time.perf_counter() - started) * 1000)
+
         if category is not None:
             # Deliberately exclude exception values: readiness logs must not leak
             # credentials, hosts, query text, or other dependency details.
@@ -126,15 +133,18 @@ class LifecycleHandler:
 
         for _ in range(samples):
             start = loop.time()
+
             await asyncio.sleep(interval)
             end = loop.time()
             delay = max(0.0, (end - start) - interval)
+
             delays.append(delay)
 
         return max(delays) * 1000.0 if delays else 0.0
 
     def register(self, services: list[LifecycleService]) -> None:
         start = time.perf_counter()
+
         log.debug(f"Registering lifecycle services ({len(services)} total)")
 
         for service in services:
@@ -146,19 +156,23 @@ class LifecycleHandler:
             self._service_names.add(service.name)
 
         duration = (time.perf_counter() - start) * 1000
+
         log.debug(f"Lifecycle registration completed in {duration:.2f}ms")
 
     async def startup(self) -> None:
         if self._startup_started:
             return
+
         self._startup_started = True
         self._quiescing = False
         self.shutdown_failed = False
         self._shutdown_started = False
         self._startup_completed = False
+
         self._started_services.clear()
 
         start = time.perf_counter()
+
         log.debug('Starting services…')
 
         try:
@@ -170,17 +184,21 @@ class LifecycleHandler:
             log.warning("Service startup failed — rolling back started services")
             await self._stop_started_services()
             self._startup_started = False
+
             raise
 
         self._startup_completed = True
 
         duration = (time.perf_counter() - start) * 1000
+
         log.debug(f"All services started in {duration:.2f}ms")
 
     async def shutdown(self, sig: signal.Signals | None = None) -> None:
         if self._shutdown_started:
             return
+
         self._shutdown_started = True
+
         self.quiesce()
 
         start = time.perf_counter()
@@ -193,16 +211,19 @@ class LifecycleHandler:
         self._startup_completed = False
 
         duration = (time.perf_counter() - start) * 1000
+
         log.debug(f"Shutdown completed in {duration:.2f}ms")
 
     async def _stop_started_services(self) -> None:
         while self._started_services:
             svc = self._started_services.pop()
+
             try:
                 await svc.stop()
                 log.debug(f"Service stopped ← {svc.name}")
             except Exception as exc:
                 self.shutdown_failed = True
+
                 log.error("Service shutdown failed.", error=exc)
 
                 log.warning(f"Failed to stop service ← {svc.name}")

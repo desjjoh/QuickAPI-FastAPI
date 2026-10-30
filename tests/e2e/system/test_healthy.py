@@ -11,6 +11,7 @@ pytestmark = pytest.mark.e2e
 def assert_health_payload(response: httpx.Response, *, alive: bool) -> None:
     assert response.status_code == 200
     payload = response.json()
+
     assert payload.keys() == {"alive", "status", "uptime", "timestamp"}
     assert payload["alive"] is alive
     assert payload["status"] == ("alive" if alive else "dead")
@@ -18,12 +19,14 @@ def assert_health_payload(response: httpx.Response, *, alive: bool) -> None:
     assert isinstance(payload["uptime"], float)
     assert payload["uptime"] >= 0
     timestamp = datetime.fromisoformat(payload["timestamp"])
+
     assert timestamp.tzinfo is not None
     assert timestamp.utcoffset() == timedelta(0)
 
 
 async def test_health_reports_alive_before_startup(app: FastAPI) -> None:
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         assert_health_payload(await client.get("/health"), alive=True)
 
@@ -38,6 +41,7 @@ async def test_health_ignores_dependency_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dependency_check = AsyncMock(return_value=False)
+
     monkeypatch.setattr(
         app.state.lifecycle,
         "are_all_services_healthy",
@@ -53,8 +57,11 @@ async def test_health_requests_are_rejected_after_shutdown(app: FastAPI) -> None
         pass
 
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/health")
+
         assert response.status_code == 503
         assert response.json()["message"] == "Application is shutting down."
+
     assert app.state.lifecycle.is_alive() is False

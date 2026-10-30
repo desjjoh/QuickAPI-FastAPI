@@ -19,7 +19,7 @@ class InfoResponse(BaseModel):
     version: Annotated[str, StringConstraints(pattern=SEMVER_REGEX)] = Field(
         ...,
         description="Application semantic version.",
-        examples=["1.0.0"],
+        examples=["1.3.0"],
     )
 
     environment: Literal["development", "production", "test"] = Field(
@@ -62,6 +62,7 @@ class InfoResponse(BaseModel):
     def require_utc(cls, value: datetime) -> datetime:
         if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
             raise ValueError("started_at must be timezone-aware and in UTC")
+
         return value
 
     @field_validator("timezone")
@@ -71,4 +72,5 @@ class InfoResponse(BaseModel):
             ZoneInfo(value)
         except ZoneInfoNotFoundError as exc:
             raise ValueError("timezone must be a valid IANA identifier") from exc
+
         return value

@@ -19,9 +19,12 @@ class ReadyResponse(BaseModel):
     def validate_contract(self) -> Self:
         if self.timestamp.utcoffset() != UTC.utcoffset(self.timestamp):
             raise ValueError("timestamp must be timezone-aware UTC")
+
         expected = "ready" if self.ready else "not_ready"
+
         if self.status != expected:
             raise ValueError("ready and status contradict each other")
+
         return self
 
     @classmethod

@@ -1,187 +1,75 @@
-import os
-import unittest
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from typing import cast
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-
-os.environ.setdefault("APP_NAME", "QuickAPI Tests")
-os.environ.setdefault("APP_VERSION", "1.0.0")
-os.environ.setdefault("ENV", "test")
-os.environ.setdefault("PORT", "5000")
-os.environ.setdefault(
-    "DATABASE_URL", "mysql+asyncmy://quickapi:test@localhost:3306/quickapi_test"
-)
+from pydantic import ValidationError
 
 from app.api.v1.items.controllers import item_controller
-from app.api.v1.items.models.item_model import ItemBase, ItemResponse
+from app.api.v1.items.models.item_model import ItemBase
 from app.api.v1.items.models.item_update_model import UpdateItemRequest
 from app.api.v1.items.models.pagination_query_model import ItemPaginationQuery
-from app.database.entities.item_orm import ItemORM
-from app.database.repositories.item_repo import ItemUpdateData
+from app.api.v1.items.services.item_service import ItemService
 
 pytestmark = pytest.mark.unit
 
 
-class ItemControllerTests(unittest.IsolatedAsyncioTestCase):
-    def setUp(self) -> None:
-        timestamp = datetime(2026, 1, 1, tzinfo=UTC)
-        self.item = cast(
-            ItemORM,
-            SimpleNamespace(
-                id="0123456789abcdef",
-                name="Iron Sword",
-                price=49.99,
-                description="A finely crafted steel blade.",
-                created_at=timestamp,
-                updated_at=timestamp,
-            ),
+def item_data(price: float = 1) -> dict[str, object]:
+    return {
+        'id': '0123456789abcdef',
+        'name': 'Item',
+        'price': price,
+        'description': None,
+        'created_at': datetime.now(UTC),
+        'updated_at': datetime.now(UTC),
+    }
+
+
+@pytest.mark.parametrize(
+    'operation', ['create', 'get_all', 'get', 'update', 'replace', 'delete']
+)
+async def test_controller_validates_service_results(operation: str) -> None:
+    service = Mock(spec=ItemService)
+    invalid = item_data(-1)
+    result = ([invalid], 1) if operation == 'get_all' else invalid
+    method = AsyncMock(return_value=result)
+
+    setattr(service, operation, method)
+    args: tuple[object, ...]
+
+    if operation == 'create':
+        args = (ItemBase(name='Item', price=1, description=None),)
+    elif operation == 'get_all':
+        args = (ItemPaginationQuery(),)
+    elif operation in {'update', 'replace'}:
+        payload = (
+            UpdateItemRequest.model_validate({'price': 1})
+            if operation == 'update'
+            else ItemBase(name='Item', price=1, description=None)
         )
+        args = ('0123456789abcdef', payload)
+    else:
+        args = ('0123456789abcdef',)
 
-    async def _update(
-        self, payload: UpdateItemRequest
-    ) -> tuple[ItemResponse, AsyncMock]:
-        async def apply_update(
-            db: AsyncSession, obj: ItemORM, new_data: ItemUpdateData
-        ) -> ItemORM:
-            for field, value in new_data.items():
-                setattr(obj, field, value)
-            return obj
+    controller = cast(
+        Callable[..., Awaitable[object]], getattr(item_controller, operation)
+    )
 
-        with (
-            patch.object(
-                item_controller.repo,
-                "get_by_id",
-                new=AsyncMock(return_value=self.item),
-            ),
-            patch.object(
-                item_controller.repo,
-                "update",
-                new=AsyncMock(side_effect=apply_update),
-            ) as update,
-        ):
-            response = await item_controller.update(self.item.id, payload, AsyncMock())
+    with pytest.raises(ValidationError) as error:
+        await controller(*args, service=service)
 
-        return response, update
-
-    async def test_patch_changes_only_explicitly_supplied_field(self) -> None:
-        payload = UpdateItemRequest.model_validate({"price": 59.99})
-        response, update = await self._update(payload)
-
-        update.assert_awaited_once()
-        self.assertEqual(update.await_args_list[0].args[2], {"price": 59.99})
-        self.assertEqual(response.price, 59.99)
-        self.assertEqual(response.name, "Iron Sword")
-        self.assertEqual(response.description, "A finely crafted steel blade.")
-
-    async def test_patch_explicit_null_clears_nullable_description(self) -> None:
-        payload = UpdateItemRequest.model_validate({"description": None})
-        response, update = await self._update(payload)
-
-        update.assert_awaited_once()
-        self.assertEqual(update.await_args_list[0].args[2], {"description": None})
-        self.assertIsNone(response.description)
-        self.assertEqual(response.name, "Iron Sword")
-        self.assertEqual(response.price, 49.99)
-
-    async def test_create_converts_payload_and_returns_created_item(self) -> None:
-        payload = ItemBase(name="Iron Sword", price=49.99, description=None)
-        db = AsyncMock(spec=AsyncSession)
-        with patch.object(
-            item_controller.repo, "create", new=AsyncMock(return_value=self.item)
-        ) as create:
-            response = await item_controller.create(payload, db)
-
-        self.assertEqual(response.id, self.item.id)
-        create.assert_awaited_once_with(db, item_in=payload.model_dump())
-
-    async def test_list_converts_query_and_returns_page(self) -> None:
-        query = ItemPaginationQuery()
-        with patch.object(
-            item_controller.repo,
-            "find_and_count",
-            new=AsyncMock(return_value=([self.item], 1)),
-        ) as find_and_count:
-            response = await item_controller.get_all(query, AsyncMock())
-
-        self.assertEqual(response.total, 1)
-        self.assertEqual(response.page, query.page)
-        self.assertEqual(response.limit, query.limit)
-        self.assertEqual(response.data[0].id, self.item.id)
-        find_and_count.assert_awaited_once()
-
-    async def test_get_returns_item_and_reports_missing_item(self) -> None:
-        with patch.object(
-            item_controller.repo,
-            "get_by_id",
-            new=AsyncMock(side_effect=[self.item, None]),
-        ):
-            response = await item_controller.get(self.item.id, AsyncMock())
-            self.assertEqual(response.id, self.item.id)
-
-            with self.assertRaises(item_controller.HTTPException) as error:
-                await item_controller.get("ffffffffffffffff", AsyncMock())
-
-        self.assertEqual(error.exception.status_code, 404)
-
-    async def test_patch_reports_missing_item(self) -> None:
-        with (
-            patch.object(
-                item_controller.repo, "get_by_id", new=AsyncMock(return_value=None)
-            ),
-            self.assertRaises(item_controller.HTTPException) as error,
-        ):
-            await item_controller.update(
-                "ffffffffffffffff",
-                UpdateItemRequest.model_validate({"price": 1}),
-                AsyncMock(),
-            )
-
-        self.assertEqual(error.exception.status_code, 404)
-
-    async def test_replace_updates_all_fields_and_reports_missing_item(self) -> None:
-        payload = ItemBase(name="Replacement", price=10, description=None)
-        db = AsyncMock(spec=AsyncSession)
-        update = AsyncMock(return_value=self.item)
-        with (
-            patch.object(
-                item_controller.repo,
-                "get_by_id",
-                new=AsyncMock(side_effect=[self.item, None]),
-            ),
-            patch.object(item_controller.repo, "update", new=update),
-        ):
-            response = await item_controller.replace(self.item.id, payload, db)
-            self.assertEqual(response.id, self.item.id)
-            update.assert_awaited_once_with(db, self.item, payload.model_dump())
-
-            with self.assertRaises(item_controller.HTTPException) as error:
-                await item_controller.replace("ffffffffffffffff", payload, AsyncMock())
-
-        self.assertEqual(error.exception.status_code, 404)
-
-    async def test_delete_returns_removed_item_and_reports_missing_item(self) -> None:
-        delete = AsyncMock(return_value=self.item)
-        with (
-            patch.object(
-                item_controller.repo,
-                "get_by_id",
-                new=AsyncMock(side_effect=[self.item, None]),
-            ),
-            patch.object(item_controller.repo, "delete", new=delete),
-        ):
-            response = await item_controller.delete(self.item.id, AsyncMock())
-            self.assertEqual(response.id, self.item.id)
-            delete.assert_awaited_once()
-
-            with self.assertRaises(item_controller.HTTPException) as error:
-                await item_controller.delete("ffffffffffffffff", AsyncMock())
-
-        self.assertEqual(error.exception.status_code, 404)
+    assert any(detail['loc'] == ('price',) for detail in error.value.errors())
+    method.assert_awaited_once()
 
 
-if __name__ == "__main__":
-    unittest.main()
+async def test_list_builds_validated_items_and_preserves_pagination_metadata() -> None:
+    service = cast(ItemService, Mock(spec=ItemService))
+    method = AsyncMock(return_value=([item_data()], 7))
+    service.get_all = method
+    query = ItemPaginationQuery(page=2, limit=3)
+    response = await item_controller.get_all(query, service)
+
+    assert (response.page, response.limit, response.total) == (2, 3, 7)
+    assert response.data[0].price == 1 and response.data[0].id == '0123456789abcdef'
+    method.assert_awaited_once_with(query)

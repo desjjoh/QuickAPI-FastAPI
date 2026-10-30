@@ -10,6 +10,7 @@ from app.config.rate_limiter import RateLimiter
 
 def get_client_ip(request: Request) -> str:
     client = request.client
+
     return client.host if client else "unknown"
 
 
@@ -21,16 +22,22 @@ class RateLimitASGIMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
+
             return
+
         path = scope.get("path", "")
         root = scope.get("root_path", "")
+
         if root and (path == root or path.startswith(root + "/")):
             path = path[len(root) :]
+
         if path == "/favicon.ico" and scope["method"] in {"GET", "HEAD"}:
             await self.app(scope, receive, send)
+
             return
 
         decision = self.limiter.admit(get_client_ip(Request(scope)))
+
         if not decision.allowed:
             seconds = f"{self.limiter.policy.window_ms / 1000:.3f}".rstrip("0").rstrip(
                 "."
@@ -51,13 +58,17 @@ class RateLimitASGIMiddleware:
                     },
                 ),
             )
+
             await response(scope, receive, send)
+
             return
 
         async def send_wrapper(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = message.setdefault("headers", [])
+
                 headers.append((b"x-ratelimit-result", b"accepted"))
+
             await send(message)
 
         await self.app(scope, receive, send_wrapper)

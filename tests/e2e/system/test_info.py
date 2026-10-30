@@ -24,6 +24,7 @@ async def test_info_uses_settings_and_current_process_metadata(
 
     assert response.status_code == 200
     payload = response.json()
+
     assert set(payload) == {
         "name",
         "version",
@@ -52,6 +53,7 @@ async def test_info_uses_settings_and_current_process_metadata(
     assert payload["timezone"] == "Etc/UTC"
 
     serialized = response.text.lower()
+
     for forbidden in (
         "database_url",
         "host",

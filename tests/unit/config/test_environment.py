@@ -15,6 +15,7 @@ pytestmark = pytest.mark.unit
 def settings(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> Settings:
     for key in Settings.model_fields:
         monkeypatch.delenv(key, raising=False)
+
     values = {
         "APP_NAME": "QuickAPI",
         "APP_VERSION": "1.2.3",
@@ -22,15 +23,19 @@ def settings(monkeypatch: pytest.MonkeyPatch, **overrides: str) -> Settings:
         "PORT": "8000",
         "DATABASE_URL": "mysql+asyncmy://test:test@localhost/test",
     }
+
     values.update(overrides)
     for key, value in values.items():
         monkeypatch.setenv(key, value)
+
     settings_factory = cast(Any, Settings)
+
     return cast(Settings, settings_factory(_env_file=None))
 
 
 def test_valid_settings_and_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     result = settings(monkeypatch)
+
     assert result.APP_NAME == "QuickAPI"
     assert result.LOG_LEVEL == "INFO"
     assert result.HOST == "0.0.0.0"
@@ -45,6 +50,7 @@ def test_published_port_overrides_do_not_change_listener(
     result = settings(
         monkeypatch, PORT="5000", API_PUBLISHED_PORT="8001", MYSQL_PUBLISHED_PORT="3309"
     )
+
     assert result.PORT == 5000
     assert result.API_PUBLISHED_PORT == 8001
     assert result.MYSQL_PUBLISHED_PORT == 3309
@@ -54,6 +60,7 @@ def test_empty_published_ports_use_compose_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result = settings(monkeypatch, API_PUBLISHED_PORT="", MYSQL_PUBLISHED_PORT="")
+
     assert result.API_PUBLISHED_PORT == 8000
     assert result.MYSQL_PUBLISHED_PORT == 3310
 
@@ -73,6 +80,7 @@ def test_invalid_published_ports_fail_validation(
 ) -> None:
     with pytest.raises(ValidationError) as error:
         settings(monkeypatch, **{key: value})
+
     assert error.value.errors()[0]["loc"] == (key,)
 
 
@@ -129,8 +137,10 @@ HTTP_NUMBERS = {
 
 def test_http_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     result = settings(monkeypatch)
+
     for key, (default, _, _) in HTTP_NUMBERS.items():
         assert getattr(result, key) == default
+
     assert result.CORS_ORIGINS == ["http://localhost:3000"]
     assert result.CORS_CREDENTIALS is True
     assert result.TRUST_PROXY == []
@@ -153,9 +163,11 @@ def test_http_numbers_reject_invalid_syntax(
 @pytest.mark.parametrize("key", HTTP_NUMBERS)
 def test_http_numeric_ranges(monkeypatch: pytest.MonkeyPatch, key: str) -> None:
     _, lower, upper = HTTP_NUMBERS[key]
+
     for value in [lower - 1, upper + 1]:
         with pytest.raises(ValidationError):
             settings(monkeypatch, **{key: str(value)})
+
     # Exercise boundaries with compatible related budgets, not accidental relation failures.
     compatible = {
         "REQUEST_TIMEOUT_MS": "2147483647",
@@ -164,6 +176,7 @@ def test_http_numeric_ranges(monkeypatch: pytest.MonkeyPatch, key: str) -> None:
         "HTTP_MAX_SINGLE_HEADER_BYTES": "1",
         "HTTP_MAX_TOTAL_HEADER_BYTES": "16777216",
     }
+
     for value in [lower, upper]:
         assert (
             getattr(settings(monkeypatch, **{**compatible, key: str(value)}), key)
@@ -235,6 +248,7 @@ def test_http_policy_overrides_and_normalization(
         TRUST_PROXY="127.0.0.1, 10.1.2.3/8, ::1",
         HTTP_ALLOWED_CONTENT_TYPES="Application/JSON,text/plain",
     )
+
     assert result.CORS_ORIGINS == ["https://example.test", "http://localhost:5173"]
     assert result.CORS_ALLOWED_HEADERS == ["content-type", "x-custom"]
     assert result.CORS_EXPOSED_HEADERS == []
@@ -277,6 +291,7 @@ def test_policy_list_bounds(monkeypatch: pytest.MonkeyPatch, key: str) -> None:
             f"application/type-{index}" for index in range(101)
         ],
     }
+
     with pytest.raises(ValidationError):
         settings(monkeypatch, **{key: ",".join(values[key])})
 
@@ -286,18 +301,21 @@ def test_environment_overrides_dotenv_and_missing_values_use_defaults(
 ) -> None:
     settings(monkeypatch)
     dotenv = tmp_path / "policy.env"
+
     dotenv.write_text(
         'CORS_ORIGINS="https://file.example"\nREQUEST_TIMEOUT_MS=6000\n',
         encoding="utf-8",
     )
     factory = cast(Any, Settings)
     file_settings = cast(Settings, factory(_env_file=dotenv))
+
     assert file_settings.CORS_ORIGINS == ["https://file.example"]
     assert file_settings.REQUEST_TIMEOUT_MS == 6000
     assert file_settings.HTTP_MAX_BODY_BYTES == 1048576
     monkeypatch.setenv("CORS_ORIGINS", "https://process.example")
     monkeypatch.setenv("REQUEST_TIMEOUT_MS", "7000")
     process_settings = cast(Settings, factory(_env_file=dotenv))
+
     assert process_settings.CORS_ORIGINS == ["https://process.example"]
     assert process_settings.REQUEST_TIMEOUT_MS == 7000
     assert (
@@ -322,6 +340,7 @@ def test_python_configuration_rejects_ambiguous_types(
     monkeypatch: pytest.MonkeyPatch, key: str, value: object
 ) -> None:
     values = settings(monkeypatch).model_dump()
+
     with pytest.raises(ValidationError):
         Settings.model_validate({**values, key: value})
 
@@ -344,6 +363,7 @@ def test_example_optional_http_values_match_code_defaults(
         if key.startswith(("CORS_", "HTTP_", "REQUEST_", "RATE_LIMIT_"))
         or key == "TRUST_PROXY"
     }
+
     assert keys <= overrides.keys()
     assert all(getattr(documented, key) == getattr(defaults, key) for key in keys)
 
@@ -356,6 +376,7 @@ def test_operational_defaults_follow_environment(
     monkeypatch: pytest.MonkeyPatch, environment: str
 ) -> None:
     result = settings(monkeypatch, ENV=environment)
+
     assert all(
         getattr(result, key) is (environment != "production")
         for key in OPERATIONAL_FLAGS
@@ -369,6 +390,7 @@ def test_independent_operational_overrides(
     monkeypatch: pytest.MonkeyPatch, environment: str, key: str, value: str
 ) -> None:
     result = settings(monkeypatch, ENV=environment, **{key: value})
+
     assert getattr(result, key) is (value == "true")
     assert all(
         getattr(result, other) is (environment != "production")
@@ -391,6 +413,7 @@ def test_explicit_null_is_not_an_operational_default(
     monkeypatch: pytest.MonkeyPatch, key: str
 ) -> None:
     values = settings(monkeypatch).model_dump()
+
     with pytest.raises(ValidationError):
         Settings.model_validate({**values, key: None})
 
@@ -404,6 +427,7 @@ RATE_NUMBERS = {
 
 def test_rate_limit_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     result = settings(monkeypatch)
+
     assert all(
         getattr(result, key) == default for key, (default, _, _) in RATE_NUMBERS.items()
     )
@@ -424,8 +448,10 @@ def test_rate_limit_invalid_values(
 def test_rate_limit_boundaries(monkeypatch: pytest.MonkeyPatch, key: str) -> None:
     _, lower, upper = RATE_NUMBERS[key]
     base = {"RATE_LIMIT_MAX": "1", "RATE_LIMIT_MAX_CLIENTS": "1"}
+
     for value in [lower, upper]:
         assert getattr(settings(monkeypatch, **{**base, key: str(value)}), key) == value
+
     with pytest.raises(ValidationError):
         settings(monkeypatch, **{**base, key: str(upper + 1)})
 
@@ -436,6 +462,7 @@ def test_rate_limit_python_types_are_strict(
     monkeypatch: pytest.MonkeyPatch, key: str, value: object
 ) -> None:
     values = settings(monkeypatch).model_dump()
+
     with pytest.raises(ValidationError):
         Settings.model_validate({**values, key: value})
 

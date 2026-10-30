@@ -24,6 +24,7 @@ def run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     engine = build_database_engine(settings.DATABASE_URL)
+
     try:
         async with engine.connect() as connection:
             await connection.run_sync(run_migrations)

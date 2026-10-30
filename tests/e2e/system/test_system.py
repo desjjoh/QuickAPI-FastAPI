@@ -26,8 +26,10 @@ async def test_system_reports_nested_diagnostics_and_database_only_state(
             name="database", status=check_status, response_time_ms=1.0  # type: ignore[arg-type]
         )
     )
+
     monkeypatch.setattr(app.state.lifecycle, "check_service", check)
     lag = AsyncMock(return_value=12.3456)
+
     monkeypatch.setattr(app.state.lifecycle, "get_event_loop_lag", lag)
     # An unrelated dependency failure must not affect the database-only field.
     monkeypatch.setattr(
@@ -40,8 +42,10 @@ async def test_system_reports_nested_diagnostics_and_database_only_state(
     response = await client.get("/system")
 
     after_ms = int(time.time() * 1_000)
+
     assert response.status_code == 200
     payload = response.json()
+
     assert payload["db"] == expected_status
     assert payload["event_loop_lag"] == 12.346
     assert payload["uptime"] >= 0

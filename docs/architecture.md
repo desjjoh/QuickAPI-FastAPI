@@ -12,7 +12,7 @@ app/
 ├── api/
 │   ├── api_routes.py                 # top-level route composition
 │   ├── system/                       # probes, diagnostics, metrics, metadata
-│   └── v1/items/                     # item HTTP controllers and Pydantic models
+│   └── v1/items/                     # item controllers, services and Pydantic models
 ├── common/
 │   ├── docs/                         # OpenAPI contract customization
 │   ├── handlers/                     # exception and lifecycle behavior
@@ -31,10 +31,12 @@ tests/
 └── e2e/                              # complete HTTP and lifespan behavior
 ```
 
-Dependencies point inward: controllers depend on validated API models and the
-repository abstraction; repositories own persistence operations; application
-assembly is centralized in `app/config/application.py`. The domain is intentionally
-not split into speculative service layers while it remains simple.
+Controllers declare HTTP routes, delegate application work and validate the result
+into Pydantic response models. Services own application logic and return operation
+results; repositories perform SQL using
+the caller's session. Application assembly is centralized in
+`app/config/application.py`. [Services](services.md) describes the shared item and
+system boundary and session ownership.
 
 ## Request lifecycle and middleware order
 
@@ -62,8 +64,10 @@ Responses unwind through the same layers in reverse. This is intentional:
    Duration ends when the final body is accepted by ASGI send, or when an abort
    is observed; downstream cleanup cannot extend it. A completed 408/500 counts as
    a response; a truncated stream counts only as an abort.
-5. Controllers validate inputs, borrow a database session, call the repository, and
-   serialize a declared response model.
+5. FastAPI validates declared inputs. Controllers delegate to services, which borrow
+   the request session and apply operation rules. Controllers assign the awaited
+   result to a named variable, then validate the declared response model. FastAPI
+   prepares and serializes the HTTP response.
 
 Middleware rejections use the same error renderer as routed HTTP exceptions, so
 clients do not need separate parsing behavior for transport and application errors.
@@ -100,11 +104,12 @@ cleanup. Runtime outages leave the engine available for replacement connections.
 
 [Mutation transaction ownership](transactions.md) uses `ApplicationRoute` and
 `@transactional` on the four item mutation endpoints. One fresh session/transaction
-covers dependency resolution, controller work, repository writes, and FastAPI
+covers dependency resolution, service work, repository writes, and FastAPI
 response validation/JSON rendering before commit. `get_session(request)` borrows
 that owner for marked routes and creates/closes a read session for other routes.
 Repositories require an active transaction and do not commit or roll back.
-Controllers retain their existing logic; the item service layer is deferred.
+Item controllers delegate to `ItemService`; service work and model validation run
+inside that same transaction boundary.
 
 [Alembic migrations](migrations.md) own schema creation and changes. The API checks
 that the connected database revision matches the single source head before startup
@@ -118,7 +123,7 @@ data/rollback compatibility need separate evidence.
 
 [Application assembly](../app/config/application.py) registers the database service and composes middleware, exception handlers, and routes. [LifecycleHandler](../app/common/handlers/lifecycle_handler.py) starts services and stops successfully started services in reverse order, including rollback after partial startup failure.
 
-Keep HTTP validation/serialization in API models/controllers, queries and commit/rollback boundaries in repositories, and transport policies in middleware. Add services when domain orchestration needs them. Register long-lived dependencies with the lifecycle handler and test readiness and cleanup failures.
+Keep HTTP declarations and response-model validation in controllers, application logic in services, queries in repositories, and transport policies in middleware. Mutation commit/rollback belongs to the shared route owner. Register resources requiring startup/cleanup with the lifecycle handler and test readiness and cleanup failures.
 
 Update [API contracts](api-contracts.md) when routes/models change, [Development](development.md) when configuration changes, and [Deployment](deployment.md) when runtime behavior changes. Track unresolved limitations in [Backlog](backlog.md).
 

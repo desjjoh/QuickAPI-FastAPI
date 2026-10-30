@@ -43,9 +43,13 @@ _FIELDS: dict[str, type | tuple[type, ...]] = {
 
 class LoggerProtocol(Protocol):
     def debug(self, event: str, **kwargs: Any) -> None: ...
+
     def info(self, event: str, **kwargs: Any) -> None: ...
+
     def warning(self, event: str, **kwargs: Any) -> None: ...
+
     def error(self, event: str, **kwargs: Any) -> None: ...
+
     def critical(self, event: str, **kwargs: Any) -> None: ...
 
 
@@ -74,14 +78,19 @@ def safe_event(_: WrappedLogger, method: str, event: EventDict) -> EventDict:
             else "Application event."
         ),
     }
+
     if "requestId" not in event and "request_id" in event:
         event["requestId"] = event["request_id"]
+
     for key, expected in _FIELDS.items():
         value = event.get(key)
+
         if isinstance(value, expected) and not isinstance(value, BaseException):
             if isinstance(value, float) and not math.isfinite(value):
                 continue
+
             record[key] = single_line(value) if isinstance(value, str) else value
+
     if record.get("method") not in {
         None,
         "GET",
@@ -93,11 +102,13 @@ def safe_event(_: WrappedLogger, method: str, event: EventDict) -> EventDict:
         "OPTIONS",
     }:
         record["method"] = "<other>"
+
     for alias in ("error", "err", "reason", "exception"):
         if alias in event:
             record["error" if alias == "exception" else alias] = error_diagnostics(
                 event[alias]
             )
+
     return record
 
 
@@ -110,8 +121,10 @@ def concise_renderer(_: WrappedLogger, __: str, event: EventDict) -> str:
     )
     reset = Style.RESET_ALL
     line = f"{Style.DIM}{Fore.GREEN}{timestamp}{reset} {Fore.CYAN}[{event['pid']}]{reset} {colors.get(level, Fore.WHITE)}[{level.ljust(8)}]{reset}"
+
     if event.get("requestId"):
         line += f" {Fore.MAGENTA}[{event['requestId']}]{reset}"
+
     return line + " " + cast(str, event["msg"])
 
 
@@ -121,6 +134,7 @@ class _Output:
             return sys.stdout.write(value)
         except UnicodeEncodeError:
             encoding = sys.stdout.encoding or "utf-8"
+
             return sys.stdout.write(
                 value.encode(encoding, errors="backslashreplace").decode(encoding)
             )
@@ -144,6 +158,7 @@ def create_logger(
         if production
         else concise_renderer
     )
+
     return cast(
         LoggerProtocol,
         structlog.wrap_logger(
@@ -178,8 +193,10 @@ class SafeDependencyHandler(logging.Handler):
             )
         )
         fields: dict[str, object] = {}
+
         if record.exc_info and record.exc_info[1] is not None:
             fields["error"] = record.exc_info[1]
+
         getattr(log, level)(
             (
                 "Server event."
@@ -194,11 +211,14 @@ def configure_dependency_logging() -> None:
     # Application DEBUG output is independent of dependency verbosity. Enforce
     # the floor on the handler too: child loggers can set their own DEBUG level.
     minimum = max(logging.WARNING, LOG_LEVEL_MAP[settings.LOG_LEVEL])
+
     logging.captureWarnings(True)
     root = logging.getLogger()
+
     root.setLevel(minimum)
     handler = SafeDependencyHandler(level=minimum)
     root.handlers[:] = [handler]
+
     for name in (
         "uvicorn",
         "uvicorn.error",
@@ -210,13 +230,18 @@ def configure_dependency_logging() -> None:
         "asyncio",
     ):
         logger = logging.getLogger(name)
+
         logger.handlers.clear()
         logger.propagate = True
+
         logger.setLevel(logging.WARNING)
+
     # Application request outcomes own access logging.
     access = logging.getLogger("uvicorn.access")
+
     access.handlers.clear()
     access.propagate = False
+
     access.addHandler(logging.NullHandler())
 
 

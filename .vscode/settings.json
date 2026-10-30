@@ -7,6 +7,10 @@
   // --- Formatting ---
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "ms-python.black-formatter",
+  "black-formatter.path": [
+    "${workspaceFolder}/.venv/Scripts/python.exe",
+    "${workspaceFolder}/scripts/format_code.py"
+  ],
 
   // --- Code Actions (auto-fix lint issues if possible) ---
   "editor.codeActionsOnSave": {

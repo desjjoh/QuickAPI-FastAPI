@@ -13,6 +13,7 @@ async def test_http_accept_reject_boundaries_and_bypass(
     app: ASGIApp, call: RequestCall
 ) -> None:
     mw = ContentTypeEnforcementASGIMiddleware(app)
+
     assert (
         await call(
             mw,

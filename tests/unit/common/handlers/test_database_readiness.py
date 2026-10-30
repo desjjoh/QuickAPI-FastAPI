@@ -21,19 +21,24 @@ async def test_shared_probe_survives_caller_cancellation_and_caches() -> None:
     async def connect() -> AsyncGenerator[SimpleNamespace, None]:
         nonlocal calls
         calls += 1
+
         entered.set()
         await release.wait()
         yield SimpleNamespace(execute=AsyncMock())
 
     probe = DatabaseReadiness(cast(AsyncEngine, SimpleNamespace(connect=connect)))
+
     assert await probe.check() is False
     probe.resume()
     caller = asyncio.create_task(probe.check())
+
     await entered.wait()
     others = [asyncio.create_task(probe.check()) for _ in range(20)]
+
     caller.cancel()
     with pytest.raises(asyncio.CancelledError):
         await caller
+
     release.set()
     assert all(await asyncio.gather(*others))
     assert await probe.check() is True and calls == 1
@@ -48,13 +53,16 @@ async def test_failed_cache_expires_and_resume_discards_it() -> None:
     async def connect() -> AsyncGenerator[SimpleNamespace, None]:
         nonlocal calls
         calls += 1
+
         if calls == 1:
             raise OSError("private connection details")
+
         yield SimpleNamespace(execute=AsyncMock())
 
     probe = DatabaseReadiness(
         cast(AsyncEngine, SimpleNamespace(connect=connect)), cache_ms=20
     )
+
     probe.resume()
     assert await probe.check() is False
     assert await probe.check() is False and calls == 1
@@ -82,8 +90,10 @@ async def test_timeout_and_stop_retire_only_owned_connection(stop: bool) -> None
     probe = DatabaseReadiness(
         cast(AsyncEngine, SimpleNamespace(connect=connect)), timeout_ms=30
     )
+
     probe.resume()
     task = asyncio.create_task(probe.check())
+
     await entered.wait()
     if stop:
         await probe.stop()
@@ -91,6 +101,7 @@ async def test_timeout_and_stop_retire_only_owned_connection(stop: bool) -> None
             await task
     else:
         assert await task is False
+
     invalidate.assert_awaited_once()
     await probe.stop()
 

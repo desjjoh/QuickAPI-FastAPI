@@ -26,14 +26,17 @@ def format_bytes(value: int) -> str:
         return f"{value} B"
 
     kb = value / 1024
+
     if kb < 1024:
         return f"{kb:.2f} KB"
 
     mb = kb / 1024
+
     if mb < 1024:
         return f"{mb:.2f} MB"
 
     gb = mb / 1024
+
     return f"{gb:.2f} GB"
 
 
@@ -59,6 +62,7 @@ class RequestBodyLimitASGIMiddleware:
         for prefix, override in self.route_overrides:
             if path.startswith(prefix):
                 return override
+
         return self.default_limit
 
     async def __call__(
@@ -70,6 +74,7 @@ class RequestBodyLimitASGIMiddleware:
 
         if scope["type"] != "http":
             await self.app(scope, receive, send)
+
             return
 
         try:
@@ -78,6 +83,7 @@ class RequestBodyLimitASGIMiddleware:
         except HTTPException as exc:
             request = Request(scope, receive=receive)
             response = await http_exception_handler(request, exc)
+
             await response(scope, empty_receive, send)
 
     async def _run(
@@ -103,11 +109,13 @@ class RequestBodyLimitASGIMiddleware:
                     status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                     detail="Invalid Content-Length header.",
                 )
+
             if declared < 0:
                 raise HTTPException(
                     status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                     detail="Invalid Content-Length header.",
                 )
+
             if declared > max_bytes:
                 raise HTTPException(
                     status_code=status.HTTP_413_CONTENT_TOO_LARGE,
@@ -153,6 +161,7 @@ class RequestBodyLimitASGIMiddleware:
                 body_chunks = []
 
                 return {"type": "http.request", "body": merged, "more_body": False}
+
             return await empty_receive()
 
         scope["_body_replay"] = replay_body

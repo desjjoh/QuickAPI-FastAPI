@@ -14,6 +14,7 @@ def counter_value(text: str, *, route: str, status: int = 200) -> float:
         re.MULTILINE,
     )
     match = pattern.search(text)
+
     return float(match.group(1)) if match else 0.0
 
 
@@ -30,6 +31,7 @@ async def test_metrics_excludes_scrapes_and_counts_known_traffic(
     client: httpx.AsyncClient,
 ) -> None:
     initial = await client.get("/metrics")
+
     assert 'route="/metrics"' not in initial.text
     assert counter_value(initial.text, route="/") == 0
 

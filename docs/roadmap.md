@@ -102,9 +102,10 @@ Full traffic withdrawal and request draining remain shutdown requirements.
 ## 4B. Transaction ownership
 
 [Mutation transactions](transactions.md) keeps one request-owned transaction around
-controller/repository work and native FastAPI response preparation. Repositories
+service/repository work and native FastAPI response preparation. Repositories
 participate through the supplied session, without independent commits. Controllers
-retain their logic; services are deferred.
+delegate to services that own application logic, then validate returned results
+into response models before returning them.
 
 ## 4C. Expiry and uncertain outcomes
 

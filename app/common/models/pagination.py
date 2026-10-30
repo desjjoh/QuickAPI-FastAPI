@@ -60,4 +60,5 @@ class PaginatedResult[T](BaseModel):
     def total_pages(self) -> int:
         if self.limit == 0:
             return 1
+
         return max((self.total + self.limit - 1) // self.limit, 1)

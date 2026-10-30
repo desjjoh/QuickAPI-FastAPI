@@ -11,6 +11,7 @@ pytestmark = pytest.mark.unit
 
 def test_generated_tls_files_are_readable_by_container_user(tmp_path: Path) -> None:
     directory = tmp_path / 'certificates'
+
     directory.mkdir(mode=0o700)
     certificates(directory)
     assert {p.name for p in directory.iterdir()} == {

@@ -37,7 +37,7 @@ def command_environment(config: TestDatabaseConfig) -> dict[str, str]:
         **os.environ,
         **config.values,
         "APP_NAME": "QuickAPI Tests",
-        "APP_VERSION": "1.0.0",
+        "APP_VERSION": "1.3.0",
         "PORT": "8000",
         "LOG_LEVEL": "ERROR",
         "DATABASE_URL": config.url.render_as_string(hide_password=False),
@@ -55,12 +55,14 @@ async def migration(
     from app.config.migrations import migration_config
 
     engine = build_database_engine(config.url)
+
     try:
         async with guarded_connection(engine, config) as connection:
 
             def apply(sync_connection: object) -> None:
                 cfg = migration_config()
                 cfg.attributes["connection"] = sync_connection
+
                 if action == "migrate":
                     command.upgrade(cfg, "head")
                 elif action == "downgrade":
@@ -95,6 +97,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Guarded disposable MySQL tests and migrations; never loads .env."
     )
+
     parser.add_argument(
         "action",
         choices=[
@@ -127,11 +130,15 @@ def main() -> int:
         help="Retain disposable infrastructure after a test run for inspection.",
     )
     args = parser.parse_args()
+
     if args.action == "revision" and not args.message:
         parser.error("revision requires --message")
+
     config = load_test_config()
+
     if args.action == "logs":
         return compose(config, "logs", "--no-color", "--tail", "100", "mysql-test")
+
     with command_lock():
         return dispatch(config, args)
 
@@ -141,19 +148,28 @@ def dispatch(config: TestDatabaseConfig, args: argparse.Namespace) -> int:
         from scripts.test_database_tls import run_tls
 
         return run_tls(config)
+
     if args.action == "up":
         return compose(config, "up", "-d", "--wait", "mysql-test")
+
     if args.action == "down":
         return compose(config, "down", "--volumes")
+
     if args.action != "test":
         run_migration(config, args.action, args.revision, args.message or "")
+
         return 0
+
     result = 1
+
     try:
         result = compose(config, "up", "-d", "--wait", "mysql-test")
+
         if result:
             return result
+
         result = 1
+
         run_migration(config, "migrate", "head")
         selection: str = (
             "unit or integration or e2e" if args.layer == "all" else args.layer
@@ -165,8 +181,10 @@ def dispatch(config: TestDatabaseConfig, args: argparse.Namespace) -> int:
             "-m",
             selection,
         ]
+
         if args.layer != "all":
             command.append("--no-cov")
+
         collected = subprocess.run(
             [*command, "--collect-only", "--no-cov", "-q"],
             cwd=ROOT,
@@ -176,18 +194,23 @@ def dispatch(config: TestDatabaseConfig, args: argparse.Namespace) -> int:
             text=True,
         )
         result = collected.returncode
+
         if result:
             print(collected.stdout)
+
         if result == 0:
             result = subprocess.call(
                 [*command, "-q"], cwd=ROOT, env=command_environment(config)
             )
+
         return result
     finally:
         if result:
             compose(config, "logs", "--no-color", "--tail", "100", "mysql-test")
+
         if not args.keep_db:
             cleanup = compose(config, "down", "--volumes")
+
             if cleanup and result == 0:
                 raise RuntimeError("Disposable MySQL cleanup failed.")
 

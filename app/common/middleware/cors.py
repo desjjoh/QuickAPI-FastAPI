@@ -60,6 +60,7 @@ class CustomCORSASGIMiddleware:
 
         if origin is None:
             await self.app(scope, receive, send)
+
             return
 
         if method == "OPTIONS" and "access-control-request-method" in headers:

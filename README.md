@@ -31,6 +31,8 @@ The native Python example binds port **8000**. When `DOCS_ENABLED` is enabled, S
 | --- | --- |
 | [Development](docs/development.md) | Setup, configuration, database selection, and local commands |
 | [Architecture](docs/architecture.md) | Folder boundaries, middleware order, lifecycle, and transactions |
+| [Controllers and services](docs/services.md) | Controller response validation, service-owned logic, dependency injection, and session ownership |
+| [Python formatting](docs/formatting.md) | Logical spacing, Black, format-on-save, CLI commands and CI enforcement |
 | [API contracts](docs/api-contracts.md) | Item routes, validation, pagination, errors, and API extension rules |
 | [Database settings](docs/database-settings.md) | Connection/queue limits, deadlines, TLS, and transport tests |
 | [Mutation transactions](docs/transactions.md) | Decorator, session ownership, response preparation, and rollback boundaries |
@@ -66,7 +68,7 @@ Routes have no application authentication. This service does not implement the a
 ## Quality checks
 
 ```sh
-python -m black --check app tests scripts
+python -m scripts.format_code --check
 python -m ruff check app tests scripts
 python -m mypy app scripts
 python -m pytest -q

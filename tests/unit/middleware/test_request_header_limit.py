@@ -76,6 +76,7 @@ async def test_chunked_casing_duplicate_and_non_ascii_are_counted(app: ASGIApp) 
     base = HeaderLimits(
         max_header_count=3, max_single_header_bytes=50, max_total_header_bytes=100
     )
+
     assert (
         await invoke(
             middleware(app, base), http_scope([(b"Transfer-Encoding", b"Chunked")])

@@ -106,6 +106,7 @@ async def test_proxy_chain_and_invalid_forwarding(
         HeaderSanitizationASGIMiddleware(endpoint), ["10.0.0.0/8", "::1"]
     )
     sent = await invoke(app, scope)
+
     assert sent[0]["status"] == status
     assert scope["client"][0] == expected_ip
     assert scope["scheme"] == expected_scheme
@@ -148,6 +149,7 @@ async def test_proxy_headers_cannot_escape_raw_header_budgets(
         max_total_header_bytes=limits.max_total_header_bytes,
     )
     sent = await invoke(app, scope)
+
     assert sent[0]["status"] == 431
     assert scope["client"] == ("10.0.0.1", 42)
 
@@ -162,7 +164,9 @@ async def test_non_http_and_missing_peer_are_unchanged() -> None:
         "headers": [(b"x-forwarded-for", b"198.51.100.8")],
         "client": ("10.0.0.1", 42),
     }
+
     assert await invoke(app, scope) == [{"type": "test.event"}]
     assert scope["client"] == ("10.0.0.1", 42)
     no_peer: Scope = {"type": "http", "headers": []}
+
     assert await invoke(app, no_peer) == [{"type": "test.event"}]

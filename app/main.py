@@ -27,8 +27,10 @@ def main() -> None:
         proxy_headers=False,
     )
     server = ApplicationServer(config)
+
     if config.should_reload:
         sock = config.bind_socket()
+
         ChangeReload(config, target=server.run, sockets=[sock]).run()
     else:
         server.run()

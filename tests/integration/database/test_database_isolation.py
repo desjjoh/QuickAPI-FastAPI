@@ -16,12 +16,15 @@ async def test_selected_backend_identity_and_concurrent_reset_exclusion(
     database_engine: AsyncEngine,
 ) -> None:
     config = load_test_config()
+
     async with database_engine.connect() as connection:
         identity = (
             await connection.execute(text("SELECT DATABASE(), CURRENT_USER()"))
         ).one()
+
         assert identity[0] == config.database
         assert str(identity[1]).split("@", 1)[0] == config.user
+
     with pytest.raises(RuntimeError, match="already in use"):
         async with guarded_connection(database_engine, config):
             pytest.fail("A second connection must not enter the held test lock")
@@ -46,6 +49,7 @@ async def test_real_commit_is_visible_on_fresh_connection_and_constraints_hold(
                 "INSERT INTO items (id,name,price) VALUES ('committed','Committed',12.34)"
             )
         )
+
     async with database_engine.connect() as connection:
         row = (
             await connection.execute(
@@ -54,8 +58,10 @@ async def test_real_commit_is_visible_on_fresh_connection_and_constraints_hold(
                 )
             )
         ).one()
+
         assert row[0] == "Committed" and float(row[1]) == 12.34
         assert row[2] is not None and row[3] is not None
+
     with pytest.raises(IntegrityError):
         async with database_engine.begin() as connection:
             await connection.execute(
@@ -63,6 +69,7 @@ async def test_real_commit_is_visible_on_fresh_connection_and_constraints_hold(
                     "INSERT INTO items (id,name,price) VALUES ('committed','Duplicate',2)"
                 )
             )
+
     async with database_engine.connect() as connection:
         assert (
             await connection.execute(text("SELECT COUNT(*) FROM items"))
@@ -73,11 +80,13 @@ async def test_engine_disposal_releases_mysql_session(
     database_engine: AsyncEngine,
 ) -> None:
     engine = build_database_engine(database_engine.url)
+
     try:
         async with engine.connect() as connection:
             identifier = int(
                 (await connection.execute(text("SELECT CONNECTION_ID()"))).scalar_one()
             )
+
         await engine.dispose()
         async with asyncio.timeout(3):
             while True:
@@ -87,8 +96,10 @@ async def test_engine_disposal_releases_mysql_session(
                         .mappings()
                         .all()
                     )
+
                 if not any(int(row["Id"]) == identifier for row in rows):
                     break
+
                 await asyncio.sleep(0.01)
     finally:
         await engine.dispose()

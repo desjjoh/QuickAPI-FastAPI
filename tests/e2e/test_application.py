@@ -49,6 +49,7 @@ async def test_shutdown_is_idempotent_and_releases_database(app: FastAPI) -> Non
     assert await database.db_test_query() is False
     async with database.engine.connect() as connection:
         assert not connection.closed
+
     await database.close_db()
 
 
@@ -68,6 +69,7 @@ async def test_endpoint_exception_does_not_skip_lifespan_cleanup(app: FastAPI) -
             transport=transport, base_url="http://test"
         ) as client:
             response = await client.get("/explode")
+
             assert response.status_code == 500
             assert app.state.lifecycle.is_ready() is True
 
@@ -87,10 +89,12 @@ async def test_partial_startup_failure_rolls_back_started_resources(
 
         async def start(self) -> None:
             self.resource_open = True
+
             events.append("working:start")
 
         async def stop(self) -> None:
             self.resource_open = False
+
             events.append("working:stop")
 
         async def check(self) -> bool:
@@ -101,6 +105,7 @@ async def test_partial_startup_failure_rolls_back_started_resources(
 
         async def start(self) -> None:
             events.append("failing:start")
+
             raise RuntimeError("startup failed")
 
         async def stop(self) -> None:
@@ -110,6 +115,7 @@ async def test_partial_startup_failure_rolls_back_started_resources(
             return False
 
     working = WorkingService()
+
     lightweight_app.state.lifecycle.register([working, FailingService()])
 
     from app.config.application import lifespan

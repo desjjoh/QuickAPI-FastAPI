@@ -18,6 +18,7 @@ class StubService:
 
     async def start(self) -> None:
         self.starts += 1
+
         if self.fail_start:
             raise RuntimeError("startup failed")
 
@@ -34,6 +35,7 @@ class LifecycleHandlerTests(unittest.TestCase):
             service = StubService("database")
             app = create_app()
             app.state.lifecycle = LifecycleHandler()
+
             app.state.lifecycle.register([service, service])
 
             for cycle in range(1, 3):
@@ -57,6 +59,7 @@ class LifecycleHandlerTests(unittest.TestCase):
             started = StubService("started")
             failing = StubService("failing", fail_start=True)
             lifecycle = LifecycleHandler()
+
             lifecycle.register([started, failing])
 
             with self.assertRaisesRegex(RuntimeError, "startup failed"):

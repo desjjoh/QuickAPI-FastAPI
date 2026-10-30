@@ -37,6 +37,7 @@ async def test_terminal_events_settle_once(terminal: str, headers: bool) -> None
     async def receive() -> Message:
         if terminal == "receive_error":
             raise OSError("closed")
+
         return {"type": "http.disconnect"}
 
     async def send(message: Message) -> None:
@@ -46,6 +47,7 @@ async def test_terminal_events_settle_once(terminal: str, headers: bool) -> None
     async def downstream(scope: Scope, receive: Receive, send: Send) -> None:
         if headers or terminal == "complete":
             await send({"type": "http.response.start", "status": 200})
+
         if terminal in {"complete", "send_error"}:
             await send({"type": "http.response.body", "body": b"done"})
             if terminal == "complete":
@@ -56,19 +58,23 @@ async def test_terminal_events_settle_once(terminal: str, headers: bool) -> None
             raise asyncio.CancelledError
         elif terminal == "exception":
             raise RuntimeError("broken")
+
         abort_request(scope)
 
     async def subscribed(scope: Scope, receive: Receive, send: Send) -> None:
         await observe_request(downstream, scope, receive, send, "test", results.append)
 
     wrapped = RequestOutcomeASGIMiddleware(subscribed)
+
     if terminal in {"send_error", "receive_error", "cancel", "exception"}:
         with pytest.raises((OSError, asyncio.CancelledError, RuntimeError)):
             await wrapped(scope, receive, send)
     else:
         await wrapped(scope, receive, send)
+
     assert len(results) == 1
     result = results[0]
+
     assert result.outcome == ("completed" if terminal == "complete" else "aborted")
     assert result.status == (200 if headers or terminal == "complete" else None)
     assert result.headers_sent == (result.status is not None)
@@ -79,6 +85,7 @@ async def test_completion_precedes_cleanup_and_nested_subscribers_are_deduplicat
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clock = Mock(return_value=1.0)
+
     monkeypatch.setattr(
         "app.common.middleware.request_outcome.time.perf_counter", clock
     )
@@ -86,11 +93,14 @@ async def test_completion_precedes_cleanup_and_nested_subscribers_are_deduplicat
 
     async def app(scope: Scope, receive: Receive, send: Send) -> None:
         clock.return_value = 1.025
+
         await send({"type": "http.response.start", "status": 201})
         await send({"type": "http.response.body", "body": b""})
         assert len(results) == 1
         clock.return_value = 10.0
+
         abort_request(scope)
+
         raise RuntimeError("cleanup failed")
 
     async def subscriber(scope: Scope, receive: Receive, send: Send) -> None:
@@ -108,6 +118,7 @@ async def test_completion_precedes_cleanup_and_nested_subscribers_are_deduplicat
 
     with pytest.raises(RuntimeError, match="cleanup failed"):
         await invoke(RequestOutcomeASGIMiddleware(duplicate), http_scope())
+
     assert len(results) == 1
     assert results[0].duration_ms == pytest.approx(25)
     assert results[0].outcome == "completed"
@@ -115,8 +126,10 @@ async def test_completion_precedes_cleanup_and_nested_subscribers_are_deduplicat
 
 def test_late_subscription_and_unsupported_method_are_bounded() -> None:
     observation = RequestObservation(http_scope(method="CUSTOM-PRIVATE-VALUE"), ())
+
     observation.settle("aborted")
     callback = Mock()
+
     observation.subscribe("late", callback)
     observation.subscribe("late", callback)
     callback.assert_called_once_with(observation.result)

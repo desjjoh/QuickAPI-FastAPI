@@ -62,6 +62,7 @@ def test_development_url_is_never_used_and_defaults_are_explicit() -> None:
     config = load_test_config(
         {"DATABASE_URL": "mysql+asyncmy://root:secret@localhost/dev"}
     )
+
     assert config.database == "quickapi_fastapi_disposable_test"
     assert config.url.port == 3311 and config.user == "quickapi_fastapi_test"
 
@@ -82,9 +83,11 @@ async def test_live_identity_mismatch_prevents_lock_and_destructive_sql(
     connection.execute.return_value = Mock(one=Mock(return_value=identity))
     engine.connect.return_value.__aenter__ = AsyncMock(return_value=connection)
     engine.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+
     with pytest.raises(ValueError, match="identity"):
         async with guarded_connection(engine, config):
             pytest.fail("Unsafe live identity must not be admitted")
+
     assert connection.execute.await_count == 1
 
 
@@ -92,9 +95,11 @@ async def test_engine_mismatch_is_rejected_before_connection() -> None:
     engine = Mock(
         spec=AsyncEngine, url=make_url("postgresql+asyncpg://test:test@localhost/test")
     )
+
     with pytest.raises(ValueError, match="Active engine"):
         async with guarded_connection(engine, load_test_config({})):
             pytest.fail("Unsafe engine must not be admitted")
+
     engine.connect.assert_not_called()
 
 
@@ -109,9 +114,11 @@ async def test_busy_database_is_rejected_without_reset(locked: int | None) -> No
     ]
     engine.connect.return_value.__aenter__ = AsyncMock(return_value=connection)
     engine.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+
     with pytest.raises(RuntimeError, match="already in use"):
         async with guarded_connection(engine, config):
             pytest.fail("A busy database must not be reset")
+
     assert connection.execute.await_count == 2
 
 
@@ -126,9 +133,11 @@ async def test_lock_is_released_after_test_failure() -> None:
     ]
     engine.connect.return_value.__aenter__ = AsyncMock(return_value=connection)
     engine.connect.return_value.__aexit__ = AsyncMock(return_value=None)
+
     with pytest.raises(RuntimeError, match="test failed"):
         async with guarded_connection(engine, config):
             raise RuntimeError("test failed")
+
     assert "RELEASE_LOCK" in str(connection.execute.await_args_list[-1].args[0])
     connection.rollback.assert_awaited_once()
 
@@ -138,8 +147,10 @@ async def test_reset_rechecks_connected_identity_before_delete() -> None:
     connection = AsyncMock(spec=AsyncConnection)
     connection.engine = Mock(spec=AsyncEngine, url=config.url)
     connection.execute.return_value = Mock(one=Mock(return_value=("mysql", "root@%")))
+
     with pytest.raises(ValueError, match="Refusing reset"):
         await clear_application_rows(connection, config)
+
     assert connection.execute.await_count == 1
 
 
@@ -154,6 +165,7 @@ def test_rejected_cli_configuration_does_not_expose_credentials() -> None:
         text=True,
         timeout=10,
     )
+
     assert result.returncode == 1
     assert "private-value-never-log" not in result.stdout + result.stderr
     assert "Traceback" not in result.stderr
@@ -183,6 +195,7 @@ def test_competing_command_is_rejected_before_touching_infrastructure(
             text=True,
             timeout=10,
         )
+
     assert (
         result.returncode == 1
         and "Another disposable test command is active" in result.stderr
@@ -198,6 +211,7 @@ def test_command_lock_releases_after_failure(
     with pytest.raises(RuntimeError):
         with command_lock():
             raise RuntimeError("test failed")
+
     with command_lock():
         pass
 
@@ -209,6 +223,7 @@ def test_migration_failure_still_collects_logs_and_cleans_up(
 
     def compose(config: object, *args: str) -> int:
         events.append(args)
+
         return 0
 
     monkeypatch.setattr(test_db, "compose", compose)
@@ -216,8 +231,10 @@ def test_migration_failure_still_collects_logs_and_cleans_up(
         test_db, "migration", AsyncMock(side_effect=RuntimeError("migration failed"))
     )
     args = argparse.Namespace(action="test", layer="integration", keep_db=False)
+
     with pytest.raises(RuntimeError, match="migration failed"):
         test_db.dispatch(load_test_config({}), args)
+
     assert events[0][0] == "up"
     assert events[1][0] == "logs" and events[2] == ("down", "--volumes")
 
@@ -230,6 +247,7 @@ def test_collection_and_test_exit_codes_preserve_cleanup(
 
     def compose(config: object, *args: str) -> int:
         events.append(args)
+
         return 0
 
     monkeypatch.setattr(test_db, "compose", compose)
@@ -244,8 +262,10 @@ def test_collection_and_test_exit_codes_preserve_cleanup(
         ),
     )
     called = Mock(return_value=test_result)
+
     monkeypatch.setattr(test_db.subprocess, "call", called)
     args = argparse.Namespace(action="test", layer="integration", keep_db=False)
+
     assert test_db.dispatch(load_test_config({}), args) == (collected or test_result)
     assert called.call_count == (0 if collected else 1)
     assert events[-1] == ("down", "--volumes")
@@ -282,6 +302,7 @@ def test_unavailable_mysql_fails_without_fallback(tmp_path: Path) -> None:
             text=True,
             timeout=30,
         )
+
     assert result.returncode == 1
     assert "Persistence backend: mysql" in result.stdout
     assert "1 error" in result.stdout
