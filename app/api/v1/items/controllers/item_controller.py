@@ -30,7 +30,7 @@ router = FlexibleRouter(route_class=ApplicationRoute)
     status_code=status.HTTP_201_CREATED,
 )
 @transactional
-@idempotent(caller_scope="public", operation="items.create", route="POST /api/v1/items")
+@idempotent(operation="items.create")
 async def create(
     payload: ItemBase, service: ItemService = Depends(get_item_service)
 ) -> ItemResponse:
@@ -109,9 +109,7 @@ async def get(
     },
 )
 @transactional
-@idempotent(
-    caller_scope="public", operation="items.update", route="PATCH /api/v1/items/:id"
-)
+@idempotent(operation="items.update")
 async def update(
     id: EntityId,
     payload: UpdateItemRequest,
@@ -143,9 +141,7 @@ async def update(
     },
 )
 @transactional
-@idempotent(
-    caller_scope="public", operation="items.replace", route="PUT /api/v1/items/:id"
-)
+@idempotent(operation="items.replace")
 async def replace(
     id: EntityId,
     payload: ReplaceItemRequest,
@@ -178,9 +174,7 @@ async def replace(
 )
 @transactional
 @idempotent(
-    caller_scope="public",
     operation="items.delete",
-    route="POST /api/v1/items/:id/delete",
 )
 async def delete(
     id: EntityId,
