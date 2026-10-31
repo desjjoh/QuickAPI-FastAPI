@@ -128,3 +128,64 @@ def test_invalid_declarations_fail_when_routes_are_registered() -> None:
         )
         async def unowned() -> dict[str, bool]:
             return {'ok': True}
+
+
+@pytest.mark.parametrize('path', ['/api/v1/items/{id}', '/api/v1/items/{id}/'])
+def test_automatic_route_preserves_persisted_identity(path: str) -> None:
+    from fastapi import Request
+    from fastapi.routing import APIRoute
+
+    from app.common.models.idempotency_model import (
+        PUBLIC_IDEMPOTENCY_SCOPE,
+        IdempotencyPolicy,
+        resolve_route,
+    )
+
+    async def endpoint(id: str) -> None:
+        pass
+
+    route = APIRoute(path, endpoint, methods=['PATCH'])
+    request = Request(
+        {
+            'type': 'http',
+            'method': 'PATCH',
+            'path': '/API/V1/ITEMS/AbCd/',
+            'route': route,
+        }
+    )
+    policy = IdempotencyPolicy('items.update', None, PUBLIC_IDEMPOTENCY_SCOPE)
+
+    assert resolve_route(request, policy) == 'PATCH /api/v1/items/:id'
+    assert (
+        resolve_route(
+            request,
+            IdempotencyPolicy('items.update', 'custom', PUBLIC_IDEMPOTENCY_SCOPE),
+        )
+        == 'custom'
+    )
+
+
+def test_default_public_scope_and_explicit_overrides() -> None:
+    from app.common.models.idempotency_model import (
+        IDEMPOTENCY_MARKER,
+        PUBLIC_IDEMPOTENCY_SCOPE,
+        IdempotencyPolicy,
+        idempotent,
+    )
+
+    async def endpoint() -> None:
+        pass
+
+    decorated = idempotent(operation='items.create')(endpoint)
+
+    assert getattr(decorated, IDEMPOTENCY_MARKER) == IdempotencyPolicy('items.create')
+    assert IdempotencyPolicy('items.create').caller_scope == PUBLIC_IDEMPOTENCY_SCOPE
+
+    def caller(request: object) -> str:
+        return 'user:123'
+
+    assert IdempotencyPolicy('items.create', caller_scope=caller).caller_scope is caller
+    assert (
+        IdempotencyPolicy('items.create', caller_scope='tenant:123').caller_scope
+        == 'tenant:123'
+    )

@@ -35,7 +35,6 @@ need no retry logic. For example:
 @idempotent(
     operation="widgets.create",
     route="POST /api/v1/widgets",
-    caller_scope="public",
 )
 async def create(
     payload: CreateWidgetRequest,
@@ -48,7 +47,9 @@ async def create(
 
 Import `transactional` from `app.common.handlers.application_route` and `idempotent`
 from `app.common.models.idempotency_model`. The widget names illustrate another domain.
-Caller scope is required: use `"public"` deliberately for public operations, or a
+Route identity defaults to the matched canonical route template and HTTP method. Case and slash aliases share the same persisted scope; parameter values remain in the fingerprint. An explicit `route` overrides this default for compatibility. Import `PUBLIC_IDEMPOTENCY_SCOPE` from `app.common.models.idempotency_model`.
+
+Caller scope defaults to `PUBLIC_IDEMPOTENCY_SCOPE`. Override `caller_scope` with an explicit scope or a
 function returning an authenticated identity from `request.state` after normal
 authorization dependencies run. Header values alone do not establish identity.
 

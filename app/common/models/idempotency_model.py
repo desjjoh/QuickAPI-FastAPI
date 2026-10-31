@@ -14,6 +14,8 @@ from uuid import UUID
 from fastapi import HTTPException, Request
 from pydantic import BaseModel, SecretBytes, SecretStr
 
+PUBLIC_IDEMPOTENCY_SCOPE = 'public'
+
 IDEMPOTENCY_MARKER = '__quickapi_idempotency__'
 # A compatibility label, not a new hash prefix: existing persisted hashes stay valid.
 FINGERPRINT_FORMAT = 'quickapi-json-v1'
@@ -25,11 +27,13 @@ KEY_ERROR = 'Idempotency-Key must be one opaque 1\u2013128 character printable A
 @dataclass(frozen=True)
 class IdempotencyPolicy:
     operation: str
-    route: str
-    caller_scope: str | Callable[[Request], str]
+    route: str | None = None
+    caller_scope: str | Callable[[Request], str] = PUBLIC_IDEMPOTENCY_SCOPE
 
     def __post_init__(self) -> None:
-        if not 1 <= len(self.operation) <= 128 or not 1 <= len(self.route) <= 512:
+        if not 1 <= len(self.operation) <= 128 or (
+            self.route is not None and not 1 <= len(self.route) <= 512
+        ):
             raise ValueError(
                 'Idempotency requires a bounded operation and stable public route template.'
             )
@@ -46,8 +50,8 @@ class IdempotencyPolicy:
 def idempotent[Endpoint: Callable[..., Any]](
     *,
     operation: str,
-    route: str,
-    caller_scope: str | Callable[[Request], str],
+    route: str | None = None,
+    caller_scope: str | Callable[[Request], str] = PUBLIC_IDEMPOTENCY_SCOPE,
 ) -> Callable[[Endpoint], Endpoint]:
     policy = IdempotencyPolicy(operation, route, caller_scope)
 
@@ -57,6 +61,23 @@ def idempotent[Endpoint: Callable[..., Any]](
         return endpoint
 
     return declare
+
+
+def resolve_route(request: Request, policy: IdempotencyPolicy) -> str:
+    if policy.route is not None:
+        return policy.route
+
+    route = request.scope.get('route')
+    template = getattr(route, 'path_format', None)
+
+    if not isinstance(template, str):
+        raise RuntimeError('Automatic idempotency requires a matched route template.')
+
+    # Preserve the existing persisted Express-style identity, including aliases.
+    template = template.rstrip('/') or '/'
+    template = re.sub(r'{([^}]+)}', r':\1', template)
+
+    return f'{request.method} {template}'
 
 
 def read_key(request: Request) -> str | None:

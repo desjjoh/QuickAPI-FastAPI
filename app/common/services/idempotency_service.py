@@ -13,7 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 
 from app.common.handlers.request_activity import request_activity
-from app.common.models.idempotency_model import IdempotencyPolicy, digest
+from app.common.models.idempotency_model import IdempotencyPolicy, digest, resolve_route
 from app.config.environment import settings
 from app.config.logging import log
 from app.database.entities.idempotency_orm import IdempotencyORM
@@ -68,7 +68,7 @@ class IdempotencyExecution:
                 namespace,
                 caller,
                 self.policy.operation,
-                self.policy.route,
+                resolve_route(self.request, self.policy),
                 self.key,
             ]
         )
@@ -123,7 +123,7 @@ class IdempotencyExecution:
                 namespace=namespace,
                 caller_scope=caller,
                 operation=self.policy.operation,
-                route=self.policy.route,
+                route=resolve_route(self.request, self.policy),
                 fingerprint=fingerprint,
                 state='processing',
             ),
