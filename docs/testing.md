@@ -2,19 +2,6 @@
 
 [Documentation index](../README.md#documentation)
 
-[Mutation transactions](transactions.md) defines the route decorator, shared session,
-repository caller obligations, and response-before-commit verification.
-
-[Graceful shutdown](shutdown.md) defines request admission, draining, deadlines,
-entrypoint ownership, and process verification.
-
-[Database readiness and recovery](database-lifecycle.md) documents probe deadlines,
-shared checks, startup cleanup, and runtime recovery behavior.
-
-[Durable mutation retries](idempotency.md) documents shared route policies,
-replay storage and cleanup. Focused Windows checks cover keyed item mutations,
-another domain, concurrent claims, migration/rollback, and real MySQL/HTTP loss.
-
 ## Setup and test boundaries
 
 Use Python 3.12 and install [requirements-dev.txt](../requirements-dev.txt) in the
@@ -26,11 +13,11 @@ MySQL through `mysql+asyncmy` is the only supported database. All persistence,
 migration, pool/session, readiness/recovery, and database-backed process checks use
 real disposable MySQL. Unit checks use test doubles and need no running database.
 
-| Layer | Location | Boundary |
-| --- | --- | --- |
-| Unit | `tests/unit/` | Isolated models, handlers, middleware, configuration and utilities |
+| Layer       | Location             | Boundary                                                                     |
+| ----------- | -------------------- | ---------------------------------------------------------------------------- |
+| Unit        | `tests/unit/`        | Isolated models, handlers, middleware, configuration and utilities           |
 | Integration | `tests/integration/` | MySQL repositories/migrations, application stack, real sockets and processes |
-| E2E | `tests/e2e/` | Complete application lifespan and HTTP over isolated MySQL persistence |
+| E2E         | `tests/e2e/`         | Complete application lifespan and HTTP over isolated MySQL persistence       |
 
 Fixtures load `.env.test`, verify live identity, and hold an exclusive reset guard.
 Destructive migration cases restore the baseline before releasing that guard.
@@ -63,10 +50,10 @@ start Docker or substitute a different backend. Use `--no-cov` for partial selec
 that cannot meet the full application's coverage threshold.
 
 Pytest `.` means passed, `s` means skipped, and `F` means failed. Use `-rs` to show
-skip reasons. Windows skips the two POSIX-only native entrypoint signal cases;
-Linux executes them. The MySQL outage case runs on both platforms. Five dedicated
+skip reasons. Windows skips POSIX-only native entrypoint signal cases;
+Linux executes them. The MySQL outage case runs on both platforms. Dedicated
 TLS cases are explicitly deselected from ordinary runs and run via the TLS command.
-Test counts are recorded in [Verification](verification.md), not fixed as a contract.
+Interpret skipped/deselected cases separately from passed checks; counts are not a fixed contract.
 
 ## Quality gates
 
@@ -76,7 +63,7 @@ python -m ruff check app tests scripts
 python -m mypy app scripts
 ```
 
-[Python formatting](formatting.md) defines logical statement spacing and editor
+[Python formatting](setup.md#formatting-and-readability) defines logical statement spacing and editor
 integration. The combined check includes Black and fails for missing logical blank
 lines. Run `python -m scripts.format_code` to apply the same policy locally.
 
@@ -146,109 +133,194 @@ unchanged collection state and fresh writes after readiness. Both API instances
 must terminate cleanly. This does not test MySQL restarts or volume durability.
 
 Required check names and removal of obsolete duplicate contexts are documented in
-[Branch protections](branch-protection.md). Workflow definitions and local checks do
+[Branch protections](testing.md#branch-protection). Workflow definitions and local checks do
 not establish hosted success or ruleset enforcement. The aggregate gate must be
 verified on GitHub before replacing individual required checks. Representative future migrations, database-volume durability,
 backup restoration and candidate-bound release publication remain separately scoped.
 
-## Regression coverage
+## Database safety
 
-The manual [retained-image rollback check](releases.md#disposable-qualification)
+### Development and test databases
+
+| Purpose     | Compose project         | Host connection  | Storage                                                     |
+| ----------- | ----------------------- | ---------------- | ----------------------------------------------------------- |
+| Development | `quickapi-fastapi-dev`  | `127.0.0.1:3310` | Named volume, retained across restarts                      |
+| Tests       | `quickapi-fastapi-test` | `127.0.0.1:3311` | Temporary MySQL storage, discarded when the container stops |
+
+Both use MySQL 8.4.6. The test project uses `docker-compose.test.yml` and the
+committed `.env.test`, with dedicated local-only credentials. These are disposable
+infrastructure credentials, not deployment secrets. Normal API startup uses `.env`;
+the test wrapper explicitly selects the test connection and never falls back to the
+development `DATABASE_URL`.
+
+Use Python 3.12 with the project virtual environment activated. Run commands from
+the repository root. Docker must be running. Development MySQL can remain running
+while tests execute.
+
+### Keep the test database for inspection
+
+```powershell
+python -m scripts.test_db test --keep-db
+python -m scripts.test_db current
+python -m scripts.test_db check
+python -m scripts.test_db logs
+python -m scripts.test_db down
+```
+
+`--keep-db` retains the disposable service after success or failure. Application
+rows are cleaned between database-backed tests, including assertion failures;
+retaining the service does not promise that a failed test's rows remain available.
+Migration history is preserved during row cleanup. `down` removes only the fixed
+test Compose project. Stopping/recreating its MySQL container discards its temporary
+data; do not store development work there.
+
+### Test database migration commands
+
+The wrapper loads `.env.test`, validates the target, verifies its live database/user,
+and uses the same checked-in Alembic migration files as development and deployment.
+There is no separate test migration chain.
+
+```powershell
+python -m scripts.test_db up
+python -m scripts.test_db migrate
+python -m scripts.test_db current
+python -m scripts.test_db heads
+python -m scripts.test_db history
+python -m scripts.test_db check
+```
+
+`up` starts infrastructure only. `migrate` applies pending revisions through `head`.
+`current` reads the applied revision; `heads`/`history` inspect source revisions.
+`check` compares the connected schema with the models. Do not use `stamp head` to
+bypass a mismatch. A normal `test` run applies pending migrations automatically
+before tests; direct MySQL fixture use requires a current revision.
+
+#### Creating a migration
+
+Normally create and review schema changes against the development database using
+the [migration authoring guide](setup.md#database-migrations), then apply
+the same files to the disposable test database with `migrate` and run tests.
+
+To deliberately generate a proposed revision against the test database instead:
+
+```powershell
+python -m scripts.test_db up
+python -m scripts.test_db migrate
+# Change the SQLAlchemy models before generating the proposal.
+python -m scripts.test_db revision --message "describe the schema change"
+python -m scripts.format_code
+python -m ruff check app tests scripts
+# Review upgrade/downgrade operations before applying them.
+python -m scripts.test_db migrate
+python -m scripts.test_db check
+python -m scripts.test_db test
+```
+
+Generation writes a revision under `app/database/migrations/versions/`; it does not
+apply it. Review the file, add appropriate migration tests, and commit it with the
+model changes. Autogeneration does not reliably infer renames, data backfills, or
+application compatibility. Avoid generating empty revisions when models have not
+changed.
+
+#### Downgrade or reset
+
+For a deliberate disposable downgrade/reapply check:
+
+```powershell
+python -m scripts.test_db downgrade --revision=-1
+python -m scripts.test_db migrate
+```
+
+The initial revision's downgrade drops `items`, losing its rows. A downgrade is not
+a data restore or proof that an older app can use the schema. MySQL DDL cannot be
+assumed to roll back transactionally after failure.
+
+For a fresh test instance:
+
+```powershell
+python -m scripts.test_db down
+python -m scripts.test_db up
+python -m scripts.test_db migrate
+```
+
+### TLS qualification
+
+Generated certificate directories use mode `0755` and their files use `0644` so
+the container's MySQL user can read the read-only mount on native Linux, regardless
+of the host user's UID. This includes the disposable test key; these permissions
+are for ephemeral test credentials, not deployment private keys. The command
+removes the generated directory after stopping the TLS container.
+
+`python -m scripts.test_db tls` creates an independent temporary CA/server and MySQL project on loopback port 3312. It verifies encryption, trust/identity rejection, stalled TLS setup cleanup, and the native API entrypoint, then removes those resources. These cases are explicitly deselected from ordinary runs and executed by the MySQL integration CI job. See [Database capacity and transport](configuration.md#database-capacity-and-tls) for policy and Windows loop requirements.
+
+### Configuration and safeguards
+
+`.env.test` is the explicit base. Process `TEST_*`, `DB_*` variables and `ENV` can override
+it; an inherited production/development `ENV` is rejected. The ordinary
+`DATABASE_URL` is ignored as a test target. Required checks include:
+
+- `ENV=test` and literal `TEST_DB_ENABLED=true`.
+- A database named `quickapi_fastapi_disposable_test`, optionally followed by an
+  underscore and an alphanumeric isolation suffix; development/sibling/system names
+  do not qualify.
+- User `quickapi_fastapi_test`, with a matching URL, password, and numeric test port.
+- A local/test host (`127.0.0.1`, `localhost`, `::1`, `mysql-test`, `mysql-tls-test`), or an exact host
+  explicitly listed in `TEST_DB_ALLOWED_HOSTS`. Driver query options are rejected.
+- Matching engine URL and live `DATABASE()` / `CURRENT_USER()` before admission;
+  live identity is rechecked before row deletion.
+
+To change the local test port, update both `TEST_MYSQL_PORT` and the port in
+`TEST_DATABASE_URL`. Native access uses the published host port; a container-side
+connection must explicitly use its own host/port configuration. Credentials/name
+changes require a fresh test instance. Do not repoint the disposable configuration
+to an ordinary database.
+
+Database-writing tests run serially and use real commits. A MySQL advisory lock is
+held across each fixture's setup, test, and cleanup. Migration commands acquire the
+same lock. A process lock prevents overlapping local wrapper commands from tearing
+down each other's Docker infrastructure. Competing commands fail rather than reset
+an active target. pytest-xdist workers are rejected. Raw Docker commands bypass the
+wrapper safeguards; use the documented wrapper for normal work.
+
+### CI and troubleshooting
+
+The Quality workflow runs `mysql-tests (integration)` and `mysql-tests (e2e)` on
+separate runners. Combined coverage and the existing production-container job depend
+on their success. Failed MySQL jobs capture bounded container logs as artifacts and
+always attempt cleanup. Add these check names to branch protection after confirming
+their actual hosted runs; local results do not establish GitHub enforcement.
+
+If a command fails, check Docker availability, `logs`, test-port availability,
+configuration safety, and `current`/`check`. Driver failures use a fixed diagnostic
+instead of printing credentials or raw SQL. Configuration rejection identifies the
+violated guard without echoing connection secrets. A lock failure means another
+test/command owns the target; let that work finish before retrying.
+
+These suites establish application persistence behavior on disposable MySQL. They
+do not qualify representative future backfills, production-image MySQL smoke,
+all pool/TLS faults, all database outages, or deployed backup/recovery. See
+
+## Regression boundaries
+
+### Regression coverage
+
+The manual [retained-image rollback check](deployment.md#releases-and-rollback)
 uses an isolated MySQL project and two published digests. Offline Windows checks
 in `tests/unit/config/test_rollback.py` cover reference/schema rejection, transition
 ordering, retained-state/replay assertions and cleanup failures. Actual image
 rollback requires a hosted run with two compatible retained releases.
 
-[Release qualification](releases.md) builds one source-bound candidate and reuses
+[Release qualification](deployment.md#releases-and-rollback) builds one source-bound candidate and reuses
 the MySQL image checks plus critical-only scanner policy before publication.
 `tests/unit/config/test_release.py` tests source/OCI/evidence/publication failure
 boundaries offline on Windows. Live release builds, attestations, scans and the
 disposable registry round-trip run in the release workflow, including dry-runs.
 
-Place tests at the boundary that owns the behavior. Record actual source identity,
-environment, passed/failed/skipped results and limitations in
-[Verification](verification.md). Historical records describe their original source
-and do not define the current supported database configuration.
+Place tests at the boundary that owns the behavior. Record source identity,
+environment, passed/failed/skipped outcomes, and limitations with the change or
+release. Historical executions do not define the current supported configuration.
 
-## HTTP deadline and streaming checks
-
-The [timeout test guide](request-timeouts.md#verification) describes focused unit checks and real loopback Uvicorn integration checks on both h11 and httptools. The socket checks run in the existing integration layer; they are not production-only endpoints or MySQL verification.
-
-## Request outcome regression coverage
-
-[Outcome unit tests](../tests/unit/middleware/test_request_outcome.py) exercise
-completion/abort races, header state, channel failures, cancellation, post-response
-cleanup, duplicate/late subscribers, method bounds, and full declared mount templates.
-[Application and real-server checks](../tests/integration/middleware/test_request_outcomes.py)
-verify bounded series across varying IDs, unknown paths and methods, completed policy
-rejections/final 500s, concurrent request correlation, and matching log/metric durations.
-Eight outcome cases run real Uvicorn sockets with both h11 and httptools: pre-header
-408, ordinary-handler disconnect, streaming timeout, and streaming disconnect. They
-assert metrics/access logs settle before cancellation-resistant cleanup and remain
-unchanged after it. These supplement twelve socket deadline cases in
-[timeout tests](../tests/integration/middleware/test_timeout_server.py); HTTPX ASGI
-transport alone cannot prove socket disconnect or truncated-body behavior.
-
-## HTTP policy regression coverage
-
-[Environment tests](../tests/unit/config/test_environment.py) cover defaults, exact
-CSV syntax, bounds/relationships, malformed values, process/dotenv precedence, and
-agreement between commented example values and code defaults.
-[Proxy unit tests](../tests/unit/middleware/test_trusted_proxy.py) cover IPv4/IPv6,
-right-to-left trust chains, malformed/duplicate/unsupported forwarding, direct peers,
-non-HTTP scopes, and original header budgets.
-[Policy integration tests](../tests/integration/middleware/test_http_policy.py)
-exercise configured browser preflight/response headers, custom header/media policy,
-raw-header and body/method rejection, and six real Uvicorn socket cases across h11
-and httptools for trusted/untrusted identity and configured response deadlines.
-The socket harness disables Uvicorn proxy rewriting to exercise app-owned trust.
-Deployment-specific slow-header protection remains unverified and open.
-
-## Operational exposure regression coverage
-
-[Operational integration tests](../tests/integration/middleware/test_operational_exposure.py)
-exercise environment defaults, all eight independent flag combinations, disabled route
-families/methods/assets/redirects, mounted paths, forwarding behavior, handler non-execution,
-per-app route isolation, registered OpenAPI paths, continued metric collection, and
-minimal public probes with dependencies up/down. Two real-server cases cover production
-defaults across h11/httptools. Environment tests also reject ambiguous flag values and
-verify explicit overrides. Controller/model/E2E/OpenAPI checks enforce the minimal
-public readiness contract.
-
-## Bounded rate-limit regression coverage
-
-[Core limiter tests](../tests/unit/config/test_rate_limiter.py) cover exact rolling
-boundaries/ring reuse, sustained rejection without growth/extended expiry, distinct
-identity floods, tracked-client admission at capacity, ordered reclamation, long keys,
-instance independence, constructor bounds, and atomic thread admission.
-[HTTP tests](../tests/integration/middleware/test_rate_limiting.py) cover remaining
-retry timing, 429/503 envelopes, trusted/untrusted identity, probe/other-route accounting,
-preflights and CORS rejection ordering, raw-header protection, and favicon GET/HEAD
-exemption. Two real Uvicorn cases exercise concurrent bursts, isolation, capacity,
-and exact recovery across h11/httptools. Environment tests cover all three settings,
-strict types/ranges, the combined slot ceiling, and env-example/default consistency.
-
-## Logging privacy checks
-
-[Logging tests](logging.md#verification) capture actual console/JSON output, including
-fresh processes and real server failures. They verify level filtering, single-line
-presentation, metadata exclusion, request correlation after context cleanup, diagnostic
-allowlists/fingerprints, safe bootstrap failures, and Windows-compatible output. The
-complete suite also protects request/timeout outcome semantics and public error contracts.
-
-## Migration checks
-
-`python -m pytest -q tests/integration/database/test_migrations.py --no-cov` exercises the baseline, read-only startup rejection, model comparison, repeat application, incompatible history, downgrade/reapply, and online/offline execution. Persistence fixtures apply the migration chain explicitly rather than creating ORM tables. See [Migrations](migrations.md) for commands and limitations.
-
-## Disposable MySQL commands
-
-`python -m scripts.test_db test` starts and migrates isolated MySQL, runs unit/integration/E2E tests with coverage, and cleans up. Use `--layer integration` or `--layer e2e` for the separate CI selections. [Disposable MySQL testing](mysql-testing.md) documents `.env.test`, migration generation/application, safety checks, and inspection/reset commands.
-
-## Database capacity and TLS
-
-[Database transport tests](database-settings.md#verification-commands) exercise actual pool saturation, queue expiry/cancellation, invalidation/disposal, and stalled connection setup. Dedicated TLS cases run through `python -m scripts.test_db tls` and are part of the MySQL integration CI job. They are explicitly deselected from default compatibility runs, with their results recorded separately.
-
-## Mutation expiry and uncertain outcomes
+### Mutation expiry and uncertain outcomes
 
 `python -m pytest -q tests/integration/database/test_mutation_expiry.py --no-cov`
 requires the started, migrated disposable MySQL server. It uses real HTTP sockets,
@@ -258,7 +330,27 @@ success response. Checks include disconnect/server cancellation, caught
 cancellation, expired acquisition, cleanup failure, invalidation and pool recovery.
 Rollback-command and acknowledgement loss verify retirement of the broken lease,
 unchanged data, disappearance of the server session, and recovery of a queued caller.
-The [shutdown process checks](shutdown.md#verification) exercise expired marked
+The [shutdown process checks](deployment.md#graceful-shutdown) exercise expired marked
 transactions during graceful termination and forced termination of stuck work.
 The regular MySQL integration job and full-suite wrapper include these tests.
-See [Mutation transactions](transactions.md#expiry-and-commit-outcomes) for limits.
+See [Mutation transactions](architecture.md#mutation-transactions) for limits.
+
+## Branch protection
+
+The checked-in `Quality` workflow runs for main/dev/staging pull requests and
+pushes, merge groups, manual dispatch, and reusable calls. Its always-running
+`Deployment gate` requires explicit success from every prerequisite, including
+security and production-container qualification; skipped/cancelled/missing work
+is not approval. Require that aggregate from GitHub Actions for the candidate SHA.
+
+Saved rulesets are GitHub settings. Inspect them before changing required checks,
+preserve intended branch/PR and administrator-bypass policy, and verify saved
+settings and actual candidate results. Workflow definitions or local test success
+do not establish live enforcement.
+
+The intended ruleset targets main/dev/staging, restricts deletion and non-fast-forward
+pushes, and requires PRs plus the GitHub Actions `Deployment gate`. It permits merge,
+squash, and rebase; requires zero approving reviews; does not require code-owner or
+last-push approval, stale-review dismissal, conversation resolution, or up-to-date
+branches; and explicitly allows administrator bypass. Confirm saved settings rather
+than inferring enforcement from this document.

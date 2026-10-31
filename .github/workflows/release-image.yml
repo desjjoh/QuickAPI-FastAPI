@@ -148,6 +148,6 @@ jobs:
             ${{ runner.temp }}/release-evidence/
             test-artifacts/production-mysql.log
             security/container-vulnerability-exceptions.json
-            security/container-vulnerability-exceptions.md
+            docs/security.md
           retention-days: 90
           if-no-files-found: error
